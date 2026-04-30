@@ -25,12 +25,13 @@ import WarehouseBuilder from '../components/WarehouseBuilder';
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('map');
+  const initialTab = isFounder ? 'home' : 'map';
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [enteredWarehouse, setEnteredWarehouse] = useState(false);
   const [currentZone, setCurrentZone] = useState(null);
   const [currentShelf, setCurrentShelf] = useState(null);
   const [currentBox, setCurrentBox] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
-  const [showWarehousesHome, setShowWarehousesHome] = useState(false);
   const [data, setData] = useState({
     boxes: [], items: [], checkouts: [], damaged: [], donated: [],
     log: [], requests: [], users: [], zones: []
@@ -77,12 +78,14 @@ export default function Dashboard() {
   const role = profile?.role || 'user';
   const isManager = isFounder || isSysadmin || data.users.find(u => u.user_id === user?.id)?.role === 'whmanager';
 
+  // الترتيب: المستودعات (للمؤسّس) أو المستودع (لغير المؤسّس) ثم بقيّة التبويبات
   const tabs = [];
   if (isFounder) {
     tabs.push({ key: 'home', label: '🏢 المستودعات' });
+  } else {
+    tabs.push({ key: 'map', label: 'المستودع' });
   }
   tabs.push(
-    { key: 'map', label: 'المستودع' },
     { key: 'checkouts', label: 'الإخراج/الإرجاع', badge: overdueCount },
     { key: 'damaged', label: 'المتلفات' },
     { key: 'donated', label: 'الدعم' },
@@ -109,6 +112,7 @@ export default function Dashboard() {
     setCurrentZone(null);
     setCurrentShelf(null);
     setCurrentBox(null);
+    if (t === 'home') setEnteredWarehouse(false);
   }
 
   function backToMap()    { setCurrentZone(null); setCurrentShelf(null); setCurrentBox(null); }
@@ -118,9 +122,38 @@ export default function Dashboard() {
   function openShelf(shelf) { setCurrentShelf(shelf); setCurrentBox(null); }
   function openBox(box)     { setCurrentBox(box); }
 
+  function handleEnterWarehouseFromHome(whId) {
+    setWarehouseId?.(whId);
+    setEnteredWarehouse(true);
+    backToMap();
+  }
+
+  function handleExitWarehouse() {
+    setEnteredWarehouse(false);
+    backToMap();
+  }
+
   async function handleBuilderRefresh() {
     await refreshWarehouses();
     await loadAllData();
+  }
+
+  // ====== رسم رحلة الخريطة (الرئيسية → مساحة → رف → صندوق) ======
+  function renderMapDrillDown() {
+    if (!currentZone) {
+      return <WarehouseMap data={data} onZoneClick={openZone} onRefresh={loadAllData} />;
+    }
+    if (!currentShelf) {
+      return <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onRefresh={loadAllData} />;
+    }
+    if (!currentBox) {
+      return <ShelfView zone={currentZone} shelf={currentShelf} data={data}
+        onBackToMap={backToMap} onBackToZone={backToZone}
+        onBoxClick={openBox} onRefresh={loadAllData} />;
+    }
+    return <BoxView zone={currentZone} shelf={currentShelf} box={currentBox} data={data}
+      onBackToMap={backToMap} onBackToZone={backToZone} onBackToShelf={backToShelf}
+      onRefresh={loadAllData} />;
   }
 
   if (loading && data.zones.length === 0) {
@@ -134,6 +167,10 @@ export default function Dashboard() {
     );
   }
 
+  // عند المؤسّس على تبويب المستودعات وقد دخل مستودعاً، نعرض الخريطة مع زر رجوع
+  const showHomeContent = activeTab === 'home' && isFounder && !enteredWarehouse;
+  const showMapContent  = (activeTab === 'home' && isFounder && enteredWarehouse) || (activeTab === 'map');
+
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Top Bar */}
@@ -142,15 +179,6 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-brand-blue text-white flex items-center justify-center font-display font-bold">س</div>
             <WarehouseSwitcher />
-            {isFounder && (
-              <button
-                onClick={() => setShowBuilder(true)}
-                className="hidden sm:inline-flex items-center gap-1 text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg font-medium"
-                title="منشئ المستودع — للمؤسّس"
-              >
-                🏗 المنشئ
-              </button>
-            )}
           </div>
           <div className="flex items-center gap-3">
             {isFounder && profile?.stealth_mode && (
@@ -206,31 +234,29 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Tab Content */}
+        {/* عند الدخول لمستودع: شريط رجوع للمستودعات + اسم المستودع */}
+        {activeTab === 'home' && isFounder && enteredWarehouse && (
+          <div className="bg-white border border-stone-200 rounded-xl px-4 py-2 mb-4 flex items-center justify-between gap-2">
+            <button onClick={handleExitWarehouse}
+              className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 flex items-center gap-1">
+              ← الرجوع لقائمة المستودعات
+            </button>
+            <div className="text-xs text-stone-600 flex items-center gap-1">
+              <span>📦</span>
+              <span className="font-bold">{activeWarehouse?.name}</span>
+            </div>
+          </div>
+        )}
+
+        {/* محتوى التبويبات */}
         <div className="animate-fade-in">
-          {activeTab === 'home' && isFounder && (
-            <WarehousesHome onEnterWarehouse={(whId) => {
-              setWarehouseId?.(whId);
-              setActiveTab('map');
-              backToMap();
-            }} onRefresh={refreshWarehouses} />
+          {showHomeContent && (
+            <WarehousesHome
+              onEnterWarehouse={handleEnterWarehouseFromHome}
+              onRefresh={refreshWarehouses}
+            />
           )}
-          {activeTab === 'map' && !currentZone && (
-            <WarehouseMap data={data} onZoneClick={openZone} onRefresh={loadAllData} />
-          )}
-          {activeTab === 'map' && currentZone && !currentShelf && (
-            <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onRefresh={loadAllData} />
-          )}
-          {activeTab === 'map' && currentZone && currentShelf && !currentBox && (
-            <ShelfView zone={currentZone} shelf={currentShelf} data={data}
-              onBackToMap={backToMap} onBackToZone={backToZone}
-              onBoxClick={openBox} onRefresh={loadAllData} />
-          )}
-          {activeTab === 'map' && currentZone && currentShelf && currentBox && (
-            <BoxView zone={currentZone} shelf={currentShelf} box={currentBox} data={data}
-              onBackToMap={backToMap} onBackToZone={backToZone} onBackToShelf={backToShelf}
-              onRefresh={loadAllData} />
-          )}
+          {showMapContent && renderMapDrillDown()}
           {activeTab === 'checkouts' && <CheckoutsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'donated' && <DonatedTab data={data} />}

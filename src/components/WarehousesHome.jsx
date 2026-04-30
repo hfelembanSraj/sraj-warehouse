@@ -2,23 +2,32 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { CreateWarehouseForm, EditWarehouseForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
-import { rpcCreateWarehouse, rpcRenameWarehouse, rpcDeleteWarehouse } from '../lib/warehouseOps';
+import { rpcCreateWarehouse, rpcRenameWarehouse, rpcDeleteWarehouse, fetchWarehouseLayout } from '../lib/warehouseOps';
+
+const VIEW_MODE_KEY = 'sraj.warehousesViewMode';
 
 export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
-  const { warehouses, isFounder, setWarehouseId } = useAuth();
+  const { warehouses, isFounder } = useAuth();
   const [stats, setStats] = useState({});
+  const [layouts, setLayouts] = useState({});
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, flash] = useFlash();
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'grid'); // grid | pages
 
   useEffect(() => {
-    loadStats();
-  }, [warehouses.length]);
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
-  async function loadStats() {
-    const result = {};
+  useEffect(() => {
+    loadStatsAndLayouts();
+  }, [warehouses.length, viewMode]);
+
+  async function loadStatsAndLayouts() {
+    const statsResult = {};
+    const layoutsResult = {};
     await Promise.all(warehouses.map(async (wh) => {
       const [zonesR, boxesR, itemsR] = await Promise.all([
         supabase.from('zones').select('id', { count: 'exact', head: true }).eq('warehouse_id', wh.id),
@@ -26,24 +35,31 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
         supabase.from('items').select('quantity, boxes!inner(warehouse_id)').eq('boxes.warehouse_id', wh.id)
       ]);
       const totalQty = (itemsR.data || []).reduce((s, it) => s + (it.quantity || 0), 0);
-      result[wh.id] = {
+      statsResult[wh.id] = {
         zones: zonesR.count || 0,
         boxes: boxesR.count || 0,
         items: totalQty
       };
+
+      // وضع "صفحات": نحتاج التخطيط الكامل لرسم المعاينة
+      if (viewMode === 'pages') {
+        const { data: layout } = await fetchWarehouseLayout(wh.id);
+        layoutsResult[wh.id] = layout;
+      }
     }));
-    setStats(result);
+    setStats(statsResult);
+    setLayouts(layoutsResult);
   }
 
   async function handleCreate(values) {
     setBusy(true);
-    const { data, error } = await rpcCreateWarehouse(values);
+    const { error } = await rpcCreateWarehouse(values);
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
     flash(`✅ تم إنشاء "${values.name}"`);
     setShowCreate(false);
     await onRefresh();
-    await loadStats();
+    await loadStatsAndLayouts();
   }
 
   async function handleRename(wh, values) {
@@ -69,7 +85,7 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تم الحذف');
     await onRefresh();
-    await loadStats();
+    await loadStatsAndLayouts();
   }
 
   if (!isFounder) {
@@ -89,10 +105,29 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
           <h2 className="text-base font-display font-bold">🏢 جميع المستودعات ({warehouses.length})</h2>
           <p className="text-xs text-stone-500 mt-0.5">اضغط على مستودع للدخول وإدارته</p>
         </div>
-        <button onClick={() => setShowCreate(s => !s)} disabled={busy}
-          className="text-xs bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium">
-          + إنشاء مستودع جديد
-        </button>
+        <div className="flex items-center gap-2">
+          {/* مبدّل وضع العرض */}
+          <div className="bg-stone-100 rounded-lg p-0.5 flex">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'grid' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}
+              title="عرض شبكي"
+            >
+              ▦ شبكة
+            </button>
+            <button
+              onClick={() => setViewMode('pages')}
+              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'pages' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}
+              title="عرض صفحات بصور مصغّرة"
+            >
+              📑 صفحات
+            </button>
+          </div>
+          <button onClick={() => setShowCreate(s => !s)} disabled={busy}
+            className="text-xs bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium">
+            + إنشاء مستودع جديد
+          </button>
+        </div>
       </div>
 
       {showCreate && (
@@ -105,66 +140,35 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
         </div>
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {warehouses.map(wh => {
-          const s = stats[wh.id] || {};
-          return (
-            <div key={wh.id} className="bg-white border border-stone-200 rounded-xl overflow-hidden hover:shadow-md transition">
-              <button
-                onClick={() => onEnterWarehouse(wh.id)}
-                className="w-full text-right p-4 hover:bg-stone-50 transition"
-              >
-                <div className="flex items-start gap-3 mb-2">
-                  <div className="w-12 h-12 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-2xl">📦</div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-display font-bold truncate">{wh.name}</h3>
-                    {wh.description && <p className="text-[11px] text-stone-500 truncate">{wh.description}</p>}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-1 text-center">
-                  <div className="bg-stone-50 rounded p-1.5">
-                    <div className="text-base font-bold">{s.zones ?? '—'}</div>
-                    <div className="text-[9px] text-stone-500">مساحات</div>
-                  </div>
-                  <div className="bg-stone-50 rounded p-1.5">
-                    <div className="text-base font-bold">{s.boxes ?? '—'}</div>
-                    <div className="text-[9px] text-stone-500">صناديق</div>
-                  </div>
-                  <div className="bg-stone-50 rounded p-1.5">
-                    <div className="text-base font-bold">{s.items ?? '—'}</div>
-                    <div className="text-[9px] text-stone-500">قطع</div>
-                  </div>
-                </div>
-                <div className="mt-2 text-[10px] text-stone-400 flex items-center justify-between">
-                  <span>{wh.width_m}م × {wh.depth_m}م</span>
-                  <span className="text-blue-600 font-medium">ادخل ←</span>
-                </div>
-              </button>
-              <div className="border-t border-stone-100 p-2 flex gap-1 bg-stone-50">
-                <button onClick={() => setEditingId(editingId === wh.id ? null : wh.id)} disabled={busy}
-                  className="flex-1 text-[11px] border border-stone-300 px-2 py-1.5 rounded bg-white hover:bg-stone-100">
-                  ✏️ تعديل المعلومات
-                </button>
-                <button onClick={() => setConfirming({ warehouse: wh })}
-                  disabled={busy || warehouses.length <= 1}
-                  className="text-[11px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100 disabled:opacity-30">
-                  🗑
-                </button>
-              </div>
-              {editingId === wh.id && (
-                <div className="bg-white border-t border-stone-200 p-3">
-                  <EditWarehouseForm
-                    initial={wh}
-                    busy={busy}
-                    onCancel={() => setEditingId(null)}
-                    onSave={(values) => handleRename(wh, values)}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {viewMode === 'grid' ? (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {warehouses.map(wh => (
+            <GridCard
+              key={wh.id} wh={wh} stats={stats[wh.id] || {}}
+              busy={busy} editingId={editingId} totalCount={warehouses.length}
+              onEnter={() => onEnterWarehouse(wh.id)}
+              onToggleEdit={() => setEditingId(editingId === wh.id ? null : wh.id)}
+              onCancelEdit={() => setEditingId(null)}
+              onRename={(values) => handleRename(wh, values)}
+              onDelete={() => setConfirming({ warehouse: wh })}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {warehouses.map(wh => (
+            <PageCard
+              key={wh.id} wh={wh} stats={stats[wh.id] || {}} layout={layouts[wh.id]}
+              busy={busy} editingId={editingId} totalCount={warehouses.length}
+              onEnter={() => onEnterWarehouse(wh.id)}
+              onToggleEdit={() => setEditingId(editingId === wh.id ? null : wh.id)}
+              onCancelEdit={() => setEditingId(null)}
+              onRename={(values) => handleRename(wh, values)}
+              onDelete={() => setConfirming({ warehouse: wh })}
+            />
+          ))}
+        </div>
+      )}
 
       {confirming && (
         <ConfirmDelete
@@ -175,5 +179,137 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
         />
       )}
     </>
+  );
+}
+
+// بطاقة العرض الشبكي
+function GridCard({ wh, stats, busy, editingId, totalCount, onEnter, onToggleEdit, onCancelEdit, onRename, onDelete }) {
+  return (
+    <div className="bg-white border border-stone-200 rounded-xl overflow-hidden hover:shadow-md transition">
+      <button onClick={onEnter} className="w-full text-right p-4 hover:bg-stone-50 transition">
+        <div className="flex items-start gap-3 mb-2">
+          <div className="w-12 h-12 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-2xl">📦</div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-display font-bold truncate">{wh.name}</h3>
+            {wh.description && <p className="text-[11px] text-stone-500 truncate">{wh.description}</p>}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1 text-center">
+          <Stat label="مساحات" value={stats.zones} />
+          <Stat label="صناديق" value={stats.boxes} />
+          <Stat label="قطع" value={stats.items} />
+        </div>
+        <div className="mt-2 text-[10px] text-stone-400 flex items-center justify-between">
+          <span>{wh.width_m}م × {wh.depth_m}م</span>
+          <span className="text-blue-600 font-medium">ادخل ←</span>
+        </div>
+      </button>
+      <div className="border-t border-stone-100 p-2 flex gap-1 bg-stone-50">
+        <button onClick={onToggleEdit} disabled={busy}
+          className="flex-1 text-[11px] border border-stone-300 px-2 py-1.5 rounded bg-white hover:bg-stone-100">
+          ✏️ تعديل المعلومات
+        </button>
+        <button onClick={onDelete}
+          disabled={busy || totalCount <= 1}
+          className="text-[11px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100 disabled:opacity-30">
+          🗑
+        </button>
+      </div>
+      {editingId === wh.id && (
+        <div className="bg-white border-t border-stone-200 p-3">
+          <EditWarehouseForm
+            initial={wh}
+            busy={busy}
+            onCancel={onCancelEdit}
+            onSave={onRename}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// بطاقة العرض على شكل صفحة بصورة مصغّرة عن المستودع
+function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onToggleEdit, onCancelEdit, onRename, onDelete }) {
+  const zones = layout?.zones || [];
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:shadow-lg transition shadow-sm">
+      <button onClick={onEnter} className="w-full text-right p-4 hover:bg-stone-50 transition">
+        {/* الصورة المصغّرة عن المستودع */}
+        <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl p-3 mb-3 border border-stone-200">
+          <div className="relative aspect-square bg-white rounded border-2 border-dashed border-stone-300 px-2 py-5">
+            <div className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[7px] text-stone-400">الجدار الخلفي</div>
+            {zones.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center text-stone-300 text-[10px]">
+                📭 فارغ
+              </div>
+            ) : (
+              zones.map(z => {
+                const style = {
+                  top:    z.pos_top    != null ? `${z.pos_top}%`    : undefined,
+                  left:   z.pos_left   != null ? `${z.pos_left}%`   : undefined,
+                  right:  z.pos_right  != null ? `${z.pos_right}%`  : undefined,
+                  width:  z.pos_width  != null ? `${z.pos_width}%`  : undefined,
+                  height: z.pos_height != null ? `${z.pos_height}%` : undefined,
+                  borderColor: z.color
+                };
+                return (
+                  <div key={z.id} style={style}
+                    className="absolute bg-white border-2 rounded p-0.5 flex flex-col items-center justify-center">
+                    <div className="text-[10px] font-display font-bold leading-none" style={{ color: z.color }}>{z.letter}</div>
+                  </div>
+                );
+              })
+            )}
+            <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t px-1.5 py-0.5 text-[7px] text-stone-600">المدخل</div>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2 mb-2">
+          <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-lg">📦</div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-display font-bold truncate">{wh.name}</h3>
+            {wh.description && <p className="text-[11px] text-stone-500 truncate">{wh.description}</p>}
+            <p className="text-[10px] text-stone-400 mt-0.5">{wh.width_m}م × {wh.depth_m}م</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1 text-center">
+          <Stat label="مساحات" value={stats.zones} />
+          <Stat label="صناديق" value={stats.boxes} />
+          <Stat label="قطع" value={stats.items} />
+        </div>
+        <div className="mt-2 text-center text-[11px] text-blue-600 font-medium">ادخل المستودع ←</div>
+      </button>
+      <div className="border-t border-stone-100 p-2 flex gap-1 bg-stone-50">
+        <button onClick={onToggleEdit} disabled={busy}
+          className="flex-1 text-[11px] border border-stone-300 px-2 py-1.5 rounded bg-white hover:bg-stone-100">
+          ✏️ تعديل المعلومات
+        </button>
+        <button onClick={onDelete}
+          disabled={busy || totalCount <= 1}
+          className="text-[11px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100 disabled:opacity-30">
+          🗑
+        </button>
+      </div>
+      {editingId === wh.id && (
+        <div className="bg-white border-t border-stone-200 p-3">
+          <EditWarehouseForm
+            initial={wh}
+            busy={busy}
+            onCancel={onCancelEdit}
+            onSave={onRename}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="bg-stone-50 rounded p-1.5">
+      <div className="text-base font-bold">{value ?? '—'}</div>
+      <div className="text-[9px] text-stone-500">{label}</div>
+    </div>
   );
 }
