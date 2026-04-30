@@ -122,7 +122,16 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-brand-blue text-white flex items-center justify-center font-display font-bold">س</div>
-            <WarehouseSwitcher onCreateNew={() => setShowBuilder(true)} />
+            <WarehouseSwitcher />
+            {isFounder && (
+              <button
+                onClick={() => setShowBuilder(true)}
+                className="hidden sm:inline-flex items-center gap-1 text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg font-medium"
+                title="منشئ المستودع — للمؤسّس"
+              >
+                🏗 المنشئ
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {isFounder && profile?.stealth_mode && (
