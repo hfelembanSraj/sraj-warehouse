@@ -159,7 +159,12 @@ export default function ShelfView({ zone, shelf, onBackToMap, onBackToZone, onBo
                 <div key={b.id} className="bg-amber-50 border border-amber-300 rounded-lg overflow-hidden">
                   <div className="p-3 flex items-center justify-between gap-2">
                     <button onClick={() => onBoxClick(b)} className="flex-1 text-right hover:bg-amber-100 -m-3 p-3 rounded-lg transition flex items-center gap-2">
-                      <div className="w-10 h-10 rounded bg-amber-200 text-amber-900 flex items-center justify-center font-bold text-xs">📦</div>
+                      {b.photo_url ? (
+                        <img src={b.photo_url} alt={b.code}
+                          className="w-12 h-12 object-cover rounded border border-amber-200" />
+                      ) : (
+                        <div className="w-12 h-12 rounded bg-amber-200 text-amber-900 flex items-center justify-center font-bold text-base">📦</div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-display font-bold">{b.code}</h4>
                         {b.description && <p className="text-[11px] text-stone-600 truncate">{b.description}</p>}

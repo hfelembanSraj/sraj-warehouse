@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { PRESET_COLORS, PRESET_POSITIONS } from '../lib/warehouseOps';
+import PhotoUploader from './PhotoUploader';
 
 // نموذج إنشاء مستودع
 export function CreateWarehouseForm({ busy, onCancel, onSave }) {
@@ -350,6 +351,7 @@ export function AddBoxForm({ busy, onCancel, onSave }) {
   const [description, setDescription] = useState('');
   const [width_cm, setWidth] = useState(50);
   const [height_cm, setHeight] = useState(65);
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   return (
     <div className="bg-white border-2 border-blue-400 rounded-xl p-4 animate-fade-in">
@@ -371,9 +373,17 @@ export function AddBoxForm({ busy, onCancel, onSave }) {
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
+        <div className="col-span-2">
+          <PhotoUploader
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            prefix="boxes"
+            label="صورة الصندوق (اختياريّة)"
+          />
+        </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ description, width_cm, height_cm })} disabled={busy}
+        <button onClick={() => onSave({ description, width_cm, height_cm, photo_url: photoUrl })} disabled={busy}
           className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
           💾 حفظ وإنشاء
         </button>
@@ -390,10 +400,12 @@ export function EditBoxForm({ box, busy, onCancel, onSave }) {
   const [description, setDescription] = useState(box.description || '');
   const [width_cm, setWidth] = useState(box.width_cm || 50);
   const [height_cm, setHeight] = useState(box.height_cm || 65);
+  const [photoUrl, setPhotoUrl] = useState(box.photo_url || null);
   const dirty =
     description !== (box.description || '') ||
     Number(width_cm) !== Number(box.width_cm || 50) ||
-    Number(height_cm) !== Number(box.height_cm || 65);
+    Number(height_cm) !== Number(box.height_cm || 65) ||
+    photoUrl !== (box.photo_url || null);
 
   return (
     <div className="text-xs">
@@ -413,9 +425,17 @@ export function EditBoxForm({ box, busy, onCancel, onSave }) {
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
+        <div className="col-span-2">
+          <PhotoUploader
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            prefix="boxes"
+            label="صورة الصندوق"
+          />
+        </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ description, width_cm: Number(width_cm), height_cm: Number(height_cm) })}
+        <button onClick={() => onSave({ description, width_cm: Number(width_cm), height_cm: Number(height_cm), photo_url: photoUrl })}
           disabled={busy || !dirty}
           className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-30">
           💾 حفظ التعديلات

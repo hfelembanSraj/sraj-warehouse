@@ -79,20 +79,26 @@ export async function rpcDeleteShelf(s_id) {
 }
 
 export async function rpcAddBox(s_id, values) {
-  return supabase.rpc('add_box_to_shelf', {
+  // إنشاء الصندوق عبر RPC، ثم تحديث الصورة لاحقاً إن وُجدت
+  const result = await supabase.rpc('add_box_to_shelf', {
     s_id,
     b_description: values.description?.trim() || '',
     b_width_cm: Number(values.width_cm) || 50,
     b_height_cm: Number(values.height_cm) || 65
   });
+  if (!result.error && result.data && values.photo_url) {
+    await supabase.from('boxes').update({ photo_url: values.photo_url }).eq('id', result.data);
+  }
+  return result;
 }
 
 export async function updateBox(box_id, patch) {
-  return supabase.from('boxes').update({
-    description: patch.description,
-    width_cm: patch.width_cm,
-    height_cm: patch.height_cm
-  }).eq('id', box_id);
+  const update = {};
+  if ('description' in patch) update.description = patch.description;
+  if ('width_cm' in patch) update.width_cm = patch.width_cm;
+  if ('height_cm' in patch) update.height_cm = patch.height_cm;
+  if ('photo_url' in patch) update.photo_url = patch.photo_url;
+  return supabase.from('boxes').update(update).eq('id', box_id);
 }
 
 export async function deleteBox(box_id) {

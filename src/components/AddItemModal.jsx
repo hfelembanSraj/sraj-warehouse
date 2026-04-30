@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
 import { suggestLocation } from '../lib/helpers';
+import PhotoUploader from './PhotoUploader';
 
 export default function AddItemModal({ data, onClose, onSaved }) {
   const { warehouseId } = useAuth();
@@ -9,6 +10,7 @@ export default function AddItemModal({ data, onClose, onSaved }) {
   const [name, setName] = useState('');
   const [qty, setQty] = useState(1);
   const [zoneLetter, setZoneLetter] = useState(zones[0]?.letter || 'A');
+  const [photoUrl, setPhotoUrl] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -25,7 +27,6 @@ export default function AddItemModal({ data, onClose, onSaved }) {
     if (!name.trim()) { alert('الرجاء إدخال اسم الأداة'); return; }
     setLoading(true);
     try {
-      // ابحث عن الصندوق المقترح أو أنشئه
       let { data: existingBox } = await supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).eq('code', suggestedCode).maybeSingle();
       if (!existingBox) {
         const { data: newBox } = await supabase.from('boxes')
@@ -33,12 +34,12 @@ export default function AddItemModal({ data, onClose, onSaved }) {
           .select().single();
         existingBox = newBox;
       }
-      // أضف الأداة
       await supabase.from('items').insert({
         box_id: existingBox.id,
         name: name.trim(),
         quantity: qty,
-        status: 'ok'
+        status: 'ok',
+        photo_url: photoUrl
       });
       await logActivity('إضافة', `${name.trim()} × ${qty}`, suggestedCode);
       onSaved();
@@ -54,9 +55,14 @@ export default function AddItemModal({ data, onClose, onSaved }) {
         <h3 className="text-sm font-display font-bold mb-3">إضافة أداة جديدة</h3>
 
         {zones.length === 0 ? (
-          <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-lg mb-4">
-            ⚠️ لا توجد مساحات تخزين في هذا المستودع. اطلب من المؤسّس إنشاء مساحات أوّلاً.
-          </div>
+          <>
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-lg mb-4">
+              ⚠️ لا توجد مساحات تخزين في هذا المستودع. اطلب من المؤسّس إنشاء مساحات أوّلاً.
+            </div>
+            <button onClick={onClose} className="w-full px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+              إغلاق
+            </button>
+          </>
         ) : (
           <>
             <div className="space-y-3 mb-4">
@@ -80,6 +86,12 @@ export default function AddItemModal({ data, onClose, onSaved }) {
                   ))}
                 </select>
               </div>
+              <PhotoUploader
+                value={photoUrl}
+                onChange={setPhotoUrl}
+                prefix="items"
+                label="صورة الأداة (اختياريّة)"
+              />
             </div>
 
             <div className="bg-blue-50 border border-blue-200 text-blue-900 text-xs p-3 rounded-lg mb-4">
@@ -96,12 +108,6 @@ export default function AddItemModal({ data, onClose, onSaved }) {
               </button>
             </div>
           </>
-        )}
-
-        {zones.length === 0 && (
-          <button onClick={onClose} className="w-full px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
-            إغلاق
-          </button>
         )}
       </div>
     </div>
