@@ -265,18 +265,44 @@ export function EditZoneForm({ zone, busy, onCancel, onSave }) {
 }
 
 // نموذج إضافة رف
-export function AddShelfForm({ busy, onCancel, onSave }) {
+export function AddShelfForm({ busy, onCancel, onSave, hasExistingShelves = true }) {
+  const [position, setPosition] = useState('bottom'); // top | bottom
+  const [label, setLabel] = useState('');
   const [height_cm, setHeight] = useState(70);
   const [max_boxes, setMax] = useState(4);
-  const [label, setLabel] = useState('');
 
   return (
     <div className="bg-white border-2 border-blue-400 rounded-xl p-4 animate-fade-in">
       <h4 className="text-xs font-display font-bold text-blue-900 mb-3">+ رف جديد</h4>
+
+      {hasExistingShelves && (
+        <div className="mb-3">
+          <label className="block text-[10px] text-stone-600 mb-1">الموقع</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setPosition('top')}
+              className={`text-xs py-2 rounded-lg border-2 transition flex items-center justify-center gap-1 ${
+                position === 'top'
+                  ? 'bg-blue-100 border-blue-500 text-blue-900 font-bold'
+                  : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
+              }`}>
+              ⬆️ في الأعلى
+            </button>
+            <button onClick={() => setPosition('bottom')}
+              className={`text-xs py-2 rounded-lg border-2 transition flex items-center justify-center gap-1 ${
+                position === 'bottom'
+                  ? 'bg-blue-100 border-blue-500 text-blue-900 font-bold'
+                  : 'bg-white border-stone-300 text-stone-600 hover:border-stone-400'
+              }`}>
+              ⬇️ في الأسفل
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">اسم/تسمية الرف (اختياري)</label>
-          <input value={label} onChange={e => setLabel(e.target.value)} placeholder="مثال: الرف العلوي"
+          <label className="block text-[10px] text-stone-600 mb-1">اسم الرف (اختياريّ — سيُسمّى تلقائياً حسب موقعه)</label>
+          <input value={label} onChange={e => setLabel(e.target.value)} placeholder="مثال: رف الأدوات الكبيرة"
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
         <div>
@@ -291,7 +317,7 @@ export function AddShelfForm({ busy, onCancel, onSave }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ height_cm, max_boxes, label })} disabled={busy}
+        <button onClick={() => onSave({ position, height_cm, max_boxes, label })} disabled={busy}
           className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
           💾 حفظ وإنشاء
         </button>

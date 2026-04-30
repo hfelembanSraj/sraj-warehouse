@@ -58,10 +58,13 @@ export async function rpcDeleteZone(z_id) {
 }
 
 export async function rpcAddShelf(z_id, values) {
-  return supabase.rpc('add_shelf', {
+  // الدالة الجديدة تدعم top/bottom + label
+  return supabase.rpc('add_shelf_at', {
     z_id,
+    s_position: values.position || 'bottom',
     s_height_cm: Number(values.height_cm) || 70,
-    s_max_boxes: Number(values.max_boxes) || 4
+    s_max_boxes: Number(values.max_boxes) || 4,
+    s_label: values.label?.trim() || null
   });
 }
 

@@ -184,6 +184,21 @@ export default function Dashboard() {
   function openShelf(shelf) { setCurrentShelf(shelf); setCurrentBox(null); }
   function openBox(box)     { setCurrentBox(box); }
 
+  // ينقل مباشرة إلى صندوق محدّد عبر الرمز (مثلاً C-1-2)
+  function goToBoxByCode(boxCode) {
+    if (!boxCode) return;
+    const box = data.boxes.find(b => b.code === boxCode);
+    if (!box) return;
+    const zoneLetter = boxCode.split('-')[0];
+    const shelfIdx = parseInt(boxCode.split('-')[1]);
+    const zone = (data.zones || []).find(z => z.letter === zoneLetter);
+    const shelf = zone?.shelves?.find(s => s.shelf_index === shelfIdx);
+    if (zone) setCurrentZone(zone);
+    if (shelf) setCurrentShelf(shelf);
+    setCurrentBox(box);
+    if (isFounder && activeTab === 'home') setEnteredWarehouse(true);
+  }
+
   function handleEnterWarehouseFromHome(whId) {
     setWarehouseId?.(whId);
     setEnteredWarehouse(true);
@@ -231,10 +246,10 @@ export default function Dashboard() {
   // ====== رسم رحلة الخريطة (الرئيسية → مساحة → رف → صندوق) ======
   function renderMapDrillDown() {
     if (!currentZone) {
-      return <WarehouseMap data={data} onZoneClick={openZone} onRefresh={loadAllData} />;
+      return <WarehouseMap data={data} onZoneClick={openZone} onItemClick={goToBoxByCode} onRefresh={loadAllData} />;
     }
     if (!currentShelf) {
-      return <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onRefresh={loadAllData} />;
+      return <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onItemClick={goToBoxByCode} onRefresh={loadAllData} />;
     }
     if (!currentBox) {
       return <ShelfView zone={currentZone} shelf={currentShelf} data={data}

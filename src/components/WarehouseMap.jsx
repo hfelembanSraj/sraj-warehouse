@@ -4,7 +4,7 @@ import AddItemModal from './AddItemModal';
 import { AddZoneForm, EditZoneForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone } from '../lib/warehouseOps';
 
-export default function WarehouseMap({ data, onZoneClick, onRefresh }) {
+export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
   const { can, isFounder, activeWarehouse } = useAuth();
   const [showAddItem, setShowAddItem] = useState(false);
   const [showAddZone, setShowAddZone] = useState(false);
@@ -185,7 +185,7 @@ export default function WarehouseMap({ data, onZoneClick, onRefresh }) {
             </>
           )
         ) : (
-          <AllItemsList data={data} onZoneClick={onZoneClick} />
+          <AllItemsList data={data} onItemClick={onItemClick} onRefresh={onRefresh} />
         )}
       </div>
 
@@ -251,7 +251,8 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete }
 }
 
 // ====== قائمة كل الأغراض في المستودع ======
-function AllItemsList({ data, onZoneClick }) {
+function AllItemsList({ data, onItemClick, onRefresh }) {
+  const { isFounder, can } = useAuth();
   const [search, setSearch] = useState('');
   const [filterZone, setFilterZone] = useState('all');
 
@@ -297,7 +298,7 @@ function AllItemsList({ data, onZoneClick }) {
       </div>
 
       <div className="text-[11px] text-stone-500 mb-2">
-        عرض {filtered.length} من {enriched.length} صنف
+        عرض {filtered.length} من {enriched.length} صنف · اضغط أيّ صنف للذهاب لمكانه مباشرة
       </div>
 
       {filtered.length === 0 ? (
@@ -307,7 +308,11 @@ function AllItemsList({ data, onZoneClick }) {
       ) : (
         <div className="space-y-1.5">
           {filtered.map(it => (
-            <div key={it.id} className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm transition">
+            <button
+              key={it.id}
+              onClick={() => onItemClick && onItemClick(it.boxCode)}
+              className="w-full text-right bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md hover:border-blue-400 transition cursor-pointer"
+            >
               {it.photo_url ? (
                 <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
               ) : (
@@ -317,15 +322,13 @@ function AllItemsList({ data, onZoneClick }) {
                 <h4 className="text-sm font-medium truncate">{it.name}</h4>
                 <p className="text-[10px] text-stone-500">الكميّة: {it.quantity}</p>
               </div>
-              <button
-                onClick={() => it.zone && onZoneClick(it.zone)}
-                className="text-[10px] px-2 py-1 rounded font-bold flex items-center gap-1 hover:opacity-80"
-                style={{ color: it.zoneColor, backgroundColor: it.zoneColor + '15' }}
-              >
-                <span className="font-mono">{it.boxCode}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] px-2 py-1 rounded font-bold font-mono" style={{ color: it.zoneColor, backgroundColor: it.zoneColor + '15' }}>
+                  {it.boxCode}
+                </span>
                 <span className="text-stone-400">→</span>
-              </button>
-            </div>
+              </div>
+            </button>
           ))}
         </div>
       )}

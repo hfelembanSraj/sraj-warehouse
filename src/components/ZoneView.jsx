@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { shelfDisplayName } from '../lib/helpers';
 import CheckoutModal from './CheckoutModal';
 import AddBoxModal from './AddBoxModal';
 import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
@@ -8,7 +9,7 @@ import {
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox
 } from '../lib/warehouseOps';
 
-export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }) {
+export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onRefresh }) {
   const { can, isFounder } = useAuth();
   const [highlightedBox, setHighlightedBox] = useState(null);
   const [checkoutItem, setCheckoutItem] = useState(null);
@@ -237,7 +238,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
 
         {/* عرض كل الأغراض في المساحة */}
         {zoneViewMode === 'items' && (
-          <ZoneItemsList items={allItems} zoneBoxes={zoneBoxes} data={data} onShelfClick={onShelfClick} zone={fresh} />
+          <ZoneItemsList items={allItems} zoneBoxes={zoneBoxes} zone={fresh} onItemClick={onItemClick} />
         )}
 
         {/* بانر وضع التعديل */}
@@ -278,7 +279,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
                       style={{ borderColor: fresh.color }}
                     >
                       <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none" style={{ backgroundColor: fresh.color }}>
-                        {shelf.label || `رف ${shelf.shelf_index}`}
+                        {shelfDisplayName(shelf, shelves)}
                       </span>
                       {!editMode && (
                         <span className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1 py-0.5 rounded-tr rounded-bl pointer-events-none">
@@ -390,6 +391,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
               <div className="mb-3">
                 <AddShelfForm
                   busy={busy}
+                  hasExistingShelves={shelves.length > 0}
                   onCancel={() => setShowAddShelfForm(false)}
                   onSave={handleAddShelf}
                 />
@@ -430,17 +432,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
 }
 
 // ====== قائمة كل أغراض المساحة ======
-function ZoneItemsList({ items, zoneBoxes, data, onShelfClick, zone }) {
+function ZoneItemsList({ items, zoneBoxes, zone, onItemClick }) {
   const [search, setSearch] = useState('');
 
-  const enriched = items.map(it => {
-    const box = zoneBoxes.find(b => b.id === it.box_id);
-    const shelfIndex = box ? parseInt(box.code.split('-')[1]) : null;
-    const shelf = (zone.shelves || []).find(s => s.shelf_index === shelfIndex);
-    return { ...it, shelf, shelfIndex };
-  });
-
-  const filtered = enriched.filter(it => {
+  const filtered = items.filter(it => {
     if (!search.trim()) return true;
     return `${it.name} ${it.boxCode}`.toLowerCase().includes(search.toLowerCase());
   });
@@ -455,17 +450,21 @@ function ZoneItemsList({ items, zoneBoxes, data, onShelfClick, zone }) {
         className="w-full mb-3 px-3 py-2 border border-stone-300 rounded-lg text-xs"
       />
       <div className="text-[11px] text-stone-500 mb-2">
-        عرض {filtered.length} من {enriched.length} صنف
+        عرض {filtered.length} من {items.length} صنف · اضغط أيّ صنف للذهاب لمكانه مباشرة
       </div>
 
       {filtered.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-12">
-          {enriched.length === 0 ? 'لا توجد أغراض في هذه المساحة بعد' : 'لا توجد نتائج'}
+          {items.length === 0 ? 'لا توجد أغراض في هذه المساحة بعد' : 'لا توجد نتائج'}
         </p>
       ) : (
         <div className="space-y-1.5">
           {filtered.map(it => (
-            <div key={it.id} className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm transition">
+            <button
+              key={it.id}
+              onClick={() => onItemClick && onItemClick(it.boxCode)}
+              className="w-full text-right bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md hover:border-blue-400 transition"
+            >
               {it.photo_url ? (
                 <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
               ) : (
@@ -475,20 +474,13 @@ function ZoneItemsList({ items, zoneBoxes, data, onShelfClick, zone }) {
                 <h4 className="text-sm font-medium truncate">{it.name}</h4>
                 <p className="text-[10px] text-stone-500">الكميّة: {it.quantity}</p>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded" style={{ color: zone.color, backgroundColor: zone.color + '15' }}>
                   {it.boxCode}
                 </span>
-                {it.shelf && (
-                  <button
-                    onClick={() => onShelfClick(it.shelf)}
-                    className="text-[9px] text-blue-600 hover:underline"
-                  >
-                    رف {it.shelfIndex} →
-                  </button>
-                )}
+                <span className="text-stone-400">→</span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}

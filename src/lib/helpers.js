@@ -57,3 +57,26 @@ export function formatArabicDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
 }
+
+// الترتيب العربي (الأوّل، الثاني، الثالث...) — يأخذ الموقع 1-indexed
+export function arabicOrdinal(position) {
+  const ordinals = [
+    '', 'الأوّل', 'الثاني', 'الثالث', 'الرابع', 'الخامس',
+    'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر',
+    'الحادي عشر', 'الثاني عشر', 'الثالث عشر', 'الرابع عشر', 'الخامس عشر'
+  ];
+  return ordinals[position] || `${position}`;
+}
+
+// تسمية الرف الافتراضيّة بناءً على ترتيبه (الموقع) في المساحة
+// shelves: قائمة كل أرفف المساحة مرتّبة بـ shelf_index
+// shelf: الرفّ المُراد تسميته
+export function shelfDisplayName(shelf, shelves) {
+  if (shelf?.label && shelf.label.trim()) return shelf.label.trim();
+  if (!shelves || shelves.length === 0) return 'رف';
+  // الموقع في الترتيب
+  const sorted = [...shelves].sort((a, b) => a.shelf_index - b.shelf_index);
+  const position = sorted.findIndex(s => s.id === shelf.id) + 1;
+  if (position === 0) return `رف`;
+  return `الرف ${arabicOrdinal(position)}`;
+}

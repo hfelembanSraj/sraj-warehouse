@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
+import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem } from '../lib/warehouseOps';
 
@@ -93,7 +94,7 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
           <span className="text-stone-300">‹</span>
           <button onClick={onBackToZone} className="hover:underline" style={{ color: zone.color }}>مساحة {zone.letter}</button>
           <span className="text-stone-300">‹</span>
-          <button onClick={onBackToShelf} className="hover:underline">رف {shelf.shelf_index}</button>
+          <button onClick={onBackToShelf} className="hover:underline">{shelfDisplayName(shelf, zone?.shelves || [])}</button>
           <span className="text-stone-300">‹</span>
           <span className="font-medium text-amber-700">صندوق {currentBox.code}</span>
         </div>
@@ -113,7 +114,7 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
               <h2 className="text-sm font-display font-bold">صندوق {currentBox.code}</h2>
               {currentBox.description && <p className="text-xs text-stone-500">{currentBox.description}</p>}
               <p className="text-[10px] text-stone-400 mt-0.5">
-                {currentBox.width_cm}×{currentBox.height_cm}سم · في رف {shelf.shelf_index} من مساحة {zone.letter}
+                {currentBox.width_cm}×{currentBox.height_cm}سم · في {shelfDisplayName(shelf, zone?.shelves || [])} من مساحة {zone.letter}
               </p>
             </div>
           </div>

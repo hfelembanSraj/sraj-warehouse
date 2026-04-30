@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { shelfDisplayName } from '../lib/helpers';
 import { AddBoxForm, EditShelfForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
 import { rpcAddBox, rpcUpdateShelf, rpcDeleteShelf, deleteBox, fetchBoxesForShelf, moveItemToBox } from '../lib/warehouseOps';
 
@@ -105,7 +106,7 @@ export default function ShelfView({ zone, shelf, onBackToMap, onBackToZone, onBo
           <span className="text-stone-300">‹</span>
           <button onClick={onBackToZone} className="hover:underline" style={{ color: zone.color }}>مساحة {zone.letter}</button>
           <span className="text-stone-300">‹</span>
-          <span className="font-medium text-blue-700">رف {shelf.shelf_index}</span>
+          <span className="font-medium text-blue-700">{shelfDisplayName(shelf, zone?.shelves || [])}</span>
         </div>
       </div>
 
@@ -113,7 +114,7 @@ export default function ShelfView({ zone, shelf, onBackToMap, onBackToZone, onBo
         <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
           <div>
             <h2 className="text-sm font-display font-bold mb-1">
-              📚 رف {shelf.shelf_index}{shelf.label ? ` — ${shelf.label}` : ''}
+              📚 {shelfDisplayName(shelf, zone?.shelves || [])}
             </h2>
             <p className="text-xs text-stone-500">
               ارتفاع {shelf.height_cm}سم · يسع {shelf.max_boxes} صناديق · يحتوي {boxes.length} صندوقاً · {items.length} صنف
@@ -205,7 +206,7 @@ export default function ShelfView({ zone, shelf, onBackToMap, onBackToZone, onBo
 
       {confirming?.type === 'shelf' && (
         <ConfirmDelete
-          message={`سيُحذف الرف ${shelf.shelf_index} مع كل صناديقه. هل أنت متأكّد؟`}
+          message={`سيُحذف ${shelfDisplayName(shelf, zone?.shelves || [])} مع كل صناديقه. هل أنت متأكّد؟`}
           busy={busy}
           onConfirm={handleDeleteShelf}
           onCancel={() => setConfirming(null)}
