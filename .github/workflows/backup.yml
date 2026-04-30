@@ -4,7 +4,7 @@ on:
   schedule:
     # كل يوم 03:00 UTC (= 06:00 توقيت الرياض)
     - cron: '0 3 * * *'
-  workflow_dispatch: # يسمح بالتشغيل اليدوي من واجهة GitHub
+  workflow_dispatch: # تشغيل يدوي من واجهة GitHub
 
 permissions:
   contents: write
@@ -13,22 +13,10 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout backups branch
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
-          ref: backups
           fetch-depth: 1
-        continue-on-error: true
-
-      - name: Init backups branch if missing
-        run: |
-          if [ ! -d ".git" ]; then
-            git init
-            git remote add origin "https://github.com/${{ github.repository }}.git"
-            git checkout -b backups
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -36,32 +24,53 @@ jobs:
           node-version: '20'
 
       - name: Install Supabase client
-        run: npm install @supabase/supabase-js@^2.45.0 --no-save
+        run: npm install @supabase/supabase-js@^2.45.0 --no-save --silent
 
-      - name: Get backup script from main
-        run: |
-          curl -sSL "https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/backup.mjs" -o backup.mjs
-
-      - name: Run backup
+      - name: Run backup script
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node backup.mjs
+        run: node scripts/backup.mjs
 
-      - name: Prune old backups (keep last 90 days)
+      - name: Stash backup file
         run: |
-          if [ -d backups ]; then
-            cd backups
-            ls -1 *.json 2>/dev/null | sort -r | tail -n +91 | xargs -r rm -v
-            cd ..
+          mkdir -p /tmp/sraj-backup
+          cp backups/*.json /tmp/sraj-backup/
+
+      - name: Push to backups branch
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # حاول جلب فرع backups إن كان موجوداً
+          if git ls-remote --exit-code --heads origin backups; then
+            echo "✓ backups branch exists — checking out"
+            git fetch origin backups:backups
+            git checkout backups
+          else
+            echo "✓ Creating new orphan backups branch"
+            git checkout --orphan backups
+            git rm -rf . 2>/dev/null || true
+            git clean -fdx
           fi
 
-      - name: Commit and push
-        run: |
+          # استعد ملف النسخة الاحتياطية
+          mkdir -p backups
+          cp /tmp/sraj-backup/*.json backups/
+
+          # احذف ما تجاوز 90 يوماً
+          cd backups
+          ls -1 *.json 2>/dev/null | sort -r | tail -n +91 | xargs -r rm -v
+          cd ..
+
+          # ارفع
           git add backups/
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "🗄 Backup $(date -u +%Y-%m-%d)"
+            DATE=$(date -u +%Y-%m-%d)
+            git commit -m "🗄 Backup ${DATE}"
             git push origin backups
+            echo "✅ Backup pushed for ${DATE}"
           fi
