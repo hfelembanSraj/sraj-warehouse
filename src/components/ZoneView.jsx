@@ -13,6 +13,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
   const [highlightedBox, setHighlightedBox] = useState(null);
   const [checkoutItem, setCheckoutItem] = useState(null);
 
+  // وضع العرض: rack (الرف المرئي) | items (قائمة كل الأغراض في المساحة)
+  const [zoneViewMode, setZoneViewMode] = useState('rack');
+
   // وضع التعديل التفاعلي على الرفّ
   const [editMode, setEditMode] = useState(false);
   // نموذج إضافة صندوق على رف معيّن
@@ -200,8 +203,20 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
           </div>
         )}
 
-        {/* البحث عن غرض */}
-        {!editMode && allItems.length > 0 && (
+        {/* مبدّل وضع العرض */}
+        <div className="bg-stone-100 rounded-lg p-0.5 inline-flex mb-4">
+          <button onClick={() => setZoneViewMode('rack')}
+            className={`text-[11px] px-3 py-1.5 rounded transition ${zoneViewMode === 'rack' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+            🗄 الرف المرئي
+          </button>
+          <button onClick={() => setZoneViewMode('items')}
+            className={`text-[11px] px-3 py-1.5 rounded transition ${zoneViewMode === 'items' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+            📋 كل أغراض المساحة ({allItems.length})
+          </button>
+        </div>
+
+        {/* البحث عن غرض (في وضع الرف المرئي) */}
+        {zoneViewMode === 'rack' && !editMode && allItems.length > 0 && (
           <div className="bg-stone-50 rounded-lg p-3 mb-4">
             <p className="text-xs font-medium mb-2">البحث عن غرض</p>
             <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
@@ -220,6 +235,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
           </div>
         )}
 
+        {/* عرض كل الأغراض في المساحة */}
+        {zoneViewMode === 'items' && (
+          <ZoneItemsList items={allItems} zoneBoxes={zoneBoxes} data={data} onShelfClick={onShelfClick} zone={fresh} />
+        )}
+
         {/* بانر وضع التعديل */}
         {editMode && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-900 flex items-center gap-2">
@@ -229,6 +249,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
         )}
 
         {/* العرض الأمامي للأرفف */}
+        {zoneViewMode === 'rack' && (
         <div className="flex justify-center mb-3">
           <div className="w-full max-w-md bg-stone-100 rounded-lg p-4">
             <div
@@ -331,6 +352,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
             <div className="text-center text-[10px] text-stone-400 mt-2">العرض: {fresh.width_cm} سم</div>
           </div>
         </div>
+        )}
 
         {/* تعديل رف معيّن (يظهر تحت الرفّ في وضع التعديل) */}
         {editMode && editingShelfId && (
@@ -404,5 +426,72 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onRefresh }
         />
       )}
     </>
+  );
+}
+
+// ====== قائمة كل أغراض المساحة ======
+function ZoneItemsList({ items, zoneBoxes, data, onShelfClick, zone }) {
+  const [search, setSearch] = useState('');
+
+  const enriched = items.map(it => {
+    const box = zoneBoxes.find(b => b.id === it.box_id);
+    const shelfIndex = box ? parseInt(box.code.split('-')[1]) : null;
+    const shelf = (zone.shelves || []).find(s => s.shelf_index === shelfIndex);
+    return { ...it, shelf, shelfIndex };
+  });
+
+  const filtered = enriched.filter(it => {
+    if (!search.trim()) return true;
+    return `${it.name} ${it.boxCode}`.toLowerCase().includes(search.toLowerCase());
+  });
+
+  return (
+    <div>
+      <input
+        type="search"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 ابحث في أغراض المساحة..."
+        className="w-full mb-3 px-3 py-2 border border-stone-300 rounded-lg text-xs"
+      />
+      <div className="text-[11px] text-stone-500 mb-2">
+        عرض {filtered.length} من {enriched.length} صنف
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-sm text-stone-400 py-12">
+          {enriched.length === 0 ? 'لا توجد أغراض في هذه المساحة بعد' : 'لا توجد نتائج'}
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map(it => (
+            <div key={it.id} className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm transition">
+              {it.photo_url ? (
+                <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded bg-stone-100 flex items-center justify-center text-xl flex-shrink-0">🔧</div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-medium truncate">{it.name}</h4>
+                <p className="text-[10px] text-stone-500">الكميّة: {it.quantity}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded" style={{ color: zone.color, backgroundColor: zone.color + '15' }}>
+                  {it.boxCode}
+                </span>
+                {it.shelf && (
+                  <button
+                    onClick={() => onShelfClick(it.shelf)}
+                    className="text-[9px] text-blue-600 hover:underline"
+                  >
+                    رف {it.shelfIndex} →
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
