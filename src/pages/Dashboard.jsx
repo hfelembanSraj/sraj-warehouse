@@ -360,7 +360,7 @@ export default function Dashboard() {
           {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'donated' && <DonatedTab data={data} />}
           {activeTab === 'log' && <LogTab data={data} />}
-          {activeTab === 'reports' && <ReportsTab data={data} />}
+          {activeTab === 'reports' && <ReportsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'qr' && <QrTab warehouseId={warehouseId} data={data} />}
           {activeTab === 'requests' && isManager && <RequestsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'users' && isManager && <UsersTab data={data} onRefresh={loadAllData} />}
