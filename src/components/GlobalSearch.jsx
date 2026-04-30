@@ -39,11 +39,13 @@ export default function GlobalSearch({ onJump }) {
           .from('items')
           .select('id, name, quantity, box_id, photo_url, boxes(code, warehouse_id, shelf_id, shelves(zone_id, shelf_index, zones(letter, name, color)))')
           .ilike('name', ilike)
+          .is('deleted_at', null)
           .limit(15),
         supabase
           .from('boxes')
           .select('id, code, description, photo_url, warehouse_id, shelf_id, shelves(zone_id, shelf_index, zones(letter, name, color))')
           .or(`code.ilike.${ilike},description.ilike.${ilike}`)
+          .is('deleted_at', null)
           .limit(15),
         supabase
           .from('zones')

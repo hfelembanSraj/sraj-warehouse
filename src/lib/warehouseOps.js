@@ -101,8 +101,31 @@ export async function updateBox(box_id, patch) {
   return supabase.from('boxes').update(update).eq('id', box_id);
 }
 
+// حذف ناعم — يُمكن استرجاعه من سلّة المحذوفات
 export async function deleteBox(box_id) {
+  return supabase.from('boxes').update({ deleted_at: new Date().toISOString() }).eq('id', box_id);
+}
+
+export async function softDeleteItem(item_id) {
+  return supabase.from('items').update({ deleted_at: new Date().toISOString() }).eq('id', item_id);
+}
+
+// استرجاع من السلّة
+export async function restoreBox(box_id) {
+  return supabase.from('boxes').update({ deleted_at: null }).eq('id', box_id);
+}
+
+export async function restoreItem(item_id) {
+  return supabase.from('items').update({ deleted_at: null }).eq('id', item_id);
+}
+
+// حذف نهائي — لا رجعة
+export async function permanentDeleteBox(box_id) {
   return supabase.from('boxes').delete().eq('id', box_id);
+}
+
+export async function permanentDeleteItem(item_id) {
+  return supabase.from('items').delete().eq('id', item_id);
 }
 
 export async function fetchWarehouseLayout(wh_id) {
@@ -110,7 +133,7 @@ export async function fetchWarehouseLayout(wh_id) {
 }
 
 export async function fetchBoxesForShelf(shelf_id) {
-  return supabase.from('boxes').select('*, items(*)').eq('shelf_id', shelf_id).order('box_index');
+  return supabase.from('boxes').select('*, items(*)').eq('shelf_id', shelf_id).is('deleted_at', null).order('box_index');
 }
 
 export const PRESET_COLORS = ['#D85A30', '#185FA5', '#27500A', '#633806', '#7C3AED', '#0891B2', '#BE185D', '#65A30D'];

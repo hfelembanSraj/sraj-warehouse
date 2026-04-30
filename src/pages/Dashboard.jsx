@@ -23,6 +23,7 @@ import WarehouseSwitcher from '../components/WarehouseSwitcher';
 import WarehouseBuilder from '../components/WarehouseBuilder';
 import QrScannerModal from '../components/QrScannerModal';
 import GlobalSearch from '../components/GlobalSearch';
+import RecoveryBin from '../components/RecoveryBin';
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
@@ -106,8 +107,8 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const [boxesR, itemsR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR, layoutR] = await Promise.all([
-        supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).order('code'),
-        supabase.from('items').select('*, boxes!inner(warehouse_id)').eq('boxes.warehouse_id', warehouseId),
+        supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).is('deleted_at', null).order('code'),
+        supabase.from('items').select('*, boxes!inner(warehouse_id)').eq('boxes.warehouse_id', warehouseId).is('deleted_at', null),
         supabase.from('checkouts').select('*').eq('warehouse_id', warehouseId).is('returned_at', null).is('damaged_at', null).is('donated_at', null).order('date_out', { ascending: false }),
         supabase.from('damaged_items').select('*').eq('warehouse_id', warehouseId).order('damaged_at', { ascending: false }),
         supabase.from('donated_items').select('*').eq('warehouse_id', warehouseId).order('donated_at', { ascending: false }),
@@ -157,6 +158,7 @@ export default function Dashboard() {
     tabs.push({ key: 'users', label: 'المستخدمون' });
   }
   if (isFounder) {
+    tabs.push({ key: 'recovery', label: '🗑 السلّة' });
     tabs.push({ key: 'founder', label: '👑 إعدادات المؤسّس' });
   }
 
@@ -362,6 +364,7 @@ export default function Dashboard() {
           {activeTab === 'qr' && <QrTab warehouseId={warehouseId} data={data} />}
           {activeTab === 'requests' && isManager && <RequestsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'users' && isManager && <UsersTab data={data} onRefresh={loadAllData} />}
+          {activeTab === 'recovery' && isFounder && <RecoveryBin onRefresh={loadAllData} />}
           {activeTab === 'founder' && isFounder && <FounderTab onRefresh={loadAllData} onOpenBuilder={() => setShowBuilder(true)} />}
         </div>
       </main>

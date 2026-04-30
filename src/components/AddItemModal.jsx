@@ -27,7 +27,7 @@ export default function AddItemModal({ data, onClose, onSaved }) {
     if (!name.trim()) { alert('الرجاء إدخال اسم الأداة'); return; }
     setLoading(true);
     try {
-      let { data: existingBox } = await supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).eq('code', suggestedCode).maybeSingle();
+      let { data: existingBox } = await supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).eq('code', suggestedCode).is('deleted_at', null).maybeSingle();
       if (!existingBox) {
         const { data: newBox } = await supabase.from('boxes')
           .insert({ warehouse_id: warehouseId, code: suggestedCode, shelf_id: suggestedShelfId })

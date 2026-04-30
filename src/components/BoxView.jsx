@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
 import { EditBoxForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
-import { updateBox, deleteBox } from '../lib/warehouseOps';
+import { updateBox, deleteBox, softDeleteItem } from '../lib/warehouseOps';
 
 export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, onBackToShelf, onRefresh }) {
   const { isFounder, can } = useAuth();
@@ -27,7 +27,7 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
 
   async function loadItems() {
     setLoading(true);
-    const { data } = await supabase.from('items').select('*').eq('box_id', box.id).order('name');
+    const { data } = await supabase.from('items').select('*').eq('box_id', box.id).is('deleted_at', null).order('name');
     setItems(data || []);
     setLoading(false);
   }
@@ -72,11 +72,11 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
 
   async function handleDeleteItem(item) {
     setBusy(true);
-    const { error } = await supabase.from('items').delete().eq('id', item.id);
+    const { error } = await softDeleteItem(item.id);
     setBusy(false);
     setConfirming(null);
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash('✅ تم حذف الصنف');
+    flash('✅ تم النقل لسلّة المحذوفات');
     await loadItems();
     await onRefresh();
   }
