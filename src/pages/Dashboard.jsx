@@ -21,6 +21,7 @@ import FounderTab from '../components/FounderTab';
 import WarehousesHome from '../components/WarehousesHome';
 import WarehouseSwitcher from '../components/WarehouseSwitcher';
 import WarehouseBuilder from '../components/WarehouseBuilder';
+import QrScannerModal from '../components/QrScannerModal';
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const [currentShelf, setCurrentShelf] = useState(null);
   const [currentBox, setCurrentBox] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [data, setData] = useState({
     boxes: [], items: [], checkouts: [], damaged: [], donated: [],
     log: [], requests: [], users: [], zones: []
@@ -41,6 +43,62 @@ export default function Dashboard() {
   useEffect(() => {
     if (warehouseId) loadAllData();
   }, [warehouseId]);
+
+  // معالجة روابط QR (?wh=&zone=&box=) عند التحميل أو بعد المسح
+  function handleScannedUrl(rawUrl) {
+    let urlStr = rawUrl;
+    let params;
+    try {
+      const u = new URL(rawUrl);
+      params = u.searchParams;
+    } catch {
+      // ربّما النص ليس URL — قد يكون رمز صندوق فقط
+      const match = rawUrl.match(/^([A-Z])-(\d+)-(\d+)$/);
+      if (match) params = new URLSearchParams({ box: rawUrl });
+      else return;
+    }
+
+    const whId = params.get('wh');
+    const zoneLetter = params.get('zone');
+    const boxCode = params.get('box');
+
+    if (whId && whId !== warehouseId) {
+      setWarehouseId?.(whId);
+    }
+    if (boxCode) {
+      const box = data.boxes.find(b => b.code === boxCode);
+      if (box) {
+        const zone = data.zones.find(z => boxCode.startsWith(z.letter + '-'));
+        const shelfIndex = parseInt(boxCode.split('-')[1]);
+        const shelf = zone?.shelves.find(s => s.shelf_index === shelfIndex);
+        if (zone) setCurrentZone(zone);
+        if (shelf) setCurrentShelf(shelf);
+        setCurrentBox(box);
+        if (isFounder) setEnteredWarehouse(true);
+        setActiveTab(isFounder ? 'home' : 'map');
+      }
+    } else if (zoneLetter) {
+      const zone = data.zones.find(z => z.letter === zoneLetter);
+      if (zone) {
+        setCurrentZone(zone);
+        setCurrentShelf(null);
+        setCurrentBox(null);
+        if (isFounder) setEnteredWarehouse(true);
+        setActiveTab(isFounder ? 'home' : 'map');
+      }
+    }
+  }
+
+  // قراءة URL params مرّة واحدة بعد تحميل البيانات
+  useEffect(() => {
+    if (data.zones.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('zone') || params.get('box')) {
+      handleScannedUrl(window.location.href);
+      // تنظيف الـ URL بعد الاستخدام
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [data.zones.length]);
 
   async function loadAllData() {
     if (!warehouseId) return;
@@ -179,6 +237,13 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-brand-blue text-white flex items-center justify-center font-display font-bold">س</div>
             <WarehouseSwitcher />
+            <button
+              onClick={() => setShowScanner(true)}
+              className="inline-flex items-center gap-1 text-[11px] bg-brand-blue text-white hover:bg-blue-800 px-2.5 py-1.5 rounded-lg font-medium"
+              title="مسح رمز QR"
+            >
+              📷 مسح
+            </button>
           </div>
           <div className="flex items-center gap-3">
             {isFounder && profile?.stealth_mode && (
@@ -262,7 +327,7 @@ export default function Dashboard() {
           {activeTab === 'donated' && <DonatedTab data={data} />}
           {activeTab === 'log' && <LogTab data={data} />}
           {activeTab === 'reports' && <ReportsTab data={data} />}
-          {activeTab === 'qr' && <QrTab warehouseId={warehouseId} />}
+          {activeTab === 'qr' && <QrTab warehouseId={warehouseId} data={data} />}
           {activeTab === 'requests' && isManager && <RequestsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'users' && isManager && <UsersTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'founder' && isFounder && <FounderTab onRefresh={loadAllData} onOpenBuilder={() => setShowBuilder(true)} />}
@@ -273,6 +338,16 @@ export default function Dashboard() {
         <WarehouseBuilder
           onClose={() => setShowBuilder(false)}
           onChanged={handleBuilderRefresh}
+        />
+      )}
+
+      {showScanner && (
+        <QrScannerModal
+          onClose={() => setShowScanner(false)}
+          onResult={(text) => {
+            setShowScanner(false);
+            handleScannedUrl(text);
+          }}
         />
       )}
     </div>
