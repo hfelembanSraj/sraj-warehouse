@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
-import { ZONE_CATEGORIES, USER_ROLES, DEFAULT_RETURN_DAYS } from '../lib/constants';
-import { todayStr, daysSince, isOverdue, getInitials, suggestLocation } from '../lib/helpers';
+import { USER_ROLES, DEFAULT_RETURN_DAYS } from '../lib/constants';
+import { isOverdue, getInitials } from '../lib/helpers';
 
 import WarehouseMap from '../components/WarehouseMap';
 import ZoneView from '../components/ZoneView';
@@ -16,13 +16,19 @@ import QrTab from '../components/QrTab';
 import UsersTab from '../components/UsersTab';
 import RequestsTab from '../components/RequestsTab';
 import FounderTab from '../components/FounderTab';
+import WarehouseSwitcher from '../components/WarehouseSwitcher';
+import WarehouseBuilder from '../components/WarehouseBuilder';
 
 export default function Dashboard() {
-  const { user, profile, signOut, can, warehouseId, isFounder, isSysadmin } = useAuth();
+  const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('map');
   const [currentZone, setCurrentZone] = useState(null);
-  const [data, setData] = useState({ boxes: [], items: [], checkouts: [], damaged: [], donated: [], log: [], requests: [], users: [] });
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [data, setData] = useState({
+    boxes: [], items: [], checkouts: [], damaged: [], donated: [],
+    log: [], requests: [], users: [], zones: []
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +36,10 @@ export default function Dashboard() {
   }, [warehouseId]);
 
   async function loadAllData() {
+    if (!warehouseId) return;
     setLoading(true);
     try {
-      const [boxesR, itemsR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR] = await Promise.all([
+      const [boxesR, itemsR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR, layoutR] = await Promise.all([
         supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).order('code'),
         supabase.from('items').select('*, boxes!inner(warehouse_id)').eq('boxes.warehouse_id', warehouseId),
         supabase.from('checkouts').select('*').eq('warehouse_id', warehouseId).is('returned_at', null).is('damaged_at', null).is('donated_at', null).order('date_out', { ascending: false }),
@@ -40,7 +47,8 @@ export default function Dashboard() {
         supabase.from('donated_items').select('*').eq('warehouse_id', warehouseId).order('donated_at', { ascending: false }),
         supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('join_requests').select('*').eq('warehouse_id', warehouseId).eq('status', 'pending'),
-        supabase.from('user_warehouses').select('*, profiles!inner(*)').eq('warehouse_id', warehouseId)
+        supabase.from('user_warehouses').select('*, profiles!inner(*)').eq('warehouse_id', warehouseId),
+        supabase.rpc('get_warehouse_layout', { wh_id: warehouseId })
       ]);
       setData({
         boxes: boxesR.data || [],
@@ -50,7 +58,8 @@ export default function Dashboard() {
         donated: donatedR.data || [],
         log: logR.data || [],
         requests: requestsR.data || [],
-        users: usersR.data || []
+        users: usersR.data || [],
+        zones: layoutR.data?.zones || []
       });
     } catch (e) {
       console.error('خطأ في تحميل البيانات:', e);
@@ -90,7 +99,12 @@ export default function Dashboard() {
     setCurrentZone(null);
   }
 
-  if (loading) {
+  async function handleBuilderRefresh() {
+    await refreshWarehouses();
+    await loadAllData();
+  }
+
+  if (loading && data.zones.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -108,10 +122,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-brand-blue text-white flex items-center justify-center font-display font-bold">س</div>
-            <div>
-              <h1 className="text-sm font-display font-bold">جمعية المسؤولية الاجتماعية</h1>
-              <p className="text-xs text-stone-500">المستودع الرئيسي</p>
-            </div>
+            <WarehouseSwitcher onCreateNew={() => setShowBuilder(true)} />
           </div>
           <div className="flex items-center gap-3">
             {isFounder && profile?.stealth_mode && (
@@ -169,8 +180,8 @@ export default function Dashboard() {
 
         {/* Tab Content */}
         <div className="animate-fade-in">
-          {activeTab === 'map' && !currentZone && <WarehouseMap data={data} onZoneClick={setCurrentZone} onRefresh={loadAllData} />}
-          {activeTab === 'map' && currentZone && <ZoneView zone={currentZone} data={data} onBack={() => setCurrentZone(null)} onRefresh={loadAllData} />}
+          {activeTab === 'map' && !currentZone && <WarehouseMap data={data} onZoneClick={setCurrentZone} onRefresh={loadAllData} onOpenBuilder={isFounder ? () => setShowBuilder(true) : null} />}
+          {activeTab === 'map' && currentZone && <ZoneView zoneLetter={currentZone} data={data} onBack={() => setCurrentZone(null)} onRefresh={loadAllData} />}
           {activeTab === 'checkouts' && <CheckoutsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'donated' && <DonatedTab data={data} />}
@@ -179,9 +190,16 @@ export default function Dashboard() {
           {activeTab === 'qr' && <QrTab warehouseId={warehouseId} />}
           {activeTab === 'requests' && isManager && <RequestsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'users' && isManager && <UsersTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'founder' && isFounder && <FounderTab onRefresh={loadAllData} />}
+          {activeTab === 'founder' && isFounder && <FounderTab onRefresh={loadAllData} onOpenBuilder={() => setShowBuilder(true)} />}
         </div>
       </main>
+
+      {showBuilder && isFounder && (
+        <WarehouseBuilder
+          onClose={() => setShowBuilder(false)}
+          onChanged={handleBuilderRefresh}
+        />
+      )}
     </div>
   );
 }

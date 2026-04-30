@@ -1,19 +1,20 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
 const ALL_PERMISSIONS = { view: true, checkout: true, return: true, add: true, edit: true, delete: true };
+const ACTIVE_WH_KEY = 'sraj.activeWarehouseId';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [permissions, setPermissions] = useState(null);
-  const [warehouseId, setWarehouseId] = useState(null);
+  const [warehouseId, setWarehouseIdState] = useState(null);
+  const [warehouses, setWarehouses] = useState([]);  // كل المستودعات المتاحة للمستخدم
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // جلب الجلسة الحالية عند التحميل
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         loadUserData(session.user);
@@ -22,7 +23,6 @@ export function AuthProvider({ children }) {
       }
     });
 
-    // الاستماع لتغيّرات المصادقة
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         loadUserData(session.user);
@@ -30,7 +30,8 @@ export function AuthProvider({ children }) {
         setUser(null);
         setProfile(null);
         setPermissions(null);
-        setWarehouseId(null);
+        setWarehouseIdState(null);
+        setWarehouses([]);
         setLoading(false);
       }
     });
@@ -41,7 +42,6 @@ export function AuthProvider({ children }) {
   async function loadUserData(authUser) {
     setUser(authUser);
 
-    // جلب الملف الشخصي (يشمل is_founder و stealth_mode)
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
@@ -49,53 +49,71 @@ export function AuthProvider({ children }) {
       .single();
     setProfile(profileData);
 
-    // المؤسّس له كل الصلاحيات تلقائياً، حتى لو لم يكن مرتبطاً بمستودع بعد
+    let availableWarehouses = [];
+    let perms = null;
+    let activeWhId = null;
+
     if (profileData?.is_founder) {
-      // محاولة جلب أي مستودع مرتبط، وإلا نأخذ المستودع الرئيسي مباشرةً
-      const { data: uw } = await supabase
+      // المؤسّس يرى كل المستودعات
+      const { data: allWh } = await supabase
+        .from('warehouses')
+        .select('*')
+        .order('created_at');
+      availableWarehouses = (allWh || []).map(w => ({
+        ...w,
+        role: 'founder',
+        permissions: ALL_PERMISSIONS,
+        approved: true
+      }));
+      perms = ALL_PERMISSIONS;
+    } else {
+      // غير المؤسّس: يرى فقط مستودعاته المعتمَدة
+      const { data: memberships } = await supabase
         .from('user_warehouses')
-        .select('warehouse_id')
+        .select('warehouse_id, role, permissions, approved, warehouses(*)')
         .eq('user_id', authUser.id)
-        .limit(1)
-        .maybeSingle();
+        .eq('approved', true);
 
-      if (uw?.warehouse_id) {
-        setWarehouseId(uw.warehouse_id);
-      } else {
-        const { data: anyWh } = await supabase
-          .from('warehouses')
-          .select('id')
-          .limit(1)
-          .maybeSingle();
-        if (anyWh?.id) setWarehouseId(anyWh.id);
-      }
-      setPermissions(ALL_PERMISSIONS);
-      setLoading(false);
-      return;
+      availableWarehouses = (memberships || []).map(m => ({
+        ...m.warehouses,
+        role: m.role,
+        permissions: (m.role === 'whmanager' || profileData?.role === 'sysadmin') ? ALL_PERMISSIONS : m.permissions,
+        approved: m.approved
+      }));
     }
 
-    // جلب صلاحيات المستخدم في المستودع
-    const { data: uw } = await supabase
-      .from('user_warehouses')
-      .select('warehouse_id, permissions, role')
-      .eq('user_id', authUser.id)
-      .eq('approved', true)
-      .limit(1)
-      .maybeSingle();
-
-    if (uw) {
-      setWarehouseId(uw.warehouse_id);
-      setPermissions(uw.permissions);
-      // إذا كان المستخدم مدير نظام أو مدير مستودع، أعطه كل الصلاحيات
-      if (profileData?.role === 'sysadmin' || uw.role === 'whmanager') {
-        setPermissions(ALL_PERMISSIONS);
-      }
+    // اختيار المستودع النشط: من localStorage أوّلاً، وإلا الأوّل
+    const stored = localStorage.getItem(ACTIVE_WH_KEY);
+    const storedExists = availableWarehouses.find(w => w.id === stored);
+    if (storedExists) {
+      activeWhId = stored;
+      perms = storedExists.permissions;
+    } else if (availableWarehouses.length > 0) {
+      activeWhId = availableWarehouses[0].id;
+      perms = availableWarehouses[0].permissions;
     }
 
+    setWarehouses(availableWarehouses);
+    setWarehouseIdState(activeWhId);
+    setPermissions(perms);
     setLoading(false);
   }
 
+  // تبديل المستودع النشط
+  const setWarehouseId = useCallback((newId) => {
+    const wh = warehouses.find(w => w.id === newId);
+    if (!wh) return;
+    localStorage.setItem(ACTIVE_WH_KEY, newId);
+    setWarehouseIdState(newId);
+    setPermissions(wh.permissions);
+  }, [warehouses]);
+
   async function refreshProfile() {
+    if (!user) return;
+    await loadUserData(user);
+  }
+
+  async function refreshWarehouses() {
     if (!user) return;
     await loadUserData(user);
   }
@@ -106,7 +124,6 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp(email, password, fullName, warehouseId) {
-    // إنشاء الحساب
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -114,7 +131,6 @@ export function AuthProvider({ children }) {
     });
     if (error) return { error };
 
-    // إنشاء طلب انضمام للمستودع
     if (data.user) {
       await supabase.from('join_requests').insert({
         user_id: data.user.id,
@@ -127,10 +143,10 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    localStorage.removeItem(ACTIVE_WH_KEY);
     await supabase.auth.signOut();
   }
 
-  // التحقّق من الصلاحية — المؤسّس يتجاوز كل القيود
   function can(permission) {
     if (profile?.is_founder) return true;
     if (profile?.role === 'sysadmin') return true;
@@ -140,12 +156,13 @@ export function AuthProvider({ children }) {
 
   const isFounder = profile?.is_founder === true;
   const isSysadmin = profile?.role === 'sysadmin' || isFounder;
+  const activeWarehouse = warehouses.find(w => w.id === warehouseId) || null;
 
   return (
     <AuthContext.Provider value={{
-      user, profile, permissions, warehouseId, loading,
+      user, profile, permissions, warehouseId, warehouses, activeWarehouse, loading,
       isFounder, isSysadmin,
-      signIn, signUp, signOut, can, refreshProfile
+      signIn, signUp, signOut, can, refreshProfile, refreshWarehouses, setWarehouseId
     }}>
       {children}
     </AuthContext.Provider>

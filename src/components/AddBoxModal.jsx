@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
 
-export default function AddBoxModal({ slotCode, onClose, onSaved }) {
+export default function AddBoxModal({ slotCode, shelfId, onClose, onSaved }) {
   const { warehouseId } = useAuth();
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -12,6 +12,7 @@ export default function AddBoxModal({ slotCode, onClose, onSaved }) {
     try {
       await supabase.from('boxes').insert({
         warehouse_id: warehouseId,
+        shelf_id: shelfId || null,
         code: slotCode,
         description: description.trim() || null
       });

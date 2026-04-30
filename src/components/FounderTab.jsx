@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
-export default function FounderTab({ onRefresh }) {
+export default function FounderTab({ onRefresh, onOpenBuilder }) {
   const { user, profile, refreshProfile } = useAuth();
   const [stealth, setStealth] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -82,6 +82,21 @@ export default function FounderTab({ onRefresh }) {
           </div>
         </div>
       </div>
+
+      {/* بطاقة منشئ المستودع */}
+      <button onClick={onOpenBuilder}
+        className="w-full bg-white border border-stone-200 rounded-xl p-4 text-right hover:shadow-md hover:border-amber-300 transition group">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 group-hover:bg-amber-200 text-amber-800 flex items-center justify-center text-xl transition">🏗</div>
+            <div>
+              <h3 className="font-display font-bold text-sm">منشئ المستودع</h3>
+              <p className="text-xs text-stone-600 mt-0.5">إنشاء/تعديل/حذف المستودعات والمساحات والأرفف والصناديق بصرياً</p>
+            </div>
+          </div>
+          <span className="text-stone-400 group-hover:text-amber-600 transition">→</span>
+        </div>
+      </button>
 
       {msg && (
         <div className={`rounded-lg p-3 text-sm ${msg.kind === 'error' ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-green-50 border border-green-200 text-green-800'}`}>

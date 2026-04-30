@@ -25,14 +25,31 @@ export function getInitials(name) {
   return name.split(' ').map(n => n[0]).slice(0, 2).join('');
 }
 
-export function suggestLocation(category, existingBoxes) {
-  const zoneMap = { events: 'A', tech: 'B', field: 'C', support: 'D' };
-  const zone = zoneMap[category] || 'A';
-  for (let s = 1; s <= 3; s++) {
-    const onShelf = existingBoxes.filter(b => b.code.startsWith(`${zone}-${s}-`)).length;
-    if (onShelf < 4) return `${zone}-${s}-${onShelf + 1}`;
+// يقترح موقع تخزين بناءً على المساحة المختارة وأرففها
+// zones: قائمة المساحات الديناميكيّة (مع shelves لكل مساحة)
+export function suggestLocation(zoneLetter, existingBoxes, zones = []) {
+  const zone = zones.find(z => z.letter === zoneLetter);
+  if (!zone) {
+    // احتياط: استخدم الترتيب القديم إذا لم تتوفّر بيانات مساحات
+    for (let s = 1; s <= 3; s++) {
+      const onShelf = existingBoxes.filter(b => b.code.startsWith(`${zoneLetter}-${s}-`)).length;
+      if (onShelf < 4) return `${zoneLetter}-${s}-${onShelf + 1}`;
+    }
+    return `${zoneLetter}-1-1`;
   }
-  return `${zone}-1-1`;
+  for (const sh of zone.shelves) {
+    const onShelf = existingBoxes.filter(b => b.code.startsWith(`${zoneLetter}-${sh.shelf_index}-`)).length;
+    if (onShelf < (sh.max_boxes || 4)) {
+      return { code: `${zoneLetter}-${sh.shelf_index}-${onShelf + 1}`, shelfId: sh.id };
+    }
+  }
+  // كل الأرفف ممتلئة — ارجع آخر رف
+  const lastShelf = zone.shelves[zone.shelves.length - 1];
+  if (lastShelf) {
+    const onShelf = existingBoxes.filter(b => b.code.startsWith(`${zoneLetter}-${lastShelf.shelf_index}-`)).length;
+    return { code: `${zoneLetter}-${lastShelf.shelf_index}-${onShelf + 1}`, shelfId: lastShelf.id };
+  }
+  return { code: `${zoneLetter}-1-1`, shelfId: null };
 }
 
 export function formatArabicDate(dateStr) {
