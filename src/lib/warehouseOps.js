@@ -102,12 +102,29 @@ export async function updateBox(box_id, patch) {
 }
 
 // حذف ناعم — يُمكن استرجاعه من سلّة المحذوفات
+// مع cascading للأصناف داخل الصندوق
 export async function deleteBox(box_id) {
-  return supabase.from('boxes').update({ deleted_at: new Date().toISOString() }).eq('id', box_id);
+  const now = new Date().toISOString();
+  // أولاً: حذف ناعم لكل الأصناف داخل الصندوق
+  await supabase.from('items').update({ deleted_at: now }).eq('box_id', box_id).is('deleted_at', null);
+  // ثانياً: حذف الصندوق
+  return supabase.from('boxes').update({ deleted_at: now }).eq('id', box_id);
 }
 
 export async function softDeleteItem(item_id) {
   return supabase.from('items').update({ deleted_at: new Date().toISOString() }).eq('id', item_id);
+}
+
+// عدد الأصناف داخل صندوق
+export async function countItemsInBox(box_id) {
+  const { count } = await supabase.from('items').select('id', { count: 'exact', head: true })
+    .eq('box_id', box_id).is('deleted_at', null);
+  return count || 0;
+}
+
+// نقل صنف من صندوق لآخر
+export async function moveItemToBox(item_id, target_box_id) {
+  return supabase.from('items').update({ box_id: target_box_id }).eq('id', item_id);
 }
 
 // استرجاع من السلّة

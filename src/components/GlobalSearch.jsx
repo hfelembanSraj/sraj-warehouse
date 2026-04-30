@@ -37,9 +37,10 @@ export default function GlobalSearch({ onJump }) {
       const [itemsR, boxesR, zonesR, whR] = await Promise.all([
         supabase
           .from('items')
-          .select('id, name, quantity, box_id, photo_url, boxes(code, warehouse_id, shelf_id, shelves(zone_id, shelf_index, zones(letter, name, color)))')
+          .select('id, name, quantity, box_id, photo_url, boxes!inner(code, warehouse_id, shelf_id, deleted_at, shelves(zone_id, shelf_index, zones(letter, name, color)))')
           .ilike('name', ilike)
           .is('deleted_at', null)
+          .is('boxes.deleted_at', null)
           .limit(15),
         supabase
           .from('boxes')

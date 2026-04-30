@@ -209,7 +209,10 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
       {checkoutItem && <CheckoutModal item={checkoutItem} onClose={() => setCheckoutItem(null)} onSaved={() => { loadItems(); onRefresh(); }} />}
       {confirming?.type === 'box' && (
         <ConfirmDelete
-          message={`سيُحذف الصندوق ${currentBox.code} مع كل أصنافه. هل أنت متأكّد؟`}
+          message={items.length > 0
+            ? `⚠️ يحتوي هذا الصندوق على ${items.length} ${items.length === 1 ? 'صنف' : 'أصناف'}. سيُحذف الصندوق وكل الأصناف بداخله (يمكن استرجاعها من سلّة المحذوفات لاحقاً).`
+            : `سيُحذف الصندوق ${currentBox.code}. هل أنت متأكّد؟`
+          }
           busy={busy}
           onConfirm={handleDeleteBox}
           onCancel={() => setConfirming(null)}
