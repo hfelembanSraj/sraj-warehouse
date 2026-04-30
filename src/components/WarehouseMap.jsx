@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AddItemModal from './AddItemModal';
+import { AddZoneForm, EditZoneForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone } from '../lib/warehouseOps';
 
-export default function WarehouseMap({ data, onZoneClick, onRefresh, onOpenBuilder }) {
+export default function WarehouseMap({ data, onZoneClick, onRefresh }) {
   const { can, isFounder, activeWarehouse } = useAuth();
   const [showAddItem, setShowAddItem] = useState(false);
+  const [showAddZone, setShowAddZone] = useState(false);
+  const [editingZoneId, setEditingZoneId] = useState(null);
+  const [confirming, setConfirming] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, flash] = useFlash();
 
   const totalBoxes = data.boxes.length;
   const totalQty = data.items.reduce((s, it) => s + (it.quantity || 0), 0);
@@ -17,8 +24,44 @@ export default function WarehouseMap({ data, onZoneClick, onRefresh, onOpenBuild
     return data.boxes.filter(b => b.code.startsWith(letter + '-')).length;
   }
 
+  async function handleAddZone(values) {
+    if (zones.find(z => z.letter === values.letter.toUpperCase())) {
+      flash('هذا الحرف موجود — اختر حرفاً آخر', 'error');
+      return;
+    }
+    setBusy(true);
+    const { error } = await rpcAddZone(activeWarehouse.id, values);
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ تمت إضافة مساحة ${values.letter.toUpperCase()}`);
+    setShowAddZone(false);
+    await onRefresh();
+  }
+
+  async function handleUpdateZone(zone, patch) {
+    setBusy(true);
+    const { error } = await rpcUpdateZone(zone, patch);
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ تم الحفظ');
+    setEditingZoneId(null);
+    await onRefresh();
+  }
+
+  async function handleDeleteZone() {
+    setBusy(true);
+    const { error } = await rpcDeleteZone(confirming.zone.id);
+    setBusy(false);
+    setConfirming(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ تم حذف المساحة');
+    await onRefresh();
+  }
+
   return (
     <>
+      <StatusToast msg={msg} />
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatCard num={totalBoxes} label="صناديق" />
@@ -35,11 +78,11 @@ export default function WarehouseMap({ data, onZoneClick, onRefresh, onOpenBuild
               {activeWarehouse?.width_m || 4}م × {activeWarehouse?.depth_m || 4}م · {zones.length} مساحة تخزين
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {isFounder && onOpenBuilder && (
-              <button onClick={onOpenBuilder}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isFounder && (
+              <button onClick={() => setShowAddZone(s => !s)}
                 className="bg-amber-100 border border-amber-300 text-amber-900 text-xs px-3 py-2 rounded-lg hover:bg-amber-200">
-                🏗 منشئ المستودع
+                + 👑 مساحة جديدة
               </button>
             )}
             {can('add') && (
@@ -51,44 +94,92 @@ export default function WarehouseMap({ data, onZoneClick, onRefresh, onOpenBuild
           </div>
         </div>
 
+        {showAddZone && (
+          <div className="mb-4">
+            <AddZoneForm
+              busy={busy}
+              existingLetters={zones.map(z => z.letter)}
+              onCancel={() => setShowAddZone(false)}
+              onSave={handleAddZone}
+            />
+          </div>
+        )}
+
         {zones.length === 0 ? (
           <div className="text-center py-12 text-stone-400">
             <div className="text-3xl mb-2">📭</div>
             <p className="text-sm mb-2">هذا المستودع فارغ — لا توجد مساحات تخزين بعد</p>
-            {isFounder && (
-              <button onClick={onOpenBuilder}
+            {isFounder && !showAddZone && (
+              <button onClick={() => setShowAddZone(true)}
                 className="mt-2 bg-amber-500 text-white text-xs px-4 py-2 rounded-lg hover:bg-amber-600">
-                🏗 ابدأ بناء المستودع
+                🏗 ابدأ ببناء أوّل مساحة
               </button>
             )}
           </div>
         ) : (
-          <div className="flex justify-center">
-            <div className="relative w-full max-w-lg aspect-square bg-stone-100 rounded-lg border-2 border-dashed border-stone-300 px-3 py-7">
-              <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 tracking-widest">الجدار الخلفي</div>
+          <>
+            <div className="flex justify-center">
+              <div className="relative w-full max-w-lg aspect-square bg-stone-100 rounded-lg border-2 border-dashed border-stone-300 px-3 py-7">
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 tracking-widest">الجدار الخلفي</div>
 
-              {zones.map(z => (
-                <ZoneTile
-                  key={z.id}
-                  zone={z}
-                  boxCount={boxCountForZone(z.letter)}
-                  onClick={() => onZoneClick(z.letter)}
-                />
-              ))}
+                {zones.map(z => (
+                  <ZoneTile
+                    key={z.id}
+                    zone={z}
+                    boxCount={boxCountForZone(z.letter)}
+                    onClick={() => onZoneClick(z)}
+                    isFounder={isFounder}
+                    busy={busy}
+                    onEdit={() => setEditingZoneId(editingZoneId === z.id ? null : z.id)}
+                    onDelete={() => setConfirming({ zone: z })}
+                  />
+                ))}
 
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-[10px] text-stone-400 tracking-widest">ممرّ الحركة</span>
-              </div>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="text-[10px] text-stone-400 tracking-widest">ممرّ الحركة</span>
+                </div>
 
-              <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t-lg px-4 py-1 text-[10px] text-stone-600">
-                المدخل
+                <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t-lg px-4 py-1 text-[10px] text-stone-600">
+                  المدخل
+                </div>
               </div>
             </div>
-          </div>
+
+            {/* نموذج تعديل المساحة (يظهر تحت الخريطة عند تفعيل التعديل) */}
+            {isFounder && editingZoneId && (
+              <div className="mt-4 bg-stone-50 border border-stone-200 rounded-xl p-3">
+                {(() => {
+                  const z = zones.find(z2 => z2.id === editingZoneId);
+                  if (!z) return null;
+                  return (
+                    <>
+                      <h4 className="text-xs font-display font-bold mb-2">
+                        ✏️ تعديل مساحة {z.letter} — {z.name}
+                      </h4>
+                      <EditZoneForm
+                        zone={z}
+                        busy={busy}
+                        onCancel={() => setEditingZoneId(null)}
+                        onSave={(patch) => handleUpdateZone(z, patch)}
+                      />
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {showAddItem && <AddItemModal data={data} onClose={() => setShowAddItem(false)} onSaved={onRefresh} />}
+      {confirming && (
+        <ConfirmDelete
+          message={`سيُحذف ${confirming.zone.letter} — ${confirming.zone.name} مع كل أرففه وصناديقه. هل أنت متأكّد؟`}
+          busy={busy}
+          onConfirm={handleDeleteZone}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
     </>
   );
 }
@@ -107,8 +198,7 @@ function StatCard({ num, label, color = 'default' }) {
   );
 }
 
-function ZoneTile({ zone, boxCount, onClick }) {
-  // الموضع المطلق بالنسبة المئوية
+function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete }) {
   const style = {
     top:    zone.pos_top    != null ? `${zone.pos_top}%`    : undefined,
     bottom: (zone.pos_top == null && zone.pos_height != null) ? `${100 - zone.pos_height - 6}%` : undefined,
@@ -119,14 +209,25 @@ function ZoneTile({ zone, boxCount, onClick }) {
     borderColor: zone.color
   };
   return (
-    <button onClick={onClick} style={style}
-      className="absolute bg-white border-2 rounded-md p-2 flex flex-col justify-between cursor-pointer hover:shadow-md transition group">
-      <div className="absolute inset-1 border border-dashed border-stone-200 rounded pointer-events-none"></div>
-      <div>
+    <div style={style} className="absolute bg-white border-2 rounded-md flex flex-col group">
+      <button onClick={onClick} className="flex-1 p-2 text-right hover:bg-stone-50 rounded-md transition relative">
+        <div className="absolute inset-1 border border-dashed border-stone-200 rounded pointer-events-none"></div>
         <div className="text-2xl font-display font-bold leading-none" style={{ color: zone.color }}>{zone.letter}</div>
         <div className="text-[9px] text-stone-500 mt-1 leading-tight">{zone.name}</div>
-      </div>
-      <div className="text-[9px] text-stone-400">{boxCount} صناديق</div>
-    </button>
+        <div className="text-[9px] text-stone-400 absolute bottom-1 right-2">{boxCount} صناديق</div>
+      </button>
+      {isFounder && (
+        <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
+            className="text-[9px] bg-white border border-stone-300 px-1 py-0.5 rounded shadow-sm hover:bg-stone-100"
+            title="تعديل"
+          >✏️</button>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
+            className="text-[9px] bg-white border border-red-300 px-1 py-0.5 rounded shadow-sm text-red-600 hover:bg-red-50"
+            title="حذف"
+          >🗑</button>
+        </div>
+      )}
+    </div>
   );
 }

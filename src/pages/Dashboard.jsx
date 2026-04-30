@@ -7,6 +7,8 @@ import { isOverdue, getInitials } from '../lib/helpers';
 
 import WarehouseMap from '../components/WarehouseMap';
 import ZoneView from '../components/ZoneView';
+import ShelfView from '../components/ShelfView';
+import BoxView from '../components/BoxView';
 import CheckoutsTab from '../components/CheckoutsTab';
 import DamagedTab from '../components/DamagedTab';
 import DonatedTab from '../components/DonatedTab';
@@ -16,15 +18,19 @@ import QrTab from '../components/QrTab';
 import UsersTab from '../components/UsersTab';
 import RequestsTab from '../components/RequestsTab';
 import FounderTab from '../components/FounderTab';
+import WarehousesHome from '../components/WarehousesHome';
 import WarehouseSwitcher from '../components/WarehouseSwitcher';
 import WarehouseBuilder from '../components/WarehouseBuilder';
 
 export default function Dashboard() {
-  const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses } = useAuth();
+  const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('map');
   const [currentZone, setCurrentZone] = useState(null);
+  const [currentShelf, setCurrentShelf] = useState(null);
+  const [currentBox, setCurrentBox] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [showWarehousesHome, setShowWarehousesHome] = useState(false);
   const [data, setData] = useState({
     boxes: [], items: [], checkouts: [], damaged: [], donated: [],
     log: [], requests: [], users: [], zones: []
@@ -71,7 +77,11 @@ export default function Dashboard() {
   const role = profile?.role || 'user';
   const isManager = isFounder || isSysadmin || data.users.find(u => u.user_id === user?.id)?.role === 'whmanager';
 
-  const tabs = [
+  const tabs = [];
+  if (isFounder) {
+    tabs.push({ key: 'home', label: '🏢 المستودعات' });
+  }
+  tabs.push(
     { key: 'map', label: 'المستودع' },
     { key: 'checkouts', label: 'الإخراج/الإرجاع', badge: overdueCount },
     { key: 'damaged', label: 'المتلفات' },
@@ -79,7 +89,7 @@ export default function Dashboard() {
     { key: 'log', label: 'السجل' },
     { key: 'reports', label: 'التقارير' },
     { key: 'qr', label: 'رموز QR' }
-  ];
+  );
   if (isManager) {
     tabs.push({ key: 'requests', label: 'طلبات الانضمام', badge: data.requests.length });
     tabs.push({ key: 'users', label: 'المستخدمون' });
@@ -97,7 +107,16 @@ export default function Dashboard() {
   function handleTabChange(t) {
     setActiveTab(t);
     setCurrentZone(null);
+    setCurrentShelf(null);
+    setCurrentBox(null);
   }
+
+  function backToMap()    { setCurrentZone(null); setCurrentShelf(null); setCurrentBox(null); }
+  function backToZone()   { setCurrentShelf(null); setCurrentBox(null); }
+  function backToShelf()  { setCurrentBox(null); }
+  function openZone(zone)   { setCurrentZone(zone); setCurrentShelf(null); setCurrentBox(null); }
+  function openShelf(shelf) { setCurrentShelf(shelf); setCurrentBox(null); }
+  function openBox(box)     { setCurrentBox(box); }
 
   async function handleBuilderRefresh() {
     await refreshWarehouses();
@@ -189,8 +208,29 @@ export default function Dashboard() {
 
         {/* Tab Content */}
         <div className="animate-fade-in">
-          {activeTab === 'map' && !currentZone && <WarehouseMap data={data} onZoneClick={setCurrentZone} onRefresh={loadAllData} onOpenBuilder={isFounder ? () => setShowBuilder(true) : null} />}
-          {activeTab === 'map' && currentZone && <ZoneView zoneLetter={currentZone} data={data} onBack={() => setCurrentZone(null)} onRefresh={loadAllData} />}
+          {activeTab === 'home' && isFounder && (
+            <WarehousesHome onEnterWarehouse={(whId) => {
+              setWarehouseId?.(whId);
+              setActiveTab('map');
+              backToMap();
+            }} onRefresh={refreshWarehouses} />
+          )}
+          {activeTab === 'map' && !currentZone && (
+            <WarehouseMap data={data} onZoneClick={openZone} onRefresh={loadAllData} />
+          )}
+          {activeTab === 'map' && currentZone && !currentShelf && (
+            <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onRefresh={loadAllData} />
+          )}
+          {activeTab === 'map' && currentZone && currentShelf && !currentBox && (
+            <ShelfView zone={currentZone} shelf={currentShelf} data={data}
+              onBackToMap={backToMap} onBackToZone={backToZone}
+              onBoxClick={openBox} onRefresh={loadAllData} />
+          )}
+          {activeTab === 'map' && currentZone && currentShelf && currentBox && (
+            <BoxView zone={currentZone} shelf={currentShelf} box={currentBox} data={data}
+              onBackToMap={backToMap} onBackToZone={backToZone} onBackToShelf={backToShelf}
+              onRefresh={loadAllData} />
+          )}
           {activeTab === 'checkouts' && <CheckoutsTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'donated' && <DonatedTab data={data} />}
