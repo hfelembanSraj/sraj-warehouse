@@ -22,6 +22,7 @@ import WarehousesHome from '../components/WarehousesHome';
 import WarehouseSwitcher from '../components/WarehouseSwitcher';
 import WarehouseBuilder from '../components/WarehouseBuilder';
 import QrScannerModal from '../components/QrScannerModal';
+import GlobalSearch from '../components/GlobalSearch';
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
@@ -191,6 +192,34 @@ export default function Dashboard() {
     backToMap();
   }
 
+  function handleSearchJump(target) {
+    if (target.type === 'warehouse') {
+      if (target.id !== warehouseId) setWarehouseId?.(target.id);
+      backToMap();
+      if (isFounder) setEnteredWarehouse(true);
+      setActiveTab(isFounder ? 'home' : 'map');
+    } else if (target.type === 'zone') {
+      if (target.warehouseId !== warehouseId) setWarehouseId?.(target.warehouseId);
+      // الانتظار قليلاً لتحميل البيانات الجديدة (يتم بعد setWarehouseId)
+      setTimeout(() => {
+        const zone = data.zones.find(z => z.letter === target.letter);
+        if (zone) setCurrentZone(zone);
+      }, 100);
+      setCurrentShelf(null);
+      setCurrentBox(null);
+      if (isFounder) setEnteredWarehouse(true);
+      setActiveTab(isFounder ? 'home' : 'map');
+    } else if (target.type === 'box' && target.boxCode) {
+      if (target.warehouseId && target.warehouseId !== warehouseId) {
+        setWarehouseId?.(target.warehouseId);
+      }
+      // الانتقال يحدث بعد تحديث البيانات
+      setTimeout(() => {
+        handleScannedUrl(`?wh=${target.warehouseId || warehouseId}&box=${target.boxCode}`);
+      }, 100);
+    }
+  }
+
   async function handleBuilderRefresh() {
     await refreshWarehouses();
     await loadAllData();
@@ -244,6 +273,9 @@ export default function Dashboard() {
             >
               📷 مسح
             </button>
+          </div>
+          <div className="hidden md:block flex-1 max-w-sm mx-4">
+            <GlobalSearch onJump={handleSearchJump} />
           </div>
           <div className="flex items-center gap-3">
             {isFounder && profile?.stealth_mode && (
