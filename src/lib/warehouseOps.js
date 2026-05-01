@@ -165,31 +165,84 @@ export async function moveItemToBox(item_id, target_box_id) {
 // نقل صندوق من رف لآخر (ضمن نفس المستودع)
 // يولّد رمزاً جديداً تلقائياً بناءً على الرف الجديد
 export async function moveBoxToShelf(box_id, target_shelf_id) {
-  // اجلب بيانات الرف الهدف لنُولّد الرمز الصحيح
+  return bulkMoveBoxes([box_id], target_shelf_id);
+}
+
+// نقل عدّة صناديق دفعة واحدة إلى رفّ واحد
+// يفترض أنّ الصناديق قد تكون من رفوف مختلفة، ويُولّد رموزاً جديدة متسلسلة في الرف الهدف
+export async function bulkMoveBoxes(box_ids, target_shelf_id) {
+  if (!box_ids || box_ids.length === 0) return { data: null, error: null };
+
   const { data: shelf } = await supabase.from('shelves')
-    .select('shelf_index, zone_id, zones(letter)')
+    .select('shelf_index, zone_id, max_boxes, zones(letter)')
     .eq('id', target_shelf_id).maybeSingle();
   if (!shelf) return { error: { message: 'الرف الهدف غير موجود' } };
 
   const zoneLetter = shelf.zones?.letter;
   const shelfIndex = shelf.shelf_index;
 
-  // اجلب أعلى رقم box_index في الرف الهدف
+  // الصناديق الموجودة حالياً في الرف الهدف، باستثناء الصناديق التي ستنتقل (إن كانت أصلاً منه)
   const { data: existing } = await supabase.from('boxes')
-    .select('box_index, code')
+    .select('id, box_index')
     .eq('shelf_id', target_shelf_id).is('deleted_at', null);
 
-  const nextBoxNum = (existing && existing.length > 0
-    ? Math.max(...existing.map(b => b.box_index || 0))
+  const existingNotMoving = (existing || []).filter(b => !box_ids.includes(b.id));
+  let nextBoxNum = (existingNotMoving.length > 0
+    ? Math.max(...existingNotMoving.map(b => b.box_index || 0))
     : 0) + 1;
 
-  const newCode = `${zoneLetter}-${shelfIndex}-${nextBoxNum}`;
+  // اجلب الصناديق المصدر للتأكّد من شيلف_id الحالي (لاستبعاد no-op)
+  const { data: srcBoxes } = await supabase.from('boxes')
+    .select('id, shelf_id')
+    .in('id', box_ids);
+  const toMoveIds = (srcBoxes || []).filter(b => b.shelf_id !== target_shelf_id).map(b => b.id);
 
-  return supabase.from('boxes').update({
-    shelf_id: target_shelf_id,
-    code: newCode,
-    box_index: nextBoxNum
-  }).eq('id', box_id);
+  if (toMoveIds.length === 0) return { data: null, error: null };
+
+  // وسّع الرف الهدف إن لزم
+  const newTotal = existingNotMoving.length + toMoveIds.length;
+  if (newTotal > shelf.max_boxes) {
+    await supabase.rpc('update_shelf', {
+      s_id: target_shelf_id,
+      s_max_boxes: newTotal,
+      s_height_cm: null,
+      s_label: null
+    });
+  }
+
+  // انقل صندوقاً صندوقاً (مع رمز جديد متسلسل)
+  for (const box_id of toMoveIds) {
+    const newCode = `${zoneLetter}-${shelfIndex}-${nextBoxNum}`;
+    const { error } = await supabase.from('boxes').update({
+      shelf_id: target_shelf_id,
+      code: newCode,
+      box_index: nextBoxNum
+    }).eq('id', box_id);
+    if (error) return { error };
+    nextBoxNum++;
+  }
+
+  return { data: { moved: toMoveIds.length }, error: null };
+}
+
+// حذف ناعم لعدّة صناديق دفعة واحدة (مع cascading لأصنافها)
+export async function bulkDeleteBoxes(box_ids) {
+  if (!box_ids || box_ids.length === 0) return { data: null, error: null };
+  const now = new Date().toISOString();
+  // أوّلاً: حذف ناعم لكلّ الأصناف داخل هذه الصناديق
+  await supabase.from('items').update({ deleted_at: now }).in('box_id', box_ids).is('deleted_at', null);
+  // ثانياً: حذف الصناديق نفسها
+  return supabase.from('boxes').update({ deleted_at: now }).in('id', box_ids);
+}
+
+// تعديل الوصف لعدّة صناديق دفعة واحدة
+export async function bulkUpdateBoxes(box_ids, patch) {
+  if (!box_ids || box_ids.length === 0) return { data: null, error: null };
+  const update = {};
+  if ('description' in patch) update.description = patch.description;
+  if ('width_cm' in patch) update.width_cm = patch.width_cm;
+  if ('height_cm' in patch) update.height_cm = patch.height_cm;
+  return supabase.from('boxes').update(update).in('id', box_ids);
 }
 
 // استرجاع من السلّة

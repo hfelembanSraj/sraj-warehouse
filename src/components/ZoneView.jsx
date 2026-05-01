@@ -7,7 +7,8 @@ import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, S
 import { CardboardBoxMini } from './CardboardBox';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
-  rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf
+  rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
+  bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onRefresh }) {
@@ -21,16 +22,25 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   // وضع التعديل التفاعلي على الرفّ
   const [editMode, setEditMode] = useState(false);
 
-  // حالة السحب والإفلات (للديسكتوب) + النقر للاختيار (للجوال)
+  // حالة السحب والإفلات (للديسكتوب) + النقر للاختيار المتعدّد (للجوال أو لتحرّكات جماعيّة)
   const [draggedBox, setDraggedBox] = useState(null);
-  const [selectedBoxForMove, setSelectedBoxForMove] = useState(null);
+  // مجموعة معرّفات الصناديق المختارة (تدعم التحديد المتعدّد)
+  const [selectedBoxIds, setSelectedBoxIds] = useState(() => new Set());
   const [dragOverShelfId, setDragOverShelfId] = useState(null);
   const [dragOverTrash, setDragOverTrash] = useState(false);
   // الصندوق المُضاف حديثاً (لإبرازه بصرياً)
   const [recentlyAddedBoxId, setRecentlyAddedBoxId] = useState(null);
+  // مودال تعديل الوصف الجماعي
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
 
-  // الصندوق "النشط" للسحب أو النقل (سواء بالماوس أو اللمس)
-  const activeBoxForMove = draggedBox || selectedBoxForMove;
+  // قائمة الصناديق "النشطة" للنقل/الحذف:
+  //   - إذا في وضع سحب → الصندوق المسحوب (مع كلّ ما هو مختار معه إن كان ضمن الاختيار)
+  //   - وإلا → جميع المختار
+  const selectedBoxesArray = (data.boxes || []).filter(b => selectedBoxIds.has(b.id));
+  const activeBoxesForMove = draggedBox
+    ? (selectedBoxIds.has(draggedBox.id) ? selectedBoxesArray : [draggedBox])
+    : selectedBoxesArray;
+  const hasActiveSelection = activeBoxesForMove.length > 0;
   // نموذج إضافة صندوق على رف معيّن
   const [addBoxOnShelf, setAddBoxOnShelf] = useState(null);
   // نموذج إضافة رف
@@ -187,13 +197,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
-  // ====== السحب والإفلات + النقر للاختيار ======
+  // ====== السحب والإفلات + النقر للاختيار المتعدّد ======
   function handleBoxDragStart(e, box) {
+    // إن لم يكن الصندوق ضمن الاختيار الحالي → اعتبره وحيداً (يستبدل الاختيار)
+    if (!selectedBoxIds.has(box.id)) {
+      setSelectedBoxIds(new Set([box.id]));
+    }
     setDraggedBox(box);
-    setSelectedBoxForMove(null); // إلغاء أيّ اختيار سابق
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', box.id);
-    // أيقونة سحب مخصّصة (اختياريّ)
     if (e.currentTarget) {
       try { e.dataTransfer.setDragImage(e.currentTarget, 0, 0); } catch {}
     }
@@ -205,45 +217,96 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     setDragOverTrash(false);
   }
 
-  // اختيار/إلغاء اختيار صندوق بالنقر (للأجهزة اللمسيّة أو من لا يستطيع السحب)
+  // تبديل الاختيار: نقر يضيف/يزيل من الاختيار المتعدّد
   function handleBoxClickToSelect(box, e) {
-    if (!editMode || !isFounder) return;
+    if (!isFounder) return;
     e?.stopPropagation();
-    if (selectedBoxForMove?.id === box.id) {
-      setSelectedBoxForMove(null);  // إلغاء
-    } else {
-      setSelectedBoxForMove(box);
-    }
+    setSelectedBoxIds(prev => {
+      const next = new Set(prev);
+      if (next.has(box.id)) next.delete(box.id);
+      else next.add(box.id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedBoxIds(new Set());
+    setDraggedBox(null);
+  }
+
+  // تحديد كل صناديق رف معيّن
+  function selectAllInShelf(shelfIndex) {
+    const ids = zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex)).map(b => b.id);
+    setSelectedBoxIds(new Set(ids));
+  }
+
+  // تحديد كل صناديق المساحة
+  function selectAllInZone() {
+    setSelectedBoxIds(new Set(zoneBoxes.map(b => b.id)));
   }
 
   async function handleDropOnShelf(shelf) {
-    const box = activeBoxForMove;
-    if (!box) return;
-    const currentShelfIndex = parseInt(box.code.split('-')[1]);
-    if (currentShelfIndex === shelf.shelf_index) {
-      setDraggedBox(null);
-      setSelectedBoxForMove(null);
+    const boxes = activeBoxesForMove;
+    if (boxes.length === 0) return;
+
+    // فلترة الصناديق التي بالفعل في الرف الهدف (no-op لها)
+    const toMove = boxes.filter(b => {
+      const currentShelfIndex = parseInt(b.code.split('-')[1]);
+      return currentShelfIndex !== shelf.shelf_index;
+    });
+
+    if (toMove.length === 0) {
+      clearSelection();
       setDragOverShelfId(null);
       return;
     }
+
     setBusy(true);
-    const { error } = await moveBoxToShelf(box.id, shelf.id);
+    const { error } = await bulkMoveBoxes(toMove.map(b => b.id), shelf.id);
     setBusy(false);
-    setDraggedBox(null);
-    setSelectedBoxForMove(null);
+    clearSelection();
     setDragOverShelfId(null);
     if (error) return flash('فشل النقل: ' + error.message, 'error');
-    flash(`✅ نُقل إلى ${shelfDisplayName(shelf, shelves)}`);
+    flash(toMove.length === 1
+      ? `✅ نُقل إلى ${shelfDisplayName(shelf, shelves)}`
+      : `✅ نُقل ${toMove.length} صناديق إلى ${shelfDisplayName(shelf, shelves)}`);
     await onRefresh();
   }
 
   async function handleDropOnTrash() {
-    const box = activeBoxForMove;
-    if (!box) return;
-    setConfirming({ type: 'box', box });
+    const boxes = activeBoxesForMove;
+    if (boxes.length === 0) return;
+    if (boxes.length === 1) {
+      setConfirming({ type: 'box', box: boxes[0] });
+    } else {
+      setConfirming({ type: 'bulk-delete', boxes });
+    }
     setDraggedBox(null);
-    setSelectedBoxForMove(null);
     setDragOverTrash(false);
+  }
+
+  async function handleBulkDelete() {
+    const ids = confirming.boxes.map(b => b.id);
+    setBusy(true);
+    const { error } = await bulkDeleteBoxes(ids);
+    setBusy(false);
+    setConfirming(null);
+    clearSelection();
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ حُذف ${ids.length} صناديق`);
+    await onRefresh();
+  }
+
+  async function handleBulkUpdateDescription(newDescription) {
+    const ids = Array.from(selectedBoxIds);
+    setBusy(true);
+    const { error } = await bulkUpdateBoxes(ids, { description: newDescription });
+    setBusy(false);
+    setShowBulkEdit(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ تمّ تعديل وصف ${ids.length} صناديق`);
+    clearSelection();
+    await onRefresh();
   }
 
   return (
@@ -361,35 +424,53 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         )}
 
-        {/* سلّة الحذف — تعمل بالسحب أو بالنقر بعد اختيار صندوق */}
-        {editMode && isFounder && (
+        {/* سلّة الحذف — تعمل بالسحب أو بالنقر بعد اختيار صناديق (تظهر دائماً للمؤسّس عند وجود اختيار) */}
+        {isFounder && hasActiveSelection && (
           <div
-            onDragOver={(e) => { if (activeBoxForMove) { e.preventDefault(); setDragOverTrash(true); } }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverTrash(true); }}
             onDragLeave={() => setDragOverTrash(false)}
             onDrop={(e) => { e.preventDefault(); handleDropOnTrash(); }}
-            onClick={() => activeBoxForMove && handleDropOnTrash()}
+            onClick={() => handleDropOnTrash()}
             className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-2xl border-4 border-dashed transition shadow-2xl cursor-pointer ${
               dragOverTrash
                 ? 'bg-red-600 border-red-800 text-white scale-110'
-                : activeBoxForMove
-                  ? 'bg-red-100 border-red-500 text-red-800 animate-pulse'
-                  : 'bg-white/95 border-red-300 text-red-600'
+                : 'bg-red-100 border-red-500 text-red-800 animate-pulse'
             }`}
           >
             <div className="text-3xl text-center mb-1">🗑</div>
             <div className="text-xs font-bold whitespace-nowrap">
-              {dragOverTrash ? '⬇ أفلت للحذف' : activeBoxForMove ? 'اضغط هنا أو اسحب الصندوق للحذف' : 'سلّة الحذف'}
+              {dragOverTrash
+                ? '⬇ أفلت للحذف'
+                : activeBoxesForMove.length > 1
+                  ? `حذف ${activeBoxesForMove.length} صناديق`
+                  : 'حذف الصندوق'}
             </div>
           </div>
         )}
 
-        {/* لوحة الإرشاد عند اختيار صندوق بالنقر */}
-        {selectedBoxForMove && (
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-xl shadow-2xl border-2 border-blue-800 animate-fade-in">
-            <p className="text-xs font-bold flex items-center gap-2">
-              <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">{selectedBoxForMove.code}</span>
-              <span>← اضغط على الرف الهدف أو السلّة. أو اضغط الصندوق مرّة أخرى للإلغاء.</span>
-            </p>
+        {/* شريط التحديد المتعدّد العائم */}
+        {selectedBoxIds.size > 0 && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-3 rounded-xl shadow-2xl border-2 border-blue-800 animate-fade-in max-w-[95vw]">
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <span className="bg-white/20 px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap">
+                {selectedBoxIds.size} {selectedBoxIds.size === 1 ? 'صندوق مختار' : 'صناديق مختارة'}
+              </span>
+              <span className="text-[10px] opacity-90 hidden sm:inline">اضغط على رف لنقل الكلّ، أو على السلّة للحذف</span>
+              <div className="flex items-center gap-1.5 mr-2">
+                <button onClick={() => setShowBulkEdit(true)}
+                  className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
+                  ✏️ تعديل الوصف
+                </button>
+                <button onClick={selectAllInZone}
+                  className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
+                  ⊞ تحديد الكلّ في المساحة
+                </button>
+                <button onClick={clearSelection}
+                  className="text-[11px] bg-white/30 hover:bg-white/40 px-2.5 py-1 rounded font-medium">
+                  ✕ إلغاء
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -416,8 +497,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     ? Math.max(...shelfBoxes.map(b => b.box_index || 0))
                     : 0;
                   const totalSlots = Math.max(shelf.max_boxes, maxBoxIdx);
-                  // الرف يصير drop target حتى خارج edit mode إن كان فيه سحب نشط
-                  const dragModeActive = !!activeBoxForMove;
+                  // الرف يصير drop target حتى خارج edit mode إن كان فيه سحب أو اختيار نشط
+                  const dragModeActive = hasActiveSelection;
                   const isDropTarget = dragOverShelfId === shelf.id;
                   // نستخدم div دائماً (لتجنّب button-in-button) — مع onClick على الـ div
                   return (
@@ -428,9 +509,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         // تجاهل النقر إن كان من زرّ داخلي (الزرّ الداخلي يعالج نفسه عبر stopPropagation)
                         if (!editMode) onShelfClick(shelf);
                       }}
-                      onDragOver={(e) => { if (activeBoxForMove) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
+                      onDragOver={(e) => { if (hasActiveSelection) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
                       onDragLeave={() => setDragOverShelfId(null)}
-                      onDrop={(e) => { if (activeBoxForMove) { e.preventDefault(); handleDropOnShelf(shelf); } }}
+                      onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
                       role={editMode ? undefined : 'button'}
                       className={`flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative text-right transition ${
                         (editMode || dragModeActive) ? '' : 'hover:bg-blue-50 hover:border-brand-blue cursor-pointer'
@@ -446,11 +527,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         </span>
                       )}
 
-                      {/* أيقونة "اسحب" واضحة في الزاوية للدلالة */}
-                      {editMode && isFounder && shelfBoxes.length > 0 && (
-                        <span className="absolute bottom-0 right-1 text-[8px] text-stone-500 italic pointer-events-none">
-                          اسحب الصندوق ⇄
-                        </span>
+                      {/* زر تحديد كل صناديق هذا الرف — للمؤسّس */}
+                      {isFounder && shelfBoxes.length > 1 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); selectAllInShelf(shelf.shelf_index); }}
+                          className="absolute bottom-0 right-1 text-[9px] bg-white/90 border border-blue-300 text-blue-700 px-1.5 py-0.5 rounded shadow-sm hover:bg-blue-50 z-30"
+                          title={`تحديد كلّ صناديق ${shelfDisplayName(shelf, shelves)}`}
+                        >
+                          ⊞ حدّد الكلّ
+                        </button>
                       )}
 
                       {/* رسم الـ slots على أساس الموقع — كل slot = موقع 1, 2, 3... */}
@@ -462,7 +547,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           const isOut = isCheckedOut(box.id);
                           const isHighlighted = highlightedBox === box.code;
                           const isDragging = draggedBox?.id === box.id;
-                          const isSelected = selectedBoxForMove?.id === box.id;
+                          const isSelected = selectedBoxIds.has(box.id);
                           const isRecentlyAdded = recentlyAddedBoxId === box.id;
                           // المقبض الظاهر دائماً للمؤسّس (سواء edit mode أم لا)
                           const showHandle = isFounder;
@@ -490,8 +575,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 </div>
                               )}
                               {isSelected && (
-                                <span className="absolute bottom-0.5 left-0.5 text-[9px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10">
-                                  مختار · اضغط الهدف
+                                <span className="absolute bottom-0.5 left-0.5 text-[9px] text-white bg-blue-600 px-1.5 py-0.5 rounded pointer-events-none z-10 font-bold shadow">
+                                  ✓ مختار
                                 </span>
                               )}
                               {editMode && isFounder && (
@@ -658,7 +743,63 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           onCancel={() => setConfirming(null)}
         />
       )}
+      {confirming?.type === 'bulk-delete' && (
+        <ConfirmDelete
+          message={`سيُحذف ${confirming.boxes.length} صناديق وكلّ ما فيها من أغراض. هل أنت متأكّد؟`}
+          busy={busy}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {/* مودال تعديل الوصف الجماعي */}
+      {showBulkEdit && (
+        <FormModal
+          title={`✏️ تعديل وصف ${selectedBoxIds.size} صناديق`}
+          subtitle="سيُطبَّق نفس الوصف على كلّ الصناديق المختارة"
+          onClose={() => setShowBulkEdit(false)}
+          maxWidth="max-w-md"
+        >
+          <BulkDescriptionForm
+            count={selectedBoxIds.size}
+            busy={busy}
+            onCancel={() => setShowBulkEdit(false)}
+            onSave={handleBulkUpdateDescription}
+          />
+        </FormModal>
+      )}
     </>
+  );
+}
+
+// نموذج بسيط لتعديل الوصف الجماعي
+function BulkDescriptionForm({ count, busy, onCancel, onSave }) {
+  const [description, setDescription] = useState('');
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSave(description); }} className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium mb-1">الوصف الجديد</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          placeholder="مثال: عُدّة الفعاليّات الصيفيّة"
+          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs"
+          autoFocus
+        />
+        <p className="text-[10px] text-stone-500 mt-1">سيستبدل وصف كلّ الـ{count} صناديق المختارة</p>
+      </div>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} disabled={busy}
+          className="text-xs px-4 py-1.5 border border-stone-300 rounded hover:bg-stone-50">
+          إلغاء
+        </button>
+        <button type="submit" disabled={busy}
+          className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+          {busy ? '...' : '💾 حفظ على الكلّ'}
+        </button>
+      </div>
+    </form>
   );
 }
 
