@@ -494,11 +494,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                             key={`empty-${position}`}
                             onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, position); }}
                             disabled={busy}
-                            className="flex-1 border-2 border-dashed border-green-500 bg-green-50 hover:bg-green-200 rounded text-green-900 font-bold flex flex-col items-center justify-center gap-0.5 transition group"
-                            title={`اضغط لتُضاف هنا بالضبط (موقع ${position})`}>
-                            <span className="text-lg leading-none group-hover:scale-125 transition">⊕</span>
-                            <span className="text-[9px] font-bold leading-none">هنا</span>
-                            <span className="text-[8px] opacity-60 leading-none">#{position}</span>
+                            className="flex-1 border-2 border-dashed border-green-400 bg-green-50 hover:bg-green-100 hover:border-green-500 rounded text-green-800 font-bold flex flex-col items-center justify-center gap-0.5 transition"
+                            title={`اضغط لإضافة صندوق هنا (موقع ${position})`}>
+                            <span className="text-lg leading-none">+</span>
+                            <span className="text-[10px] leading-none">صندوق</span>
+                            <span className="text-[8px] opacity-50 leading-none">#{position}</span>
                           </button>
                         ) : (
                           <div key={`empty-${position}`} className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-400 flex items-center justify-center pointer-events-none">
