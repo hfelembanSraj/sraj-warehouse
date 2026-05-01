@@ -416,18 +416,24 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     ? Math.max(...shelfBoxes.map(b => b.box_index || 0))
                     : 0;
                   const totalSlots = Math.max(shelf.max_boxes, maxBoxIdx);
-                  const ShelfWrap = editMode ? 'div' : 'button';
-                  const isDropTarget = editMode && dragOverShelfId === shelf.id;
+                  // الرف يصير drop target حتى خارج edit mode إن كان فيه سحب نشط
+                  const dragModeActive = !!activeBoxForMove;
+                  const isDropTarget = dragOverShelfId === shelf.id;
+                  // نستخدم div دائماً (لتجنّب button-in-button) — مع onClick على الـ div
                   return (
-                    <ShelfWrap
+                    <div
                       key={shelf.id}
-                      onClick={editMode ? undefined : () => onShelfClick(shelf)}
-                      onDragOver={editMode ? (e) => { if (activeBoxForMove) { e.preventDefault(); setDragOverShelfId(shelf.id); } } : undefined}
-                      onDragLeave={editMode ? () => setDragOverShelfId(null) : undefined}
-                      onDrop={editMode ? (e) => { e.preventDefault(); handleDropOnShelf(shelf); } : undefined}
-                      onClickCapture={editMode && activeBoxForMove ? (e) => { e.stopPropagation(); handleDropOnShelf(shelf); } : undefined}
+                      onClick={(e) => {
+                        if (dragModeActive) { e.stopPropagation(); handleDropOnShelf(shelf); return; }
+                        // تجاهل النقر إن كان من زرّ داخلي (الزرّ الداخلي يعالج نفسه عبر stopPropagation)
+                        if (!editMode) onShelfClick(shelf);
+                      }}
+                      onDragOver={(e) => { if (activeBoxForMove) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
+                      onDragLeave={() => setDragOverShelfId(null)}
+                      onDrop={(e) => { if (activeBoxForMove) { e.preventDefault(); handleDropOnShelf(shelf); } }}
+                      role={editMode ? undefined : 'button'}
                       className={`flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative text-right transition ${
-                        editMode ? '' : 'hover:bg-blue-50 hover:border-brand-blue cursor-pointer'
+                        (editMode || dragModeActive) ? '' : 'hover:bg-blue-50 hover:border-brand-blue cursor-pointer'
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
                     >
@@ -458,13 +464,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           const isDragging = draggedBox?.id === box.id;
                           const isSelected = selectedBoxForMove?.id === box.id;
                           const isRecentlyAdded = recentlyAddedBoxId === box.id;
+                          // المقبض الظاهر دائماً للمؤسّس (سواء edit mode أم لا)
+                          const showHandle = isFounder;
                           return (
                             <div key={`box-${position}`}
-                              draggable={editMode && isFounder}
-                              onDragStart={editMode ? (e) => handleBoxDragStart(e, box) : undefined}
-                              onDragEnd={editMode ? handleBoxDragEnd : undefined}
-                              onClick={editMode && isFounder ? (e) => handleBoxClickToSelect(box, e) : undefined}
-                              className={`flex-1 relative ${editMode && isFounder ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} transition`}>
+                              className={`flex-1 relative ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} transition`}>
                               <CardboardBoxMini
                                 code={box.code}
                                 itemCount={items.length}
@@ -472,24 +476,34 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 isOut={isOut}
                                 photoUrl={box.photo_url}
                               />
+                              {/* مقبض السحب — ظاهر دائماً للمؤسّس، يُفعّل السحب عند الإمساك */}
+                              {showHandle && (
+                                <div
+                                  draggable={true}
+                                  onDragStart={(e) => handleBoxDragStart(e, box)}
+                                  onDragEnd={handleBoxDragEnd}
+                                  onClick={(e) => { e.stopPropagation(); handleBoxClickToSelect(box, e); }}
+                                  className="absolute top-1 right-1 w-7 h-7 bg-white/95 border-2 border-amber-700 rounded shadow-md hover:bg-amber-50 cursor-grab active:cursor-grabbing flex items-center justify-center z-20"
+                                  title="اسحب أو اضغط لنقل الصندوق"
+                                >
+                                  <span className="text-xs text-amber-800 font-bold leading-none">⊞</span>
+                                </div>
+                              )}
+                              {isSelected && (
+                                <span className="absolute bottom-0.5 left-0.5 text-[9px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10">
+                                  مختار · اضغط الهدف
+                                </span>
+                              )}
                               {editMode && isFounder && (
-                                <>
-                                  <span className="absolute top-0.5 right-0.5 text-[10px] text-white/80 pointer-events-none drop-shadow"
-                                    title="اسحب أو اضغط للاختيار">⋮⋮</span>
-                                  {isSelected && (
-                                    <span className="absolute bottom-0.5 left-0.5 text-[9px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none">
-                                      مختار
-                                    </span>
-                                  )}
-                                  <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
-                                    className="absolute top-0.5 left-0.5 bg-white border border-red-300 text-red-600 text-[9px] w-4 h-4 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-20"
-                                    title="حذف الصندوق">×</button>
-                                </>
+                                <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
+                                  className="absolute top-1 left-1 bg-white border border-red-300 text-red-600 text-[9px] w-5 h-5 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-20"
+                                  title="حذف الصندوق">×</button>
                               )}
                             </div>
                           );
                         }
-                        return editMode && isFounder ? (
+                        // الخانات الفارغة قابلة للنقر دائماً للمؤسّس (حتى خارج وضع التعديل)
+                        return isFounder ? (
                           <button
                             key={`empty-${position}`}
                             onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, position); }}
@@ -519,7 +533,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           <span className="text-[8px]">جديد</span>
                         </button>
                       )}
-                    </ShelfWrap>
+                    </div>
                   );
                 })
               )}

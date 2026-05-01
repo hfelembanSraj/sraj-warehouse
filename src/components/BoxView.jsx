@@ -72,6 +72,19 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
     await onRefresh();
   }
 
+  // ====== سحب الأصناف (نقل لصندوق آخر) — مبدئيّاً يعمل عبر النقر للاختيار ======
+  // عند اختيار صنف ثم النقر على صندوق آخر في صفحة أخرى، يحتاج state مشترك. للآن نُطلق إشارة عبر window.
+  const [selectedItemForMove, setSelectedItemForMove] = useState(null);
+
+  function handleItemClickHandle(item, e) {
+    e?.stopPropagation();
+    if (selectedItemForMove?.id === item.id) {
+      setSelectedItemForMove(null);
+    } else {
+      setSelectedItemForMove(item);
+    }
+  }
+
   async function handleAddItem(values) {
     if (!values.name?.trim()) return flash('اسم الصنف مطلوب', 'error');
     setBusy(true);
@@ -226,12 +239,15 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
                         canCheckout={can('checkout')}
                         canEdit={isFounder || can('edit')}
                         canDelete={isFounder || can('delete')}
+                        canMove={isFounder || can('edit')}
                         editing={editingItemId === it.id}
                         busy={busy}
+                        isSelected={selectedItemForMove?.id === it.id}
                         onCheckout={() => setCheckoutItem({ ...it, boxCode: currentBox.code, boxId: currentBox.id })}
                         onToggleEdit={() => setEditingItemId(editingItemId === it.id ? null : it.id)}
                         onDelete={() => setConfirming({ type: 'item', item: it })}
                         onSaveEdit={(patch) => handleUpdateItem(it, patch)}
+                        onClickHandle={(e) => handleItemClickHandle(it, e)}
                       />
                     ))}
                   </div>
@@ -369,23 +385,41 @@ function AddItemInBoxForm({ busy, onCancel, onSave }) {
 }
 
 // مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
-function ItemFromAbove({ item, canCheckout, canEdit, canDelete, editing, busy, onCheckout, onToggleEdit, onDelete, onSaveEdit }) {
+function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, editing, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onSaveEdit, onDragStart, onDragEnd, onClickHandle }) {
   return (
-    <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${editing ? 'col-span-2 sm:col-span-3 md:col-span-4' : ''}`}
+    <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${editing ? 'col-span-2 sm:col-span-3 md:col-span-4' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
       style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
       {!editing ? (
         <>
           {/* صورة الصنف */}
           <div className="aspect-square bg-stone-50 relative overflow-hidden">
             {item.photo_url ? (
-              <img src={item.photo_url} alt={item.name} className="w-full h-full object-cover" />
+              <img src={item.photo_url} alt={item.name} draggable={false} className="w-full h-full object-cover pointer-events-none" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl text-stone-300">🔧</div>
+              <div className="w-full h-full flex items-center justify-center text-4xl text-stone-300 pointer-events-none">🔧</div>
             )}
             {/* شارة الكميّة */}
-            <div className="absolute top-1 right-1 bg-brand-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
+            <div className="absolute top-1 right-1 bg-brand-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none">
               ×{item.quantity}
             </div>
+            {/* مقبض السحب */}
+            {canMove && (
+              <div
+                draggable={true}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onClick={onClickHandle}
+                className="absolute top-1 left-1 w-7 h-7 bg-white/95 border-2 border-amber-700 rounded shadow-md hover:bg-amber-50 cursor-grab active:cursor-grabbing flex items-center justify-center z-10"
+                title="اسحب أو اضغط لنقل الصنف"
+              >
+                <span className="text-xs text-amber-800 font-bold leading-none">⊞</span>
+              </div>
+            )}
+            {isSelected && (
+              <span className="absolute bottom-1 left-1 text-[9px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10">
+                مختار
+              </span>
+            )}
           </div>
           {/* اسم الصنف */}
           <div className="p-2">
