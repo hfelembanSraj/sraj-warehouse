@@ -129,21 +129,28 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
-  async function handleQuickAddBox(shelf) {
+  // إضافة صندوق في موقع محدّد على الرف (يشغّل add_box_at_position إذا تم تمرير position)
+  async function handleQuickAddBox(shelf, position = null) {
     const currentBoxes = data.boxes.filter(b => b.code.startsWith(`${fresh.letter}-${shelf.shelf_index}-`)).length;
     setBusy(true);
-    // إذا الرف ممتلئ، نزيد الحدّ الأقصى تلقائياً قبل الإضافة
-    if (currentBoxes >= shelf.max_boxes) {
-      const { error: upErr } = await rpcUpdateShelf(shelf.id, { max_boxes: shelf.max_boxes + 1 });
+    // إذا الرف ممتلئ والموقع المطلوب يتطلّب توسعة، نزيد الحدّ الأقصى أوّلاً
+    if (currentBoxes >= shelf.max_boxes || (position && position > shelf.max_boxes)) {
+      const newMax = Math.max(shelf.max_boxes + 1, position || 0);
+      const { error: upErr } = await rpcUpdateShelf(shelf.id, { max_boxes: newMax });
       if (upErr) {
         setBusy(false);
         return flash('فشل: ' + upErr.message, 'error');
       }
     }
-    const { error } = await rpcAddBox(shelf.id, { description: '', width_cm: 50, height_cm: 65 });
+    const { error } = await rpcAddBox(shelf.id, {
+      description: '',
+      width_cm: 50,
+      height_cm: 65,
+      position
+    });
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash('✅ تمت إضافة صندوق');
+    flash(position ? `✅ صندوق جديد في الموقع ${position}` : '✅ تمت إضافة صندوق');
     await onRefresh();
   }
 
@@ -317,20 +324,24 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         )}
 
-        {/* سلّة الحذف بالسحب — تظهر فقط في وضع التعديل عند بدء السحب */}
-        {editMode && isFounder && draggedBox && (
+        {/* سلّة الحذف بالسحب — تظهر دائماً في وضع التعديل (للمؤسّس) */}
+        {editMode && isFounder && (
           <div
-            onDragOver={(e) => { e.preventDefault(); setDragOverTrash(true); }}
+            onDragOver={(e) => { if (draggedBox) { e.preventDefault(); setDragOverTrash(true); } }}
             onDragLeave={() => setDragOverTrash(false)}
             onDrop={(e) => { e.preventDefault(); handleDropOnTrash(); }}
             className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-2xl border-4 border-dashed transition shadow-2xl ${
               dragOverTrash
                 ? 'bg-red-600 border-red-800 text-white scale-110'
-                : 'bg-white border-red-400 text-red-700'
+                : draggedBox
+                  ? 'bg-red-100 border-red-500 text-red-800 animate-pulse'
+                  : 'bg-white/95 border-red-300 text-red-600'
             }`}
           >
             <div className="text-3xl text-center mb-1">🗑</div>
-            <div className="text-xs font-bold whitespace-nowrap">{dragOverTrash ? '⬇ أفلت للحذف' : 'اسحب هنا لحذف الصندوق'}</div>
+            <div className="text-xs font-bold whitespace-nowrap">
+              {dragOverTrash ? '⬇ أفلت للحذف' : draggedBox ? 'اسحب هنا لحذف الصندوق' : 'سلّة الحذف بالسحب'}
+            </div>
           </div>
         )}
 
@@ -352,7 +363,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               ) : (
                 shelves.map(shelf => {
                   const shelfBoxes = getShelfBoxes(shelf.shelf_index);
-                  const emptySlots = Math.max(0, shelf.max_boxes - shelfBoxes.length);
+                  // أعلى موقع موجود (لتقدير عدد الـ slots المعروضة)
+                  const maxBoxIdx = shelfBoxes.length > 0
+                    ? Math.max(...shelfBoxes.map(b => b.box_index || 0))
+                    : 0;
+                  const totalSlots = Math.max(shelf.max_boxes, maxBoxIdx);
                   const ShelfWrap = editMode ? 'div' : 'button';
                   const isDropTarget = editMode && dragOverShelfId === shelf.id;
                   return (
@@ -367,84 +382,83 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
                     >
-                      {editMode && isFounder ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingShelfId(editingShelfId === shelf.id ? null : shelf.id); }}
-                          className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium hover:opacity-80 z-10 flex items-center gap-1"
-                          style={{ backgroundColor: fresh.color }}
-                          title="تعديل الرف وإعادة التسمية"
-                        >
-                          ✏️ {shelfDisplayName(shelf, shelves)}
-                        </button>
-                      ) : (
-                        <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none" style={{ backgroundColor: fresh.color }}>
-                          {shelfDisplayName(shelf, shelves)}
-                        </span>
-                      )}
+                      <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none" style={{ backgroundColor: fresh.color }}>
+                        {shelfDisplayName(shelf, shelves)}
+                      </span>
                       {!editMode && (
                         <span className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1 py-0.5 rounded-tr rounded-bl pointer-events-none">
                           ادخل ←
                         </span>
                       )}
-                      {/* أزرار الحذف في وضع التعديل */}
-                      {editMode && isFounder && (
-                        <div className="absolute top-0 left-0 flex gap-0.5 z-10">
-                          <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'shelf', shelf }); }}
-                            className="bg-white border border-red-300 text-red-600 text-[9px] px-1 py-0.5 rounded shadow-sm hover:bg-red-50"
-                            title="حذف الرف">🗑</button>
-                        </div>
+
+                      {/* أيقونة "اسحب" واضحة في الزاوية للدلالة */}
+                      {editMode && isFounder && shelfBoxes.length > 0 && (
+                        <span className="absolute bottom-0 right-1 text-[8px] text-stone-500 italic pointer-events-none">
+                          اسحب الصندوق ⇄
+                        </span>
                       )}
-                      {shelfBoxes.map(box => {
-                        const items = getBoxItems(box.id);
-                        const isOut = isCheckedOut(box.id);
-                        const isHighlighted = highlightedBox === box.code;
-                        const isDragging = draggedBox?.id === box.id;
-                        return (
-                          <div key={box.id}
-                            draggable={editMode && isFounder}
-                            onDragStart={editMode ? (e) => handleBoxDragStart(e, box) : undefined}
-                            onDragEnd={editMode ? handleBoxDragEnd : undefined}
-                            className={`flex-1 relative ${editMode && isFounder ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-30' : ''}`}>
-                            <CardboardBoxMini
-                              code={box.code}
-                              itemCount={items.length}
-                              isHighlighted={isHighlighted}
-                              isOut={isOut}
-                              photoUrl={box.photo_url}
-                            />
-                            {editMode && isFounder && (
-                              <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
-                                className="absolute top-0.5 left-0.5 bg-white border border-red-300 text-red-600 text-[9px] w-4 h-4 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-10"
-                                title="حذف الصندوق">×</button>
-                            )}
+
+                      {/* رسم الـ slots على أساس الموقع — كل slot = موقع 1, 2, 3... */}
+                      {Array.from({ length: totalSlots }).map((_, idx) => {
+                        const position = idx + 1;
+                        const box = shelfBoxes.find(b => b.box_index === position);
+                        if (box) {
+                          const items = getBoxItems(box.id);
+                          const isOut = isCheckedOut(box.id);
+                          const isHighlighted = highlightedBox === box.code;
+                          const isDragging = draggedBox?.id === box.id;
+                          return (
+                            <div key={`box-${position}`}
+                              draggable={editMode && isFounder}
+                              onDragStart={editMode ? (e) => handleBoxDragStart(e, box) : undefined}
+                              onDragEnd={editMode ? handleBoxDragEnd : undefined}
+                              className={`flex-1 relative ${editMode && isFounder ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} transition`}>
+                              <CardboardBoxMini
+                                code={box.code}
+                                itemCount={items.length}
+                                isHighlighted={isHighlighted}
+                                isOut={isOut}
+                                photoUrl={box.photo_url}
+                              />
+                              {editMode && isFounder && (
+                                <>
+                                  <span className="absolute top-0.5 right-0.5 text-[10px] text-white/80 pointer-events-none drop-shadow"
+                                    title="مقبض السحب">⋮⋮</span>
+                                  <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
+                                    className="absolute top-0.5 left-0.5 bg-white border border-red-300 text-red-600 text-[9px] w-4 h-4 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-10"
+                                    title="حذف الصندوق">×</button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        }
+                        return editMode && isFounder ? (
+                          <button
+                            key={`empty-${position}`}
+                            onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, position); }}
+                            disabled={busy}
+                            className="flex-1 border-2 border-dashed border-green-400 bg-green-50 hover:bg-green-100 rounded text-[10px] text-green-800 font-bold flex flex-col items-center justify-center gap-0.5 transition"
+                            title={`إضافة صندوق في الموقع ${position}`}>
+                            <span className="text-base leading-none">+</span>
+                            <span className="text-[9px] opacity-80">موقع {position}</span>
+                          </button>
+                        ) : (
+                          <div key={`empty-${position}`} className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-400 flex items-center justify-center pointer-events-none">
+                            فارغ
                           </div>
                         );
                       })}
-                      {Array.from({ length: emptySlots }).map((_, i) => (
-                        editMode && isFounder ? (
-                          <button
-                            key={i}
-                            onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf); }}
-                            disabled={busy}
-                            className="flex-1 border-2 border-dashed border-green-400 bg-green-50 hover:bg-green-100 rounded text-[10px] text-green-800 font-bold flex items-center justify-center"
-                            title="إضافة صندوق إلى هذا الرف">
-                            + صندوق
-                          </button>
-                        ) : (
-                          <div key={i} className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-400 flex items-center justify-center pointer-events-none">
-                            فارغ
-                          </div>
-                        )
-                      ))}
-                      {/* زر "+ صندوق إضافي" يعمل دائماً (يزيد الحدّ تلقائياً) */}
+
+                      {/* زر "إضافة موقع جديد" بعد كل المواقع — يضيف موقعاً جديداً */}
                       {editMode && isFounder && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf); }}
+                          onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, totalSlots + 1); }}
                           disabled={busy}
-                          className="border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 rounded text-[9px] text-blue-700 font-bold flex items-center justify-center px-2"
-                          title="زد عدد الصناديق وأضف"
+                          className="border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 rounded text-[9px] text-blue-700 font-bold flex flex-col items-center justify-center px-2"
+                          title="إضافة موقع جديد في نهاية الرف"
                           style={{ minWidth: '40px' }}>
-                          ➕
+                          <span className="text-base leading-none">➕</span>
+                          <span className="text-[8px]">جديد</span>
                         </button>
                       )}
                     </ShelfWrap>
@@ -470,32 +484,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         </div>
         )}
 
-        {/* تعديل رف معيّن (يظهر تحت الرفّ في وضع التعديل) */}
-        {editMode && editingShelfId && (
-          <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 mt-3">
-            {(() => {
-              const s = shelves.find(s2 => s2.id === editingShelfId);
-              if (!s) return null;
-              return (
-                <>
-                  <h4 className="text-xs font-display font-bold mb-2">✏️ تعديل رف {s.shelf_index}</h4>
-                  <EditShelfForm
-                    shelf={s}
-                    busy={busy}
-                    onCancel={() => setEditingShelfId(null)}
-                    onSave={(patch) => handleUpdateShelf(s, patch)}
-                  />
-                </>
-              );
-            })()}
-          </div>
-        )}
+        {/* (أُزيل الفورم المكرّر — التحرير الآن في قسم إدارة الأرفف بالأسفل) */}
 
-        {/* خارج وضع التعديل: قسم إدارة الأرفف الكلاسيكي للمؤسّس */}
-        {!editMode && isFounder && (
+        {/* قسم "إدارة الأرفف" — يظهر دائماً للمؤسّس (تسمية وحذف وإضافة من خارج الرف المرئي) */}
+        {isFounder && (
           <div className="border-t border-stone-200 pt-4 mt-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-display font-bold text-stone-700">📚 الأرفف</h4>
+              <h4 className="text-xs font-display font-bold text-stone-700">📚 إدارة الأرفف ({shelves.length})</h4>
               <button onClick={() => setShowAddShelfForm(s => !s)} disabled={busy}
                 className="text-[11px] bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200">
                 + 👑 رف جديد
@@ -510,6 +505,45 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   onCancel={() => setShowAddShelfForm(false)}
                   onSave={handleAddShelf}
                 />
+              </div>
+            )}
+
+            {/* قائمة الأرفف بأزرار إعادة تسمية ظاهرة */}
+            {shelves.length > 0 && (
+              <div className="space-y-1.5">
+                {shelves.map(s => (
+                  <div key={s.id} className="bg-stone-50 border border-stone-200 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-7 h-7 rounded bg-blue-100 text-blue-700 flex items-center justify-center text-sm flex-shrink-0">📚</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{shelfDisplayName(s, shelves)}</div>
+                          <div className="text-[10px] text-stone-500">
+                            ارتفاع {s.height_cm}سم · يسع {s.max_boxes} · فيه {getShelfBoxes(s.shelf_index).length} صناديق
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => setEditingShelfId(editingShelfId === s.id ? null : s.id)} disabled={busy}
+                        className="text-[10px] bg-white border border-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100">
+                        ✏️ تسمية وتعديل
+                      </button>
+                      <button onClick={() => setConfirming({ type: 'shelf', shelf: s })} disabled={busy}
+                        className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100">
+                        🗑
+                      </button>
+                    </div>
+                    {editingShelfId === s.id && (
+                      <div className="bg-white border-t border-stone-200 p-3">
+                        <EditShelfForm
+                          shelf={s}
+                          busy={busy}
+                          onCancel={() => setEditingShelfId(null)}
+                          onSave={(patch) => handleUpdateShelf(s, patch)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
