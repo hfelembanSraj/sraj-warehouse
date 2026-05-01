@@ -136,14 +136,66 @@ export async function updateBox(box_id, patch) {
   return supabase.from('boxes').update(update).eq('id', box_id);
 }
 
-// حذف ناعم — يُمكن استرجاعه من سلّة المحذوفات
-// مع cascading للأصناف داخل الصندوق
-export async function deleteBox(box_id) {
+// حذف ناعم لصندوق — يدعم خيارين:
+//   keepItems = false (افتراضي): يُحذَف الصندوق وكل أصنافه ناعمياً (cascading)
+//   keepItems = true: تبقى الأصناف داخل المساحة كـ"غير محدّدة" (box_id = null, zone_id = المساحة الأصليّة)
+export async function deleteBox(box_id, options = {}) {
+  const { keepItems = false } = options;
+  if (keepItems) {
+    // RPC تُعالج النقل والحذف ذرّياً
+    const result = await supabase.rpc('delete_box_keep_items', { p_box_id: box_id });
+    if (!result.error) await resetShelfMaxBoxesIfEmptyByBoxId(box_id);
+    return result;
+  }
   const now = new Date().toISOString();
-  // أولاً: حذف ناعم لكل الأصناف داخل الصندوق
   await supabase.from('items').update({ deleted_at: now }).eq('box_id', box_id).is('deleted_at', null);
-  // ثانياً: حذف الصندوق
-  return supabase.from('boxes').update({ deleted_at: now }).eq('id', box_id);
+  const result = await supabase.from('boxes').update({ deleted_at: now }).eq('id', box_id);
+  if (!result.error) await resetShelfMaxBoxesIfEmptyByBoxId(box_id);
+  return result;
+}
+
+// حذف عدّة صناديق دفعة واحدة (يدعم نفس الخيارات)
+async function _bulkDeleteBoxesInternal(box_ids, options = {}) {
+  if (!box_ids || box_ids.length === 0) return { data: null, error: null };
+  const { keepItems = false } = options;
+
+  // اجمع shelf_ids قبل الحذف لإعادة ضبط max_boxes لاحقاً
+  const { data: srcBoxes } = await supabase.from('boxes').select('id, shelf_id').in('id', box_ids);
+  const shelfIds = [...new Set((srcBoxes || []).map(b => b.shelf_id).filter(Boolean))];
+
+  if (keepItems) {
+    // نفّذ RPC لكلّ صندوق (لأنّ الدالّة تُعالج صندوقاً واحداً)
+    for (const id of box_ids) {
+      const { error } = await supabase.rpc('delete_box_keep_items', { p_box_id: id });
+      if (error) return { error };
+    }
+  } else {
+    const now = new Date().toISOString();
+    await supabase.from('items').update({ deleted_at: now }).in('box_id', box_ids).is('deleted_at', null);
+    const { error } = await supabase.from('boxes').update({ deleted_at: now }).in('id', box_ids);
+    if (error) return { error };
+  }
+
+  // إعادة ضبط max_boxes للأرفف التي صارت فارغة
+  for (const sid of shelfIds) await resetShelfMaxBoxesIfEmpty(sid);
+  return { data: { deleted: box_ids.length }, error: null };
+}
+
+// لو الرف صار فارغاً بعد الحذف، أعِد max_boxes إلى الافتراضي (4) لتجنّب شقوق مزدحمة
+async function resetShelfMaxBoxesIfEmpty(shelf_id) {
+  if (!shelf_id) return;
+  const { count } = await supabase.from('boxes').select('id', { count: 'exact', head: true })
+    .eq('shelf_id', shelf_id).is('deleted_at', null);
+  if ((count || 0) === 0) {
+    await supabase.rpc('update_shelf', {
+      s_id: shelf_id, s_height_cm: null, s_max_boxes: 4, s_label: null
+    });
+  }
+}
+
+async function resetShelfMaxBoxesIfEmptyByBoxId(box_id) {
+  const { data } = await supabase.from('boxes').select('shelf_id').eq('id', box_id).maybeSingle();
+  if (data?.shelf_id) await resetShelfMaxBoxesIfEmpty(data.shelf_id);
 }
 
 export async function softDeleteItem(item_id) {
@@ -225,14 +277,29 @@ export async function bulkMoveBoxes(box_ids, target_shelf_id) {
   return { data: { moved: toMoveIds.length }, error: null };
 }
 
-// حذف ناعم لعدّة صناديق دفعة واحدة (مع cascading لأصنافها)
-export async function bulkDeleteBoxes(box_ids) {
-  if (!box_ids || box_ids.length === 0) return { data: null, error: null };
-  const now = new Date().toISOString();
-  // أوّلاً: حذف ناعم لكلّ الأصناف داخل هذه الصناديق
-  await supabase.from('items').update({ deleted_at: now }).in('box_id', box_ids).is('deleted_at', null);
-  // ثانياً: حذف الصناديق نفسها
-  return supabase.from('boxes').update({ deleted_at: now }).in('id', box_ids);
+// واجهة عامّة للحذف الجماعي — تدعم نفس خيارات deleteBox
+export async function bulkDeleteBoxes(box_ids, options = {}) {
+  return _bulkDeleteBoxesInternal(box_ids, options);
+}
+
+// نقل عدّة صناديق إلى أوّل رفّ في مساحة (تُستخدم من الخريطة المصغّرة)
+export async function bulkMoveBoxesToZone(box_ids, target_zone_id) {
+  const { data: zoneShelves } = await supabase.from('shelves')
+    .select('id, shelf_index')
+    .eq('zone_id', target_zone_id)
+    .order('shelf_index');
+  if (!zoneShelves || zoneShelves.length === 0) {
+    return { error: { message: 'هذه المساحة لا تحوي أيّ رفّ' } };
+  }
+  return bulkMoveBoxes(box_ids, zoneShelves[0].id);
+}
+
+// تخصيص غرض غير محدّد إلى صندوق
+export async function assignItemToBox(item_id, target_box_id) {
+  return supabase.from('items').update({
+    box_id: target_box_id,
+    zone_id: null
+  }).eq('id', item_id);
 }
 
 // تعديل الوصف لعدّة صناديق دفعة واحدة

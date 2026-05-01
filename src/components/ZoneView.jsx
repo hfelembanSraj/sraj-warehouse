@@ -5,10 +5,11 @@ import CheckoutModal from './CheckoutModal';
 import AddBoxModal from './AddBoxModal';
 import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { CardboardBoxMini } from './CardboardBox';
+import WarehouseMiniMap from './WarehouseMiniMap';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
-  bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes
+  bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes, bulkMoveBoxesToZone, assignItemToBox
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onRefresh }) {
@@ -66,6 +67,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       allItems.push({ ...it, boxCode: box.code });
     });
   });
+  // الأغراض غير المحدّدة في هذه المساحة (box_id = null, zone_id = هذه المساحة)
+  const unassignedItems = data.items.filter(it => it.box_id == null && it.zone_id === fresh.id);
+  // مودال تحديد مكان غرض غير محدّد
+  const [assigningItem, setAssigningItem] = useState(null);
 
   function getBoxItems(boxId) { return data.items.filter(it => it.box_id === boxId); }
   function isCheckedOut(boxId) { return data.checkouts.some(c => c.box_id === boxId); }
@@ -187,13 +192,45 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
-  async function handleDeleteBox() {
+  function getBoxItemCount(box_id) {
+    return data.items.filter(it => it.box_id === box_id).length;
+  }
+
+  async function handleDeleteBox(keepItems = false) {
     setBusy(true);
-    const { error } = await deleteBox(confirming.box.id);
+    const { error } = await deleteBox(confirming.box.id, { keepItems });
     setBusy(false);
     setConfirming(null);
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash('✅ تم حذف الصندوق');
+    flash(keepItems ? '✅ حُذف الصندوق وبقيت الأغراض في المساحة' : '✅ حُذف الصندوق وأغراضه');
+    await onRefresh();
+  }
+
+  async function handleAssignItem(target_box_id) {
+    if (!assigningItem || !target_box_id) return;
+    setBusy(true);
+    const { error } = await assignItemToBox(assigningItem.id, target_box_id);
+    setBusy(false);
+    setAssigningItem(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ تمّ تحديد مكان الغرض');
+    await onRefresh();
+  }
+
+  // إفلات على مساحة من الخريطة المصغّرة
+  async function handleDropOnZone(targetZone) {
+    if (targetZone.id === fresh.id) {
+      clearSelection();
+      return;
+    }
+    const boxes = activeBoxesForMove;
+    if (boxes.length === 0) return;
+    setBusy(true);
+    const { error } = await bulkMoveBoxesToZone(boxes.map(b => b.id), targetZone.id);
+    setBusy(false);
+    clearSelection();
+    if (error) return flash('فشل النقل: ' + error.message, 'error');
+    flash(`✅ نُقل ${boxes.length} ${boxes.length === 1 ? 'صندوق' : 'صناديق'} إلى مساحة ${targetZone.letter}`);
     await onRefresh();
   }
 
@@ -285,15 +322,17 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     setDragOverTrash(false);
   }
 
-  async function handleBulkDelete() {
+  async function handleBulkDelete(keepItems = false) {
     const ids = confirming.boxes.map(b => b.id);
     setBusy(true);
-    const { error } = await bulkDeleteBoxes(ids);
+    const { error } = await bulkDeleteBoxes(ids, { keepItems });
     setBusy(false);
     setConfirming(null);
     clearSelection();
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash(`✅ حُذف ${ids.length} صناديق`);
+    flash(keepItems
+      ? `✅ حُذف ${ids.length} صناديق وبقيت أغراضها`
+      : `✅ حُذف ${ids.length} صناديق وأغراضها`);
     await onRefresh();
   }
 
@@ -470,6 +509,39 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   ✕ إلغاء
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* قسم الأغراض غير المحدّدة المكان (إن وُجدت) */}
+        {unassignedItems.length > 0 && (
+          <div className="bg-amber-50 border-2 border-dashed border-amber-300 rounded-xl p-3 mb-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <h4 className="text-xs font-display font-bold text-amber-900 flex items-center gap-1.5">
+                📍 أغراض غير محدّدة المكان ({unassignedItems.length})
+              </h4>
+              <span className="text-[10px] text-amber-700">اضغط "حدّد المكان" لتخصيص صندوق لكلّ غرض</span>
+            </div>
+            <div className="space-y-1.5">
+              {unassignedItems.map(it => (
+                <div key={it.id} className="bg-white border border-amber-200 rounded-lg p-2 flex items-center gap-2.5">
+                  {it.photo_url ? (
+                    <img src={it.photo_url} alt={it.name} className="w-10 h-10 object-cover rounded border border-stone-200 flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-stone-100 flex items-center justify-center text-lg flex-shrink-0">🔧</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{it.name}</div>
+                    <div className="text-[10px] text-stone-500">الكميّة: {it.quantity} · بدون صندوق</div>
+                  </div>
+                  {isFounder && (
+                    <button onClick={() => setAssigningItem(it)}
+                      className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded font-medium whitespace-nowrap">
+                      📍 حدّد المكان
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -735,22 +807,93 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           onCancel={() => setConfirming(null)}
         />
       )}
-      {confirming?.type === 'box' && (
-        <ConfirmDelete
-          message={`سيُحذف الصندوق ${confirming.box.code}. هل أنت متأكّد؟`}
-          busy={busy}
-          onConfirm={handleDeleteBox}
-          onCancel={() => setConfirming(null)}
-        />
+      {confirming?.type === 'box' && (() => {
+        const itemCount = getBoxItemCount(confirming.box.id);
+        if (itemCount === 0) {
+          return (
+            <ConfirmDelete
+              message={`سيُحذف الصندوق ${confirming.box.code} (فارغ). هل أنت متأكّد؟`}
+              busy={busy}
+              onConfirm={() => handleDeleteBox(false)}
+              onCancel={() => setConfirming(null)}
+            />
+          );
+        }
+        return (
+          <DeleteBoxWithItemsModal
+            boxCode={confirming.box.code}
+            itemCount={itemCount}
+            busy={busy}
+            onDeleteAll={() => handleDeleteBox(false)}
+            onKeepItems={() => handleDeleteBox(true)}
+            onCancel={() => setConfirming(null)}
+          />
+        );
+      })()}
+      {confirming?.type === 'bulk-delete' && (() => {
+        const totalItems = confirming.boxes.reduce((sum, b) => sum + getBoxItemCount(b.id), 0);
+        if (totalItems === 0) {
+          return (
+            <ConfirmDelete
+              message={`سيُحذف ${confirming.boxes.length} صناديق فارغة. هل أنت متأكّد؟`}
+              busy={busy}
+              onConfirm={() => handleBulkDelete(false)}
+              onCancel={() => setConfirming(null)}
+            />
+          );
+        }
+        return (
+          <DeleteBoxWithItemsModal
+            boxCode={`${confirming.boxes.length} صناديق`}
+            itemCount={totalItems}
+            isBulk={true}
+            busy={busy}
+            onDeleteAll={() => handleBulkDelete(false)}
+            onKeepItems={() => handleBulkDelete(true)}
+            onCancel={() => setConfirming(null)}
+          />
+        );
+      })()}
+
+      {/* مودال تحديد مكان غرض غير محدّد */}
+      {assigningItem && (
+        <FormModal
+          title={`📍 تحديد مكان "${assigningItem.name}"`}
+          subtitle={`الكميّة: ${assigningItem.quantity} · في مساحة ${fresh.letter}`}
+          onClose={() => setAssigningItem(null)}
+          maxWidth="max-w-lg"
+        >
+          {zoneBoxes.length === 0 ? (
+            <p className="text-sm text-center text-stone-500 py-6">
+              لا توجد صناديق في هذه المساحة. أضِف صندوقاً ثمّ ارجع لتحديد المكان.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-stone-600">اختر الصندوق الذي يُحفَظ فيه هذا الغرض:</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+                {zoneBoxes.map(b => (
+                  <button key={b.id}
+                    onClick={() => handleAssignItem(b.id)}
+                    disabled={busy}
+                    className="bg-white border-2 border-stone-200 rounded-lg p-2.5 text-center hover:border-amber-500 hover:bg-amber-50 transition disabled:opacity-50">
+                    <div className="text-xs font-mono font-bold" style={{ color: fresh.color }}>{b.code}</div>
+                    {b.description && <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </FormModal>
       )}
-      {confirming?.type === 'bulk-delete' && (
-        <ConfirmDelete
-          message={`سيُحذف ${confirming.boxes.length} صناديق وكلّ ما فيها من أغراض. هل أنت متأكّد؟`}
-          busy={busy}
-          onConfirm={handleBulkDelete}
-          onCancel={() => setConfirming(null)}
-        />
-      )}
+
+      {/* الخريطة المصغّرة العائمة — تُمكّن نقل الصناديق المختارة بالسحب أو النقر إلى مساحة أخرى */}
+      <WarehouseMiniMap
+        zones={data.zones || []}
+        currentZoneId={fresh.id}
+        hasActiveSelection={hasActiveSelection}
+        selectionLabel={`${activeBoxesForMove.length} ${activeBoxesForMove.length === 1 ? 'صندوق' : 'صناديق'}`}
+        onDropOnZone={handleDropOnZone}
+      />
 
       {/* مودال تعديل الوصف الجماعي */}
       {showBulkEdit && (
@@ -769,6 +912,66 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         </FormModal>
       )}
     </>
+  );
+}
+
+// ============ مودال حذف الصندوق مع/بدون أغراضه ============
+function DeleteBoxWithItemsModal({ boxCode, itemCount, isBulk = false, busy, onDeleteAll, onKeepItems, onCancel }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-in">
+        <div className="bg-gradient-to-l from-red-50 to-amber-50 px-5 py-4 border-b border-stone-200">
+          <h3 className="text-sm font-display font-bold flex items-center gap-2">
+            ⚠️ {isBulk ? 'حذف صناديق فيها أغراض' : `حذف الصندوق ${boxCode}`}
+          </h3>
+          <p className="text-xs text-stone-600 mt-1">
+            {isBulk
+              ? `الصناديق المختارة تحتوي على ${itemCount} ${itemCount === 1 ? 'غرض' : 'أغراض'}. ماذا تفعل بها؟`
+              : `هذا الصندوق يحتوي على ${itemCount} ${itemCount === 1 ? 'غرض' : 'أغراض'}. ماذا تفعل بها؟`
+            }
+          </p>
+        </div>
+
+        <div className="p-4 space-y-2">
+          <button
+            onClick={onKeepItems}
+            disabled={busy}
+            className="w-full text-right bg-white border-2 border-amber-300 hover:border-amber-500 hover:bg-amber-50 rounded-xl p-3 transition disabled:opacity-50">
+            <div className="flex items-start gap-2">
+              <span className="text-xl">📍</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-amber-900">احتفظ بالأغراض في المساحة</div>
+                <div className="text-[11px] text-stone-600 mt-0.5">
+                  يُحذَف الصندوق فقط. الأغراض تبقى داخل المساحة كـ"غير محدّدة" — وعليك تحديد صندوق جديد لها لاحقاً.
+                </div>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={onDeleteAll}
+            disabled={busy}
+            className="w-full text-right bg-white border-2 border-red-300 hover:border-red-500 hover:bg-red-50 rounded-xl p-3 transition disabled:opacity-50">
+            <div className="flex items-start gap-2">
+              <span className="text-xl">🗑</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-red-900">احذف الصندوق والأغراض معاً</div>
+                <div className="text-[11px] text-stone-600 mt-0.5">
+                  يُمكن استرجاع الكلّ من سلّة المحذوفات لاحقاً.
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <div className="px-4 pb-4 flex justify-end">
+          <button onClick={onCancel} disabled={busy}
+            className="text-xs px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100">
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

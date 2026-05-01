@@ -134,8 +134,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           ) : (
             <>
               <div className="flex justify-center">
-                <div className="relative w-full max-w-lg aspect-square bg-stone-100 rounded-lg border-2 border-dashed border-stone-300 px-3 py-7">
-                  <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 tracking-widest">الجدار الخلفي</div>
+                <div className="relative w-full max-w-lg aspect-square bg-gradient-to-br from-stone-50 to-stone-100 rounded-2xl border-2 border-dashed border-stone-300 px-3 py-7 shadow-inner">
+                  <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 tracking-widest font-medium">الجدار الخلفي</div>
 
                   {zones.map(z => (
                     <ZoneTile
@@ -156,8 +156,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                     <span className="text-[10px] text-stone-400 tracking-widest">ممرّ الحركة</span>
                   </div>
 
-                  <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t-lg px-4 py-1 text-[10px] text-stone-600">
-                    المدخل
+                  <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 font-medium shadow-sm">
+                    🚪 المدخل
                   </div>
                 </div>
               </div>
@@ -226,68 +226,83 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, 
     width:  zone.pos_width  != null ? `${zone.pos_width}%`  : undefined,
     height: zone.pos_height != null ? `${zone.pos_height}%` : undefined,
     borderColor: zone.color,
-    backgroundImage: `linear-gradient(180deg, ${zone.color}10 0%, white 30%)`
+    backgroundImage: `linear-gradient(135deg, ${zone.color}18 0%, white 60%)`,
+    boxShadow: `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
   };
-  // عدد الأرفف المعروضة (حد أقصى 4 لتفادي الازدحام البصري)
-  const shelvesToShow = (zoneShelves || []).slice(0, 4);
+  // عدد الأرفف المعروضة (حدّ أقصى 6) — مرتّبة بـ shelf_index تصاعدياً
+  // في RTL: أوّل عنصر في الـ DOM يظهر يميناً (= الرف الأوّل/الأسفل ماديّاً)
+  const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
   const showShelves = shelvesToShow.length > 0;
 
   return (
-    <div style={style} className="absolute border-2 rounded-md flex flex-col group shadow-sm overflow-hidden">
+    <div style={style} className="absolute border-2 rounded-xl flex flex-col group overflow-hidden transition-transform hover:scale-[1.02]">
       <button onClick={onClick} className="flex-1 hover:brightness-95 transition relative flex flex-col">
-        {/* الجدار العلويّ — يبدو كحافّة أعلى الرف من فوق */}
-        <div className="h-1.5 w-full" style={{ backgroundColor: zone.color, opacity: 0.7 }}></div>
+        {/* الجدار العلويّ — حافّة الرف من فوق */}
+        <div className="h-1.5 w-full" style={{ backgroundColor: zone.color, opacity: 0.85 }}></div>
 
-        {/* المحتوى الداخلي: شكل الأرفف من الأعلى */}
-        <div className="relative flex-1 flex flex-col items-center justify-center px-1.5 py-2 gap-[2px]">
+        <div className="relative flex-1 flex flex-col px-1.5 py-2 gap-1">
+          {/* الحرف والاسم في طبقة علويّة */}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none z-10">
+            <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>
+            <div className="text-[10px] text-stone-800 mt-1 leading-tight text-center font-semibold bg-white/85 backdrop-blur rounded-full px-2 py-0.5 shadow-sm">
+              {zone.name}
+            </div>
+          </div>
+
           {showShelves ? (
-            <>
-              {/* الحرف والاسم في طبقة فوق الأرفف */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-                <div className="text-3xl font-display font-bold leading-none drop-shadow-sm" style={{ color: zone.color }}>{zone.letter}</div>
-                <div className="text-[10px] text-stone-700 mt-1 leading-tight text-center px-1 font-medium bg-white/70 rounded px-1">{zone.name}</div>
-              </div>
-              {/* الأرفف من المنظور العلوي */}
-              {shelvesToShow.map((sh, i) => {
+            // الأرفف: صفّ أفقي (في RTL: shelf_index=1 يظهر يميناً = الأوّل/الأسفل، الأكبر يظهر يساراً = الأعلى)
+            // كلّ رفّ عمود بصناديقه مكدّسة عمودياً
+            <div className="flex-1 flex flex-row gap-[3px] items-stretch">
+              {shelvesToShow.map((sh) => {
                 const shelfBoxes = zoneBoxes.filter(b => b.code.split('-')[1] === String(sh.shelf_index));
+                const cap = Math.max(sh.max_boxes || 4, shelfBoxes.length, 1);
                 return (
-                  <div key={sh.id} className="w-full flex-1 rounded-sm border flex items-stretch gap-[2px] p-[2px]"
-                    style={{ borderColor: zone.color + '60', backgroundColor: zone.color + '08' }}>
-                    {Array.from({ length: sh.max_boxes || 4 }).map((_, k) => {
+                  <div key={sh.id}
+                    className="flex-1 flex flex-col rounded-md gap-[2px] p-[2px] relative"
+                    style={{
+                      borderRight: `2px solid ${zone.color}40`,
+                      borderLeft:  `2px solid ${zone.color}40`,
+                      backgroundColor: zone.color + '0a'
+                    }}
+                    title={`الرف ${sh.shelf_index}${sh.label ? ' — ' + sh.label : ''} (${shelfBoxes.length}/${sh.max_boxes})`}
+                  >
+                    {Array.from({ length: cap }).map((_, k) => {
                       const has = k < shelfBoxes.length;
                       return (
-                        <div key={k} className="flex-1 rounded-[2px]"
-                          style={{ backgroundColor: has ? zone.color + 'cc' : 'transparent', border: has ? 'none' : `1px dashed ${zone.color}30` }}>
+                        <div key={k} className="flex-1 rounded-[2px] transition"
+                          style={{
+                            backgroundColor: has ? zone.color + 'd0' : 'transparent',
+                            border: has ? 'none' : `1px dashed ${zone.color}40`,
+                            minHeight: '3px'
+                          }}>
                         </div>
                       );
                     })}
                   </div>
                 );
               })}
-            </>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-3xl font-display font-bold leading-none" style={{ color: zone.color }}>{zone.letter}</div>
-              <div className="text-[10px] text-stone-600 mt-1 leading-tight text-center px-1">{zone.name}</div>
-              <div className="text-[9px] text-stone-400 italic mt-1">— لا توجد أرفف —</div>
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="text-[9px] text-stone-400 italic">— لا توجد أرفف —</div>
             </div>
           )}
         </div>
 
-        {/* شريط معلومات في الأسفل */}
-        <div className="text-[9px] text-stone-600 text-center py-1 bg-white/80 border-t border-stone-200 font-medium">
+        {/* شريط معلومات الأسفل */}
+        <div className="text-[10px] text-stone-700 text-center py-1 bg-white/90 backdrop-blur border-t border-stone-200 font-semibold">
           {boxCount} {boxCount === 1 ? 'صندوق' : 'صناديق'}
         </div>
       </button>
 
       {isFounder && (
-        <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
+        <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
           <button onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
-            className="text-[9px] bg-white border border-stone-300 px-1 py-0.5 rounded shadow-sm hover:bg-stone-100"
+            className="text-[10px] bg-white border border-stone-300 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 flex items-center justify-center"
             title="تعديل"
           >✏️</button>
           <button onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
-            className="text-[9px] bg-white border border-red-300 px-1 py-0.5 rounded shadow-sm text-red-600 hover:bg-red-50"
+            className="text-[10px] bg-white border border-red-300 w-6 h-6 rounded-md shadow-md text-red-600 hover:bg-red-50 flex items-center justify-center"
             title="حذف"
           >🗑</button>
         </div>
