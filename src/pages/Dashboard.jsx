@@ -107,9 +107,10 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const [boxesR, itemsR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR, layoutR] = await Promise.all([
-        supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).is('deleted_at', null).order('code'),
-        // الأصناف: استبعاد تلك التي صندوقها محذوف (orphans)
-        supabase.from('items').select('*, boxes!inner(warehouse_id, deleted_at)').eq('boxes.warehouse_id', warehouseId).is('deleted_at', null).is('boxes.deleted_at', null),
+        // الصناديق: غير محذوفة + لها رف موجود (تجاهل الصناديق اليتيمة)
+        supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).is('deleted_at', null).not('shelf_id', 'is', null).order('code'),
+        // الأصناف: استبعاد تلك التي صندوقها محذوف أو يتيم
+        supabase.from('items').select('*, boxes!inner(warehouse_id, deleted_at, shelf_id)').eq('boxes.warehouse_id', warehouseId).is('deleted_at', null).is('boxes.deleted_at', null).not('boxes.shelf_id', 'is', null),
         supabase.from('checkouts').select('*').eq('warehouse_id', warehouseId).is('returned_at', null).is('damaged_at', null).is('donated_at', null).order('date_out', { ascending: false }),
         supabase.from('damaged_items').select('*').eq('warehouse_id', warehouseId).order('damaged_at', { ascending: false }),
         supabase.from('donated_items').select('*').eq('warehouse_id', warehouseId).order('donated_at', { ascending: false }),

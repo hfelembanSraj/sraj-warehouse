@@ -17,9 +17,9 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [viewMode, setViewMode] = useState('map');
 
   const totalBoxes = data.boxes.length;
+  const totalItemTypes = data.items.length;          // عدد الأغراض (الأصناف المتميّزة)
   const totalQty = data.items.reduce((s, it) => s + (it.quantity || 0), 0);
   const checkedOutCount = data.checkouts.length;
-  const damagedCount = data.damaged.length;
 
   const zones = data.zones || [];
 
@@ -65,12 +65,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     <>
       <StatusToast msg={msg} />
 
-      {/* الإحصائيّات */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <StatCard num={totalBoxes} label="صناديق" />
-        <StatCard num={totalQty} label="إجمالي القطع" />
-        <StatCard num={checkedOutCount} label="مُخرَج حالياً" color="orange" />
-        <StatCard num={damagedCount} label="متلفات" color="red" />
+      {/* الإحصائيّات (المتلفات تظهر في تبويب التقارير) */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <StatCard num={totalBoxes} label="عدد الصناديق" />
+        <StatCard num={totalItemTypes} label="عدد الأغراض" />
+        <StatCard num={checkedOutCount} label="مُخرَج حالياً" color={checkedOutCount > 0 ? 'orange' : 'default'} />
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-5">

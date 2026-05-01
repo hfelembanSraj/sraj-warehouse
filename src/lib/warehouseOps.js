@@ -54,6 +54,18 @@ export async function rpcUpdateZone(z, patch) {
 }
 
 export async function rpcDeleteZone(z_id) {
+  // cascading soft-delete: المساحة → أرففها → صناديقها → أصنافها
+  const now = new Date().toISOString();
+  const { data: shelvesData } = await supabase.from('shelves').select('id').eq('zone_id', z_id);
+  const shelfIds = (shelvesData || []).map(s => s.id);
+  if (shelfIds.length > 0) {
+    const { data: boxes } = await supabase.from('boxes').select('id').in('shelf_id', shelfIds).is('deleted_at', null);
+    const boxIds = (boxes || []).map(b => b.id);
+    if (boxIds.length > 0) {
+      await supabase.from('items').update({ deleted_at: now }).in('box_id', boxIds).is('deleted_at', null);
+      await supabase.from('boxes').update({ deleted_at: now }).in('id', boxIds);
+    }
+  }
   return supabase.rpc('delete_zone', { z_id });
 }
 
@@ -78,6 +90,15 @@ export async function rpcUpdateShelf(s_id, patch) {
 }
 
 export async function rpcDeleteShelf(s_id) {
+  // أوّلاً: حذف ناعم لكل صناديق هذا الرف وأصنافها (cascading)
+  const now = new Date().toISOString();
+  const { data: boxes } = await supabase.from('boxes').select('id').eq('shelf_id', s_id).is('deleted_at', null);
+  const boxIds = (boxes || []).map(b => b.id);
+  if (boxIds.length > 0) {
+    await supabase.from('items').update({ deleted_at: now }).in('box_id', boxIds).is('deleted_at', null);
+    await supabase.from('boxes').update({ deleted_at: now }).in('id', boxIds);
+  }
+  // ثانياً: احذف الرف
   return supabase.rpc('delete_shelf', { s_id });
 }
 
