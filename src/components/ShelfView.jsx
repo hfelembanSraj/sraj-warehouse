@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { shelfDisplayName } from '../lib/helpers';
 import { AddBoxForm, EditShelfForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import CardboardBox from './CardboardBox';
 import { rpcAddBox, rpcUpdateShelf, rpcDeleteShelf, deleteBox, fetchBoxesForShelf, moveItemToBox } from '../lib/warehouseOps';
 
 export default function ShelfView({ zone, shelf, onBackToMap, onBackToZone, onBoxClick, onRefresh }) {
@@ -239,29 +240,14 @@ function BoxesView({ boxes, isFounder, busy, onBoxClick, onDeleteBox }) {
       {boxes.map(b => {
         const itemCount = (b.items || []).filter(it => !it.deleted_at).length;
         return (
-          <div key={b.id} className="bg-amber-50 border border-amber-300 rounded-lg overflow-hidden">
-            <div className="p-3 flex items-center justify-between gap-2">
-              <button onClick={() => onBoxClick(b)} className="flex-1 text-right hover:bg-amber-100 -m-3 p-3 rounded-lg transition flex items-center gap-2">
-                {b.photo_url ? (
-                  <img src={b.photo_url} alt={b.code} className="w-12 h-12 object-cover rounded border border-amber-200" />
-                ) : (
-                  <div className="w-12 h-12 rounded bg-amber-200 text-amber-900 flex items-center justify-center font-bold text-base">📦</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-display font-bold">{b.code}</h4>
-                  {b.description && <p className="text-[11px] text-stone-600 truncate">{b.description}</p>}
-                  <p className="text-[10px] text-stone-500 mt-0.5">{b.width_cm}×{b.height_cm}سم · {itemCount} صنف</p>
-                </div>
-                <span className="text-stone-400">→</span>
-              </button>
-              {isFounder && (
-                <button onClick={() => onDeleteBox(b)} disabled={busy}
-                  className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded hover:bg-red-100">
-                  🗑
-                </button>
-              )}
-            </div>
-          </div>
+          <CardboardBox key={b.id}
+            box={b}
+            itemCount={itemCount}
+            onClick={() => onBoxClick(b)}
+            isFounder={isFounder}
+            busy={busy}
+            onDelete={() => onDeleteBox(b)}
+          />
         );
       })}
     </div>

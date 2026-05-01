@@ -151,6 +151,36 @@ export async function moveItemToBox(item_id, target_box_id) {
   return supabase.from('items').update({ box_id: target_box_id }).eq('id', item_id);
 }
 
+// نقل صندوق من رف لآخر (ضمن نفس المستودع)
+// يولّد رمزاً جديداً تلقائياً بناءً على الرف الجديد
+export async function moveBoxToShelf(box_id, target_shelf_id) {
+  // اجلب بيانات الرف الهدف لنُولّد الرمز الصحيح
+  const { data: shelf } = await supabase.from('shelves')
+    .select('shelf_index, zone_id, zones(letter)')
+    .eq('id', target_shelf_id).maybeSingle();
+  if (!shelf) return { error: { message: 'الرف الهدف غير موجود' } };
+
+  const zoneLetter = shelf.zones?.letter;
+  const shelfIndex = shelf.shelf_index;
+
+  // اجلب أعلى رقم box_index في الرف الهدف
+  const { data: existing } = await supabase.from('boxes')
+    .select('box_index, code')
+    .eq('shelf_id', target_shelf_id).is('deleted_at', null);
+
+  const nextBoxNum = (existing && existing.length > 0
+    ? Math.max(...existing.map(b => b.box_index || 0))
+    : 0) + 1;
+
+  const newCode = `${zoneLetter}-${shelfIndex}-${nextBoxNum}`;
+
+  return supabase.from('boxes').update({
+    shelf_id: target_shelf_id,
+    code: newCode,
+    box_index: nextBoxNum
+  }).eq('id', box_id);
+}
+
 // استرجاع من السلّة
 export async function restoreBox(box_id) {
   return supabase.from('boxes').update({ deleted_at: null }).eq('id', box_id);

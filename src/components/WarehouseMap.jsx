@@ -142,6 +142,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                       key={z.id}
                       zone={z}
                       boxCount={boxCountForZone(z.letter)}
+                      zoneShelves={z.shelves || []}
+                      zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
                       onClick={() => onZoneClick(z)}
                       isFounder={isFounder}
                       busy={busy}
@@ -215,7 +217,7 @@ function StatCard({ num, label, color = 'default' }) {
   );
 }
 
-function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete }) {
+function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [] }) {
   const style = {
     top:    zone.pos_top    != null ? `${zone.pos_top}%`    : undefined,
     bottom: (zone.pos_top == null && zone.pos_height != null) ? `${100 - zone.pos_height - 6}%` : undefined,
@@ -223,18 +225,63 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete }
     right:  zone.pos_right  != null ? `${zone.pos_right}%`  : undefined,
     width:  zone.pos_width  != null ? `${zone.pos_width}%`  : undefined,
     height: zone.pos_height != null ? `${zone.pos_height}%` : undefined,
-    borderColor: zone.color
+    borderColor: zone.color,
+    backgroundImage: `linear-gradient(180deg, ${zone.color}10 0%, white 30%)`
   };
+  // عدد الأرفف المعروضة (حد أقصى 4 لتفادي الازدحام البصري)
+  const shelvesToShow = (zoneShelves || []).slice(0, 4);
+  const showShelves = shelvesToShow.length > 0;
+
   return (
-    <div style={style} className="absolute bg-white border-2 rounded-md flex flex-col group">
-      <button onClick={onClick} className="flex-1 p-2 hover:bg-stone-50 rounded-md transition relative flex flex-col items-center justify-center">
-        <div className="absolute inset-1 border border-dashed border-stone-200 rounded pointer-events-none"></div>
-        <div className="text-3xl font-display font-bold leading-none" style={{ color: zone.color }}>{zone.letter}</div>
-        <div className="text-[10px] text-stone-600 mt-1.5 leading-tight text-center px-1">{zone.name}</div>
-        <div className="text-[9px] text-stone-400 mt-1">{boxCount} صناديق</div>
+    <div style={style} className="absolute border-2 rounded-md flex flex-col group shadow-sm overflow-hidden">
+      <button onClick={onClick} className="flex-1 hover:brightness-95 transition relative flex flex-col">
+        {/* الجدار العلويّ — يبدو كحافّة أعلى الرف من فوق */}
+        <div className="h-1.5 w-full" style={{ backgroundColor: zone.color, opacity: 0.7 }}></div>
+
+        {/* المحتوى الداخلي: شكل الأرفف من الأعلى */}
+        <div className="relative flex-1 flex flex-col items-center justify-center px-1.5 py-2 gap-[2px]">
+          {showShelves ? (
+            <>
+              {/* الحرف والاسم في طبقة فوق الأرفف */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                <div className="text-3xl font-display font-bold leading-none drop-shadow-sm" style={{ color: zone.color }}>{zone.letter}</div>
+                <div className="text-[10px] text-stone-700 mt-1 leading-tight text-center px-1 font-medium bg-white/70 rounded px-1">{zone.name}</div>
+              </div>
+              {/* الأرفف من المنظور العلوي */}
+              {shelvesToShow.map((sh, i) => {
+                const shelfBoxes = zoneBoxes.filter(b => b.code.split('-')[1] === String(sh.shelf_index));
+                return (
+                  <div key={sh.id} className="w-full flex-1 rounded-sm border flex items-stretch gap-[2px] p-[2px]"
+                    style={{ borderColor: zone.color + '60', backgroundColor: zone.color + '08' }}>
+                    {Array.from({ length: sh.max_boxes || 4 }).map((_, k) => {
+                      const has = k < shelfBoxes.length;
+                      return (
+                        <div key={k} className="flex-1 rounded-[2px]"
+                          style={{ backgroundColor: has ? zone.color + 'cc' : 'transparent', border: has ? 'none' : `1px dashed ${zone.color}30` }}>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-3xl font-display font-bold leading-none" style={{ color: zone.color }}>{zone.letter}</div>
+              <div className="text-[10px] text-stone-600 mt-1 leading-tight text-center px-1">{zone.name}</div>
+              <div className="text-[9px] text-stone-400 italic mt-1">— لا توجد أرفف —</div>
+            </div>
+          )}
+        </div>
+
+        {/* شريط معلومات في الأسفل */}
+        <div className="text-[9px] text-stone-600 text-center py-1 bg-white/80 border-t border-stone-200 font-medium">
+          {boxCount} {boxCount === 1 ? 'صندوق' : 'صناديق'}
+        </div>
       </button>
+
       {isFounder && (
-        <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
+        <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
           <button onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
             className="text-[9px] bg-white border border-stone-300 px-1 py-0.5 rounded shadow-sm hover:bg-stone-100"
             title="تعديل"

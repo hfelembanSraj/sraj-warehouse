@@ -4,9 +4,10 @@ import { shelfDisplayName } from '../lib/helpers';
 import CheckoutModal from './CheckoutModal';
 import AddBoxModal from './AddBoxModal';
 import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import { CardboardBoxMini } from './CardboardBox';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
-  rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox
+  rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onRefresh }) {
@@ -19,6 +20,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
   // وضع التعديل التفاعلي على الرفّ
   const [editMode, setEditMode] = useState(false);
+
+  // حالة السحب والإفلات
+  const [draggedBox, setDraggedBox] = useState(null);
+  const [dragOverShelfId, setDragOverShelfId] = useState(null);
+  const [dragOverTrash, setDragOverTrash] = useState(false);
   // نموذج إضافة صندوق على رف معيّن
   const [addBoxOnShelf, setAddBoxOnShelf] = useState(null);
   // نموذج إضافة رف
@@ -161,6 +167,45 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
+  // ====== السحب والإفلات ======
+  function handleBoxDragStart(e, box) {
+    setDraggedBox(box);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', box.id);
+  }
+
+  function handleBoxDragEnd() {
+    setDraggedBox(null);
+    setDragOverShelfId(null);
+    setDragOverTrash(false);
+  }
+
+  async function handleDropOnShelf(shelf) {
+    if (!draggedBox) return;
+    // إذا الصندوق على نفس الرف، لا حاجة للنقل
+    const currentShelfIndex = parseInt(draggedBox.code.split('-')[1]);
+    if (currentShelfIndex === shelf.shelf_index) {
+      setDraggedBox(null);
+      setDragOverShelfId(null);
+      return;
+    }
+    setBusy(true);
+    const { error } = await moveBoxToShelf(draggedBox.id, shelf.id);
+    setBusy(false);
+    setDraggedBox(null);
+    setDragOverShelfId(null);
+    if (error) return flash('فشل النقل: ' + error.message, 'error');
+    flash(`✅ نُقل إلى ${shelfDisplayName(shelf, shelves)}`);
+    await onRefresh();
+  }
+
+  async function handleDropOnTrash() {
+    if (!draggedBox) return;
+    setConfirming({ type: 'box', box: draggedBox });
+    setDraggedBox(null);
+    setDragOverTrash(false);
+  }
+
   return (
     <>
       <StatusToast msg={msg} />
@@ -262,9 +307,30 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
         {/* بانر وضع التعديل */}
         {editMode && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-900 flex items-center gap-2">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-900 flex items-start gap-2">
             <span className="text-base">🔧</span>
-            <p className="flex-1">اضغط على المربّعات الفارغة لإضافة صناديق · اضغط على المساحة الفارغة في الأسفل لإضافة رف · اضغط × لحذف عنصر</p>
+            <div className="flex-1 space-y-0.5">
+              <p>• اضغط على المربّعات الخضراء لإضافة صندوق · اضغط ➕ لإضافة بلا حدّ</p>
+              <p>• <strong>اسحب أيّ صندوق</strong> إلى رف آخر لنقله، أو إلى 🗑 لحذفه</p>
+              <p>• اضغط على اسم الرف ✏️ لإعادة تسميته · اضغط × لحذف عنصر</p>
+            </div>
+          </div>
+        )}
+
+        {/* سلّة الحذف بالسحب — تظهر فقط في وضع التعديل عند بدء السحب */}
+        {editMode && isFounder && draggedBox && (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOverTrash(true); }}
+            onDragLeave={() => setDragOverTrash(false)}
+            onDrop={(e) => { e.preventDefault(); handleDropOnTrash(); }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-2xl border-4 border-dashed transition shadow-2xl ${
+              dragOverTrash
+                ? 'bg-red-600 border-red-800 text-white scale-110'
+                : 'bg-white border-red-400 text-red-700'
+            }`}
+          >
+            <div className="text-3xl text-center mb-1">🗑</div>
+            <div className="text-xs font-bold whitespace-nowrap">{dragOverTrash ? '⬇ أفلت للحذف' : 'اسحب هنا لحذف الصندوق'}</div>
           </div>
         )}
 
@@ -288,14 +354,18 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   const shelfBoxes = getShelfBoxes(shelf.shelf_index);
                   const emptySlots = Math.max(0, shelf.max_boxes - shelfBoxes.length);
                   const ShelfWrap = editMode ? 'div' : 'button';
+                  const isDropTarget = editMode && dragOverShelfId === shelf.id;
                   return (
                     <ShelfWrap
                       key={shelf.id}
                       onClick={editMode ? undefined : () => onShelfClick(shelf)}
-                      className={`flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative text-right ${
-                        editMode ? '' : 'hover:bg-blue-50 hover:border-brand-blue transition cursor-pointer'
-                      }`}
-                      style={{ borderColor: fresh.color }}
+                      onDragOver={editMode ? (e) => { if (draggedBox) { e.preventDefault(); setDragOverShelfId(shelf.id); } } : undefined}
+                      onDragLeave={editMode ? () => setDragOverShelfId(null) : undefined}
+                      onDrop={editMode ? (e) => { e.preventDefault(); handleDropOnShelf(shelf); } : undefined}
+                      className={`flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative text-right transition ${
+                        editMode ? '' : 'hover:bg-blue-50 hover:border-brand-blue cursor-pointer'
+                      } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
+                      style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
                     >
                       {editMode && isFounder ? (
                         <button
@@ -328,16 +398,23 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         const items = getBoxItems(box.id);
                         const isOut = isCheckedOut(box.id);
                         const isHighlighted = highlightedBox === box.code;
-                        let bgClass = 'bg-amber-50 border-amber-600 text-amber-900';
-                        if (isHighlighted) bgClass = 'bg-green-100 border-green-600 text-green-900';
-                        else if (isOut) bgClass = 'bg-red-100 border-red-500 text-red-900';
+                        const isDragging = draggedBox?.id === box.id;
                         return (
-                          <div key={box.id} className={`flex-1 border rounded flex flex-col items-center justify-center gap-0.5 relative ${bgClass}`}>
-                            <span className="text-[10px] font-bold leading-none">{box.code}</span>
-                            <span className="text-[8px] opacity-75 leading-none">{items.length} أصناف</span>
+                          <div key={box.id}
+                            draggable={editMode && isFounder}
+                            onDragStart={editMode ? (e) => handleBoxDragStart(e, box) : undefined}
+                            onDragEnd={editMode ? handleBoxDragEnd : undefined}
+                            className={`flex-1 relative ${editMode && isFounder ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-30' : ''}`}>
+                            <CardboardBoxMini
+                              code={box.code}
+                              itemCount={items.length}
+                              isHighlighted={isHighlighted}
+                              isOut={isOut}
+                              photoUrl={box.photo_url}
+                            />
                             {editMode && isFounder && (
                               <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
-                                className="absolute top-0.5 left-0.5 bg-white border border-red-300 text-red-600 text-[9px] w-4 h-4 rounded shadow-sm hover:bg-red-50 leading-none"
+                                className="absolute top-0.5 left-0.5 bg-white border border-red-300 text-red-600 text-[9px] w-4 h-4 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-10"
                                 title="حذف الصندوق">×</button>
                             )}
                           </div>
