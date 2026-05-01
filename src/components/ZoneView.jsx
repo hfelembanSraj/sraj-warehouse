@@ -9,7 +9,8 @@ import WarehouseMiniMap from './WarehouseMiniMap';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
-  bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes, bulkMoveBoxesToZone, assignItemToBox
+  bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes, bulkMoveBoxesToZone, assignItemToBox,
+  moveBoxToPosition
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onRefresh }) {
@@ -215,6 +216,27 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تمّ تحديد مكان الغرض');
     await onRefresh();
+  }
+
+  // إفلات على موقع محدّد داخل رفّ (للنقل بترتيب دقيق، أو الإضافة بدون اختيار)
+  async function handleDropOrClickOnPosition(shelf, position) {
+    if (hasActiveSelection) {
+      // نقل الصندوق المختار إلى هذا الموقع بالضبط
+      const boxes = activeBoxesForMove;
+      if (boxes.length !== 1) {
+        return flash('لاختيار موقع دقيق، اختر صندوقاً واحداً فقط', 'error');
+      }
+      setBusy(true);
+      const { error } = await moveBoxToPosition(boxes[0].id, shelf.id, position);
+      setBusy(false);
+      clearSelection();
+      if (error) return flash('فشل النقل: ' + error.message, 'error');
+      flash(`✅ نُقل إلى الموقع ${position}`);
+      await onRefresh();
+    } else {
+      // لا يوجد اختيار → السلوك القديم: إضافة صندوق جديد في هذا الموقع
+      handleQuickAddBox(shelf, position);
+    }
   }
 
   // إفلات على مساحة من الخريطة المصغّرة
@@ -623,9 +645,19 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           const isRecentlyAdded = recentlyAddedBoxId === box.id;
                           // المقبض الظاهر دائماً للمؤسّس (سواء edit mode أم لا)
                           const showHandle = isFounder;
+                          // الصندوق هدف إفلات إن كان هناك اختيار من صندوق آخر
+                          const isPositionDropTarget = hasActiveSelection && !activeBoxesForMove.find(b => b.id === box.id);
                           return (
                             <div key={`box-${position}`}
-                              className={`flex-1 relative ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} transition`}>
+                              onDragOver={(e) => { if (isPositionDropTarget) { e.preventDefault(); e.stopPropagation(); } }}
+                              onDrop={(e) => {
+                                if (isPositionDropTarget) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDropOrClickOnPosition(shelf, position);
+                                }
+                              }}
+                              className={`flex-1 relative ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} ${isPositionDropTarget ? 'ring-2 ring-purple-400 ring-offset-1' : ''} transition`}>
                               <CardboardBoxMini
                                 code={box.code}
                                 itemCount={items.length}
@@ -633,6 +665,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 isOut={isOut}
                                 photoUrl={box.photo_url}
                               />
+                              {isPositionDropTarget && (
+                                <div className="absolute inset-0 bg-purple-500/20 backdrop-blur-[1px] flex items-center justify-center pointer-events-none rounded">
+                                  <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow">↪ إفلات هنا</span>
+                                </div>
+                              )}
                               {/* مقبض السحب — ظاهر دائماً للمؤسّس، يُفعّل السحب عند الإمساك */}
                               {showHandle && (
                                 <div
@@ -660,15 +697,30 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           );
                         }
                         // الخانات الفارغة قابلة للنقر دائماً للمؤسّس (حتى خارج وضع التعديل)
+                        // وتقبل الإفلات إن كان هناك اختيار → نقل إلى هذا الموقع بالضبط
                         return isFounder ? (
                           <button
                             key={`empty-${position}`}
-                            onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, position); }}
+                            onClick={(e) => { e.stopPropagation(); handleDropOrClickOnPosition(shelf, position); }}
+                            onDragOver={(e) => { if (hasActiveSelection) { e.preventDefault(); e.stopPropagation(); } }}
+                            onDrop={(e) => {
+                              if (hasActiveSelection) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDropOrClickOnPosition(shelf, position);
+                              }
+                            }}
                             disabled={busy}
-                            className="flex-1 border-2 border-dashed border-green-400 bg-green-50 hover:bg-green-100 hover:border-green-500 rounded text-green-800 font-bold flex flex-col items-center justify-center gap-0.5 transition"
-                            title={`اضغط لإضافة صندوق هنا (موقع ${position})`}>
-                            <span className="text-lg leading-none">+</span>
-                            <span className="text-[10px] leading-none">صندوق</span>
+                            className={`flex-1 border-2 border-dashed rounded font-bold flex flex-col items-center justify-center gap-0.5 transition ${
+                              hasActiveSelection
+                                ? 'border-purple-400 bg-purple-50 hover:bg-purple-100 hover:border-purple-600 text-purple-800'
+                                : 'border-green-400 bg-green-50 hover:bg-green-100 hover:border-green-500 text-green-800'
+                            }`}
+                            title={hasActiveSelection
+                              ? `أفلت هنا لنقل الصندوق إلى الموقع ${position}`
+                              : `اضغط لإضافة صندوق هنا (موقع ${position})`}>
+                            <span className="text-lg leading-none">{hasActiveSelection ? '↪' : '+'}</span>
+                            <span className="text-[10px] leading-none">{hasActiveSelection ? 'انقل هنا' : 'صندوق'}</span>
                             <span className="text-[8px] opacity-50 leading-none">#{position}</span>
                           </button>
                         ) : (

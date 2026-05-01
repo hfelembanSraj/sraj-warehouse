@@ -29,16 +29,26 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
     const statsResult = {};
     const layoutsResult = {};
     await Promise.all(warehouses.map(async (wh) => {
-      const [zonesR, boxesR, itemsR] = await Promise.all([
-        supabase.from('zones').select('id', { count: 'exact', head: true }).eq('warehouse_id', wh.id),
-        supabase.from('boxes').select('id', { count: 'exact', head: true }).eq('warehouse_id', wh.id),
-        supabase.from('items').select('quantity, boxes!inner(warehouse_id)').eq('boxes.warehouse_id', wh.id)
+      // نُطابق فلترة Dashboard.loadAllData تماماً ليتطابق العدّ بين الواجهتين
+      const [zonesR, boxesR, itemsAssignedR, itemsUnassignedR] = await Promise.all([
+        supabase.from('zones').select('id', { count: 'exact', head: true })
+          .eq('warehouse_id', wh.id).is('deleted_at', null),
+        supabase.from('boxes').select('id', { count: 'exact', head: true })
+          .eq('warehouse_id', wh.id).is('deleted_at', null).not('shelf_id', 'is', null),
+        supabase.from('items').select('id, quantity, boxes!inner(warehouse_id, deleted_at, shelf_id)')
+          .eq('boxes.warehouse_id', wh.id)
+          .is('deleted_at', null).is('boxes.deleted_at', null).not('boxes.shelf_id', 'is', null),
+        supabase.from('items').select('id, quantity, zones!inner(warehouse_id)')
+          .eq('zones.warehouse_id', wh.id)
+          .is('box_id', null).is('deleted_at', null)
       ]);
-      const totalQty = (itemsR.data || []).reduce((s, it) => s + (it.quantity || 0), 0);
+      const allItems = [...(itemsAssignedR.data || []), ...(itemsUnassignedR.data || [])];
+      const totalQty = allItems.reduce((s, it) => s + (it.quantity || 0), 0);
       statsResult[wh.id] = {
         zones: zonesR.count || 0,
         boxes: boxesR.count || 0,
-        items: totalQty
+        items: allItems.length,   // عدد الأصناف (يطابق ما بداخل المستودع)
+        pieces: totalQty           // مجموع القطع (تفصيل اختياري)
       };
 
       // وضع "صفحات": نحتاج التخطيط الكامل لرسم المعاينة
@@ -197,7 +207,7 @@ function GridCard({ wh, stats, busy, editingId, totalCount, onEnter, onToggleEdi
         <div className="grid grid-cols-3 gap-1 text-center">
           <Stat label="مساحات" value={stats.zones} />
           <Stat label="صناديق" value={stats.boxes} />
-          <Stat label="قطع" value={stats.items} />
+          <Stat label="أصناف" value={stats.items} />
         </div>
         <div className="mt-2 text-[10px] text-stone-400 flex items-center justify-between">
           <span>{wh.width_m}م × {wh.depth_m}م</span>
@@ -235,8 +245,25 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
   return (
     <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:shadow-lg transition shadow-sm">
       <button onClick={onEnter} className="w-full text-right p-4 hover:bg-stone-50 transition">
-        {/* الصورة المصغّرة عن المستودع */}
-        <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl p-3 mb-3 border border-stone-200">
+        {/* معلومات المستودع — في الأعلى */}
+        <div className="flex items-start gap-2 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xl flex-shrink-0">📦</div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-display font-bold truncate">{wh.name}</h3>
+            {wh.description && <p className="text-[11px] text-stone-500 truncate">{wh.description}</p>}
+            <p className="text-[10px] text-stone-400 mt-0.5">{wh.width_m}م × {wh.depth_m}م</p>
+          </div>
+        </div>
+
+        {/* الإحصائيّات */}
+        <div className="grid grid-cols-3 gap-1 text-center mb-3">
+          <Stat label="مساحات" value={stats.zones} />
+          <Stat label="صناديق" value={stats.boxes} />
+          <Stat label="أصناف" value={stats.items} />
+        </div>
+
+        {/* الصورة المصغّرة عن المستودع — في الأسفل */}
+        <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl p-3 mb-2 border border-stone-200">
           <div className="relative aspect-square bg-white rounded border-2 border-dashed border-stone-300 px-2 py-5">
             <div className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[7px] text-stone-400">الجدار الخلفي</div>
             {zones.length === 0 ? (
@@ -251,11 +278,12 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
                   right:  z.pos_right  != null ? `${z.pos_right}%`  : undefined,
                   width:  z.pos_width  != null ? `${z.pos_width}%`  : undefined,
                   height: z.pos_height != null ? `${z.pos_height}%` : undefined,
-                  borderColor: z.color
+                  borderColor: z.color,
+                  backgroundColor: z.color + '15'
                 };
                 return (
                   <div key={z.id} style={style}
-                    className="absolute bg-white border-2 rounded p-0.5 flex flex-col items-center justify-center">
+                    className="absolute border-2 rounded p-0.5 flex flex-col items-center justify-center">
                     <div className="text-[10px] font-display font-bold leading-none" style={{ color: z.color }}>{z.letter}</div>
                   </div>
                 );
@@ -265,20 +293,7 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
           </div>
         </div>
 
-        <div className="flex items-start gap-2 mb-2">
-          <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-lg">📦</div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-display font-bold truncate">{wh.name}</h3>
-            {wh.description && <p className="text-[11px] text-stone-500 truncate">{wh.description}</p>}
-            <p className="text-[10px] text-stone-400 mt-0.5">{wh.width_m}م × {wh.depth_m}م</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-1 text-center">
-          <Stat label="مساحات" value={stats.zones} />
-          <Stat label="صناديق" value={stats.boxes} />
-          <Stat label="قطع" value={stats.items} />
-        </div>
-        <div className="mt-2 text-center text-[11px] text-blue-600 font-medium">ادخل المستودع ←</div>
+        <div className="text-center text-[11px] text-blue-600 font-medium">ادخل المستودع ←</div>
       </button>
       <div className="border-t border-stone-100 p-2 flex gap-1 bg-stone-50">
         <button onClick={onToggleEdit} disabled={busy}

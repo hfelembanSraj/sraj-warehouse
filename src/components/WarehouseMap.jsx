@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AddItemModal from './AddItemModal';
-import { AddZoneForm, EditZoneForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import { AddZoneForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, softDeleteItem } from '../lib/warehouseOps';
 
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
@@ -15,6 +15,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
 
   // وضع العرض: map (الخريطة) | items (كل الأغراض)
   const [viewMode, setViewMode] = useState('map');
+  // مودال عرض القائمة عند النقر على بطاقة إحصائيّة
+  const [statModal, setStatModal] = useState(null); // 'boxes' | 'items' | 'checkouts'
 
   const totalBoxes = data.boxes.length;
   const totalItemTypes = data.items.length;          // عدد الأغراض (الأصناف المتميّزة)
@@ -65,11 +67,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     <>
       <StatusToast msg={msg} />
 
-      {/* الإحصائيّات (المتلفات تظهر في تبويب التقارير) */}
+      {/* الإحصائيّات — قابلة للنقر تعرض القائمة الكاملة */}
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <StatCard num={totalBoxes} label="عدد الصناديق" />
-        <StatCard num={totalItemTypes} label="عدد الأغراض" />
-        <StatCard num={checkedOutCount} label="مُخرَج حالياً" color={checkedOutCount > 0 ? 'orange' : 'default'} />
+        <StatCard num={totalBoxes} label="عدد الصناديق" onClick={() => setStatModal('boxes')} />
+        <StatCard num={totalItemTypes} label="عدد الأغراض" onClick={() => setStatModal('items')} />
+        <StatCard num={checkedOutCount} label="مُخرَج حالياً" color={checkedOutCount > 0 ? 'orange' : 'default'} onClick={() => setStatModal('checkouts')} />
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-5">
@@ -199,20 +201,132 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           onCancel={() => setConfirming(null)}
         />
       )}
+
+      {/* مودال قائمة عند النقر على بطاقة إحصائيّة */}
+      {statModal === 'boxes' && (
+        <FormModal title={`📦 جميع الصناديق (${totalBoxes})`} onClose={() => setStatModal(null)} maxWidth="max-w-3xl">
+          <BoxesListView data={data} onJump={onItemClick} onClose={() => setStatModal(null)} />
+        </FormModal>
+      )}
+      {statModal === 'items' && (
+        <FormModal title={`🔧 جميع الأغراض (${totalItemTypes})`} onClose={() => setStatModal(null)} maxWidth="max-w-3xl">
+          <AllItemsList data={data} onItemClick={(c) => { setStatModal(null); onItemClick?.(c); }} onRefresh={onRefresh} />
+        </FormModal>
+      )}
+      {statModal === 'checkouts' && (
+        <FormModal title={`📤 الإخراجات الحاليّة (${checkedOutCount})`} onClose={() => setStatModal(null)} maxWidth="max-w-2xl">
+          <CheckoutsListView checkouts={data.checkouts} onJump={onItemClick} onClose={() => setStatModal(null)} />
+        </FormModal>
+      )}
     </>
   );
 }
 
-function StatCard({ num, label, color = 'default' }) {
+function StatCard({ num, label, color = 'default', onClick }) {
   const colors = {
     default: 'text-stone-900',
     orange: 'text-orange-600',
     red: 'text-red-600'
   };
-  return (
-    <div className="bg-white rounded-xl border border-stone-200 p-3 text-center">
+  const baseClass = `bg-white rounded-xl border border-stone-200 p-3 text-center transition ${
+    onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 hover:-translate-y-0.5' : ''
+  }`;
+  const inner = (
+    <>
       <div className={`text-2xl font-display font-bold ${colors[color]}`}>{num}</div>
-      <div className="text-[11px] text-stone-500 mt-0.5">{label}</div>
+      <div className="text-[11px] text-stone-500 mt-0.5">
+        {label}
+        {onClick && <span className="text-blue-500 mr-1 text-[9px]">(اضغط للعرض)</span>}
+      </div>
+    </>
+  );
+  if (onClick) return <button onClick={onClick} className={baseClass + ' w-full'}>{inner}</button>;
+  return <div className={baseClass}>{inner}</div>;
+}
+
+// قائمة كل الصناديق — تُعرض في مودال
+function BoxesListView({ data, onJump, onClose }) {
+  const [search, setSearch] = useState('');
+  const [filterZone, setFilterZone] = useState('all');
+
+  const enriched = data.boxes.map(b => {
+    const zone = (data.zones || []).find(z => b.code.startsWith(z.letter + '-'));
+    const itemCount = data.items.filter(it => it.box_id === b.id).length;
+    return { ...b, zone, itemCount };
+  });
+
+  const filtered = enriched.filter(b => {
+    if (filterZone !== 'all' && !b.code.startsWith(filterZone + '-')) return false;
+    if (search.trim() && !`${b.code} ${b.description || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="grid sm:grid-cols-2 gap-2">
+        <input type="search" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 ابحث برقم أو وصف..."
+          className="px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+        <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
+          className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+          <option value="all">كل المساحات</option>
+          {(data.zones || []).map(z => (
+            <option key={z.id} value={z.letter}>{z.letter} — {z.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="text-[11px] text-stone-500">عرض {filtered.length} من {enriched.length} صندوق · اضغط أيّ صندوق للذهاب إليه</div>
+      {filtered.length === 0 ? (
+        <p className="text-center text-sm text-stone-400 py-8">لا توجد نتائج</p>
+      ) : (
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto">
+          {filtered.map(b => (
+            <button key={b.id}
+              onClick={() => { onClose(); onJump?.(b.code); }}
+              className="bg-white border-2 border-stone-200 rounded-lg p-3 text-right hover:border-blue-500 hover:bg-blue-50 transition">
+              <div className="flex items-center gap-2 mb-1">
+                {b.photo_url ? (
+                  <img src={b.photo_url} alt={b.code} className="w-8 h-8 object-cover rounded" />
+                ) : (
+                  <div className="w-8 h-8 rounded bg-amber-100 flex items-center justify-center text-sm">📦</div>
+                )}
+                <div className="text-sm font-mono font-bold" style={{ color: b.zone?.color || '#185FA5' }}>{b.code}</div>
+              </div>
+              {b.description && <div className="text-[10px] text-stone-500 truncate mb-1">{b.description}</div>}
+              <div className="text-[10px] text-stone-400">{b.itemCount} {b.itemCount === 1 ? 'صنف' : 'صنف'}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// قائمة الإخراجات الحاليّة — تُعرض في مودال
+function CheckoutsListView({ checkouts, onJump, onClose }) {
+  if (checkouts.length === 0) {
+    return <p className="text-center text-sm text-stone-400 py-8">لا توجد إخراجات حاليّة 🎉</p>;
+  }
+  return (
+    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+      {checkouts.map(c => (
+        <div key={c.id} className="bg-white border border-stone-200 rounded-lg p-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded bg-orange-100 text-orange-700 flex items-center justify-center text-lg">📤</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">{c.item_name} <span className="text-[10px] text-stone-500">×{c.quantity}</span></div>
+            <div className="text-[10px] text-stone-500">
+              لـ <strong>{c.user_name}</strong> · من {c.box_code} · بتاريخ {new Date(c.date_out).toLocaleDateString('ar-SA')}
+            </div>
+            {c.purpose === 'initiative' && c.initiative && (
+              <div className="text-[10px] text-blue-700">مبادرة: {c.initiative}</div>
+            )}
+          </div>
+          <button onClick={() => { onClose(); onJump?.(c.box_code); }}
+            className="text-[10px] bg-blue-50 border border-blue-300 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 whitespace-nowrap">
+            اذهب →
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -302,6 +302,16 @@ export async function assignItemToBox(item_id, target_box_id) {
   }).eq('id', item_id);
 }
 
+// نقل صندوق إلى موقع محدّد (داخل نفس الرف أو إلى رفّ آخر)
+// يُعالج الإزاحة والضغط ذرّياً عبر RPC
+export async function moveBoxToPosition(box_id, target_shelf_id, target_position) {
+  return supabase.rpc('move_box_to_position', {
+    p_box_id: box_id,
+    p_target_shelf_id: target_shelf_id,
+    p_target_position: target_position
+  });
+}
+
 // تعديل الوصف لعدّة صناديق دفعة واحدة
 export async function bulkUpdateBoxes(box_ids, patch) {
   if (!box_ids || box_ids.length === 0) return { data: null, error: null };

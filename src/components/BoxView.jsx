@@ -5,11 +5,12 @@ import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
-import { updateBox, deleteBox, softDeleteItem } from '../lib/warehouseOps';
+import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
 
-export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, onBackToShelf, onRefresh }) {
+export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZone, onBackToShelf, onRefresh }) {
   const { isFounder, can } = useAuth();
   const [items, setItems] = useState([]);
+  const [movingItem, setMovingItem] = useState(null);  // الغرض الذي نختار له صندوقاً جديداً
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
@@ -110,6 +111,18 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
     setConfirming(null);
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تم النقل لسلّة المحذوفات');
+    await loadItems();
+    await onRefresh();
+  }
+
+  async function handleMoveItem(targetBoxId) {
+    if (!movingItem || !targetBoxId || targetBoxId === box.id) return;
+    setBusy(true);
+    const { error } = await moveItemToBox(movingItem.id, targetBoxId);
+    setBusy(false);
+    setMovingItem(null);
+    if (error) return flash('فشل النقل: ' + error.message, 'error');
+    flash(`✅ نُقل "${movingItem.name}"`);
     await loadItems();
     await onRefresh();
   }
@@ -248,6 +261,7 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
                         onDelete={() => setConfirming({ type: 'item', item: it })}
                         onSaveEdit={(patch) => handleUpdateItem(it, patch)}
                         onClickHandle={(e) => handleItemClickHandle(it, e)}
+                        onMove={() => setMovingItem(it)}
                       />
                     ))}
                   </div>
@@ -335,7 +349,89 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
           onCancel={() => setConfirming(null)}
         />
       )}
+
+      {/* مودال نقل غرض إلى صندوق آخر */}
+      {movingItem && (
+        <FormModal
+          title={`📍 نقل "${movingItem.name}" إلى صندوق آخر`}
+          subtitle={`الكميّة: ${movingItem.quantity} · من ${currentBox.code}`}
+          onClose={() => setMovingItem(null)}
+          maxWidth="max-w-2xl"
+        >
+          <MoveItemTargetPicker
+            currentBoxId={currentBox.id}
+            currentZoneLetter={zone.letter}
+            allBoxes={data?.boxes || []}
+            allZones={data?.zones || []}
+            busy={busy}
+            onCancel={() => setMovingItem(null)}
+            onPick={handleMoveItem}
+          />
+        </FormModal>
+      )}
     </>
+  );
+}
+
+// مكوّن اختيار الصندوق الهدف لنقل الغرض
+function MoveItemTargetPicker({ currentBoxId, currentZoneLetter, allBoxes, allZones, busy, onCancel, onPick }) {
+  const [filterZone, setFilterZone] = useState(currentZoneLetter || 'all');
+  const [search, setSearch] = useState('');
+
+  const filtered = allBoxes.filter(b => {
+    if (b.id === currentBoxId) return false;
+    if (filterZone !== 'all' && !b.code.startsWith(filterZone + '-')) return false;
+    if (search.trim() && !`${b.code} ${b.description || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-stone-600">اختر الصندوق الذي ستُنقَل إليه هذه القطعة:</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 ابحث برقم الصندوق..."
+          className="px-3 py-2 border border-stone-300 rounded-lg text-xs"
+        />
+        <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
+          className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+          <option value="all">كل المساحات</option>
+          {allZones.map(z => (
+            <option key={z.id} value={z.letter}>{z.letter} — {z.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-sm text-center text-stone-500 py-6">لا توجد صناديق متاحة</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
+          {filtered.map(b => {
+            const zone = allZones.find(z => b.code.startsWith(z.letter + '-'));
+            return (
+              <button key={b.id}
+                onClick={() => onPick(b.id)}
+                disabled={busy}
+                className="bg-white border-2 border-stone-200 rounded-lg p-2.5 text-center hover:border-blue-500 hover:bg-blue-50 transition disabled:opacity-50">
+                <div className="text-xs font-mono font-bold" style={{ color: zone?.color || '#185FA5' }}>{b.code}</div>
+                {b.description && <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2 border-t border-stone-200">
+        <button onClick={onCancel} disabled={busy}
+          className="text-xs px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100">
+          إلغاء
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -385,7 +481,7 @@ function AddItemInBoxForm({ busy, onCancel, onSave }) {
 }
 
 // مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
-function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, editing, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onSaveEdit, onDragStart, onDragEnd, onClickHandle }) {
+function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, editing, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onSaveEdit, onDragStart, onDragEnd, onClickHandle, onMove }) {
   return (
     <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${editing ? 'col-span-2 sm:col-span-3 md:col-span-4' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
       style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
@@ -424,11 +520,18 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, editing
           {/* اسم الصنف */}
           <div className="p-2">
             <h5 className="text-xs font-medium text-stone-900 truncate text-center">{item.name}</h5>
-            <div className="flex items-center justify-center gap-1 mt-1.5">
+            <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap">
               {canCheckout && (
                 <button onClick={onCheckout}
                   className="text-[9px] bg-brand-blue text-white px-2 py-0.5 rounded hover:bg-blue-800">
                   إخراج
+                </button>
+              )}
+              {canMove && onMove && (
+                <button onClick={onMove} disabled={busy}
+                  className="text-[9px] bg-purple-50 border border-purple-300 text-purple-800 px-1.5 py-0.5 rounded hover:bg-purple-100"
+                  title="نقل لصندوق آخر">
+                  📍 نقل
                 </button>
               )}
               {canEdit && (
