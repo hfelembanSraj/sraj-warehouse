@@ -1,14 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+const REMEMBER_KEY = 'sraj.rememberMe';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // عند التحميل، اقرأ التفضيل واحفظ البريد إن كان مخزّناً
+  useEffect(() => {
+    const stored = localStorage.getItem(REMEMBER_KEY);
+    if (stored) {
+      const { remember, lastEmail } = JSON.parse(stored);
+      setRememberMe(remember);
+      if (remember && lastEmail) setEmail(lastEmail);
+    }
+  }, []);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -19,6 +32,12 @@ export default function LoginPage() {
     if (error) {
       setError('بيانات الدخول غير صحيحة');
     } else {
+      // احفظ تفضيل المستخدم
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ remember: true, lastEmail: email }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
       navigate('/');
     }
   }
@@ -49,6 +68,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-blue outline-none transition"
                 placeholder="example@sra.org"
+                dir="ltr"
               />
             </div>
             <div>
@@ -59,8 +79,20 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-blue outline-none transition"
+                dir="ltr"
               />
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded accent-brand-blue cursor-pointer"
+              />
+              <span>إبقني مسجّلاً على هذا الجهاز</span>
+            </label>
+
             <button
               type="submit"
               disabled={loading}

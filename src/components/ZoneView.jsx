@@ -124,11 +124,30 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   }
 
   async function handleQuickAddBox(shelf) {
+    const currentBoxes = data.boxes.filter(b => b.code.startsWith(`${fresh.letter}-${shelf.shelf_index}-`)).length;
     setBusy(true);
+    // إذا الرف ممتلئ، نزيد الحدّ الأقصى تلقائياً قبل الإضافة
+    if (currentBoxes >= shelf.max_boxes) {
+      const { error: upErr } = await rpcUpdateShelf(shelf.id, { max_boxes: shelf.max_boxes + 1 });
+      if (upErr) {
+        setBusy(false);
+        return flash('فشل: ' + upErr.message, 'error');
+      }
+    }
     const { error } = await rpcAddBox(shelf.id, { description: '', width_cm: 50, height_cm: 65 });
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تمت إضافة صندوق');
+    await onRefresh();
+  }
+
+  async function handleQuickRenameShelf(shelf, newLabel) {
+    if (newLabel === (shelf.label || '')) return;
+    setBusy(true);
+    const { error } = await rpcUpdateShelf(shelf.id, { label: newLabel.trim() || null });
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ تم تغيير الاسم');
     await onRefresh();
   }
 
@@ -278,20 +297,28 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       }`}
                       style={{ borderColor: fresh.color }}
                     >
-                      <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none" style={{ backgroundColor: fresh.color }}>
-                        {shelfDisplayName(shelf, shelves)}
-                      </span>
+                      {editMode && isFounder ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingShelfId(editingShelfId === shelf.id ? null : shelf.id); }}
+                          className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium hover:opacity-80 z-10 flex items-center gap-1"
+                          style={{ backgroundColor: fresh.color }}
+                          title="تعديل الرف وإعادة التسمية"
+                        >
+                          ✏️ {shelfDisplayName(shelf, shelves)}
+                        </button>
+                      ) : (
+                        <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none" style={{ backgroundColor: fresh.color }}>
+                          {shelfDisplayName(shelf, shelves)}
+                        </span>
+                      )}
                       {!editMode && (
                         <span className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1 py-0.5 rounded-tr rounded-bl pointer-events-none">
                           ادخل ←
                         </span>
                       )}
-                      {/* أزرار التعديل في وضع التعديل */}
+                      {/* أزرار الحذف في وضع التعديل */}
                       {editMode && isFounder && (
                         <div className="absolute top-0 left-0 flex gap-0.5 z-10">
-                          <button onClick={(e) => { e.stopPropagation(); setEditingShelfId(editingShelfId === shelf.id ? null : shelf.id); }}
-                            className="bg-white border border-stone-300 text-[9px] px-1 py-0.5 rounded shadow-sm hover:bg-stone-100"
-                            title="تعديل الرف">✏️</button>
                           <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'shelf', shelf }); }}
                             className="bg-white border border-red-300 text-red-600 text-[9px] px-1 py-0.5 rounded shadow-sm hover:bg-red-50"
                             title="حذف الرف">🗑</button>
@@ -332,6 +359,17 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           </div>
                         )
                       ))}
+                      {/* زر "+ صندوق إضافي" يعمل دائماً (يزيد الحدّ تلقائياً) */}
+                      {editMode && isFounder && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf); }}
+                          disabled={busy}
+                          className="border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 rounded text-[9px] text-blue-700 font-bold flex items-center justify-center px-2"
+                          title="زد عدد الصناديق وأضف"
+                          style={{ minWidth: '40px' }}>
+                          ➕
+                        </button>
+                      )}
                     </ShelfWrap>
                   );
                 })

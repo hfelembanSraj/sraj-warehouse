@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AddItemModal from './AddItemModal';
 import { AddZoneForm, EditZoneForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
-import { rpcAddZone, rpcUpdateZone, rpcDeleteZone } from '../lib/warehouseOps';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, softDeleteItem } from '../lib/warehouseOps';
 
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
   const { can, isFounder, activeWarehouse } = useAuth();
@@ -228,11 +228,11 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete }
   };
   return (
     <div style={style} className="absolute bg-white border-2 rounded-md flex flex-col group">
-      <button onClick={onClick} className="flex-1 p-2 text-right hover:bg-stone-50 rounded-md transition relative">
+      <button onClick={onClick} className="flex-1 p-2 hover:bg-stone-50 rounded-md transition relative flex flex-col items-center justify-center">
         <div className="absolute inset-1 border border-dashed border-stone-200 rounded pointer-events-none"></div>
-        <div className="text-2xl font-display font-bold leading-none" style={{ color: zone.color }}>{zone.letter}</div>
-        <div className="text-[9px] text-stone-500 mt-1 leading-tight">{zone.name}</div>
-        <div className="text-[9px] text-stone-400 absolute bottom-1 right-2">{boxCount} صناديق</div>
+        <div className="text-3xl font-display font-bold leading-none" style={{ color: zone.color }}>{zone.letter}</div>
+        <div className="text-[10px] text-stone-600 mt-1.5 leading-tight text-center px-1">{zone.name}</div>
+        <div className="text-[9px] text-stone-400 mt-1">{boxCount} صناديق</div>
       </button>
       {isFounder && (
         <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
@@ -255,6 +255,17 @@ function AllItemsList({ data, onItemClick, onRefresh }) {
   const { isFounder, can } = useAuth();
   const [search, setSearch] = useState('');
   const [filterZone, setFilterZone] = useState('all');
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleQuickDelete(item) {
+    setBusy(true);
+    const { error } = await softDeleteItem(item.id);
+    setBusy(false);
+    setConfirmDelete(null);
+    if (error) return alert('فشل الحذف: ' + error.message);
+    onRefresh?.();
+  }
 
   const enriched = useMemo(() => {
     return data.items.map(it => {
@@ -308,29 +319,50 @@ function AllItemsList({ data, onItemClick, onRefresh }) {
       ) : (
         <div className="space-y-1.5">
           {filtered.map(it => (
-            <button
+            <div
               key={it.id}
-              onClick={() => onItemClick && onItemClick(it.boxCode)}
-              className="w-full text-right bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md hover:border-blue-400 transition cursor-pointer"
+              className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md transition"
             >
-              {it.photo_url ? (
-                <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded bg-stone-100 flex items-center justify-center text-xl flex-shrink-0">🔧</div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-medium truncate">{it.name}</h4>
-                <p className="text-[10px] text-stone-500">الكميّة: {it.quantity}</p>
-              </div>
-              <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => onItemClick && onItemClick(it.boxCode)}
+                className="flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 hover:bg-stone-50 rounded-lg transition min-w-0"
+              >
+                {it.photo_url ? (
+                  <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded bg-stone-100 flex items-center justify-center text-xl flex-shrink-0">🔧</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-medium truncate">{it.name}</h4>
+                  <p className="text-[10px] text-stone-500">الكميّة: {it.quantity}</p>
+                </div>
                 <span className="text-[10px] px-2 py-1 rounded font-bold font-mono" style={{ color: it.zoneColor, backgroundColor: it.zoneColor + '15' }}>
                   {it.boxCode}
                 </span>
                 <span className="text-stone-400">→</span>
-              </div>
-            </button>
+              </button>
+              {(isFounder || can('delete')) && (
+                <button
+                  onClick={() => setConfirmDelete(it)}
+                  disabled={busy}
+                  className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded hover:bg-red-100 flex-shrink-0"
+                  title="حذف هذا الصنف"
+                >
+                  🗑
+                </button>
+              )}
+            </div>
           ))}
         </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDelete
+          message={`سيُحذف الصنف "${confirmDelete.name}" (الكميّة: ${confirmDelete.quantity}). يمكن استرجاعه من سلّة المحذوفات لاحقاً.`}
+          busy={busy}
+          onConfirm={() => handleQuickDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );
