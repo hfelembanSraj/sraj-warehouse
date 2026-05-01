@@ -103,13 +103,24 @@ export async function rpcDeleteShelf(s_id) {
 }
 
 export async function rpcAddBox(s_id, values) {
-  // إنشاء الصندوق عبر RPC، ثم تحديث الصورة لاحقاً إن وُجدت
-  const result = await supabase.rpc('add_box_to_shelf', {
-    s_id,
-    b_description: values.description?.trim() || '',
-    b_width_cm: Number(values.width_cm) || 50,
-    b_height_cm: Number(values.height_cm) || 65
-  });
+  // إذا حُدّد موقع، استخدم RPC الإدراج بالموقع
+  let result;
+  if (values.position && Number(values.position) > 0) {
+    result = await supabase.rpc('add_box_at_position', {
+      s_id,
+      p_position: Number(values.position),
+      b_description: values.description?.trim() || '',
+      b_width_cm: Number(values.width_cm) || 50,
+      b_height_cm: Number(values.height_cm) || 65
+    });
+  } else {
+    result = await supabase.rpc('add_box_to_shelf', {
+      s_id,
+      b_description: values.description?.trim() || '',
+      b_width_cm: Number(values.width_cm) || 50,
+      b_height_cm: Number(values.height_cm) || 65
+    });
+  }
   if (!result.error && result.data && values.photo_url) {
     await supabase.from('boxes').update({ photo_url: values.photo_url }).eq('id', result.data);
   }

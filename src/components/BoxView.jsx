@@ -146,14 +146,63 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
           </div>
         )}
 
-        {/* الأصناف */}
+        {/* المنظور العلوي للصندوق المفتوح + الأصناف داخله */}
         <div className="border-t border-stone-200 pt-4">
-          <h3 className="text-xs font-display font-bold mb-3 text-stone-700">📋 الأصناف ({items.length})</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-display font-bold text-stone-700">📦 منظور علوي للصندوق ({items.length} صنف)</h3>
+          </div>
           {loading ? (
             <p className="text-center text-sm text-stone-400 py-8">جاري التحميل...</p>
-          ) : items.length === 0 ? (
-            <p className="text-center text-sm text-stone-400 py-8">الصندوق فارغ</p>
           ) : (
+            <div className="bg-stone-100 rounded-lg p-4">
+              {/* إطار الصندوق المفتوح من فوق */}
+              <div className="relative rounded-md mx-auto overflow-hidden"
+                style={{
+                  background: 'linear-gradient(180deg, #d4a574 0%, #c19661 8%, #f5e6d0 12%, #faf0dc 50%, #f5e6d0 88%, #b08754 92%, #a07a4a 100%)',
+                  border: '4px solid #8b6f3f',
+                  boxShadow: 'inset 0 0 30px rgba(120, 80, 40, 0.25), 0 4px 8px rgba(0,0,0,0.15)',
+                  maxWidth: '600px',
+                  minHeight: items.length === 0 ? '200px' : 'auto',
+                  padding: '20px'
+                }}>
+                {/* أطراف الصندوق المفتوح (طيّات الكرتون) */}
+                <div className="absolute top-0 left-0 right-0 h-3 bg-gradient-to-b from-amber-700/50 to-transparent pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-amber-700/50 to-transparent pointer-events-none"></div>
+                <div className="absolute top-0 bottom-0 left-0 w-2 bg-gradient-to-r from-amber-700/40 to-transparent pointer-events-none"></div>
+                <div className="absolute top-0 bottom-0 right-0 w-2 bg-gradient-to-l from-amber-700/40 to-transparent pointer-events-none"></div>
+
+                {items.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center text-stone-500 italic py-8">
+                    <div className="text-4xl mb-2 opacity-40">📭</div>
+                    <p className="text-xs">الصندوق فارغ</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 relative z-10">
+                    {items.map(it => (
+                      <ItemFromAbove key={it.id} item={it}
+                        canCheckout={can('checkout')}
+                        canEdit={isFounder || can('edit')}
+                        canDelete={isFounder || can('delete')}
+                        editing={editingItemId === it.id}
+                        busy={busy}
+                        onCheckout={() => setCheckoutItem({ ...it, boxCode: currentBox.code, boxId: currentBox.id })}
+                        onToggleEdit={() => setEditingItemId(editingItemId === it.id ? null : it.id)}
+                        onDelete={() => setConfirming({ type: 'item', item: it })}
+                        onSaveEdit={(patch) => handleUpdateItem(it, patch)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-center text-[10px] text-stone-500 mt-3 italic">
+                {currentBox.width_cm} × {currentBox.height_cm} سم · {items.length} صنف
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* قائمة الأصناف بالشكل القديم — احتياطي مخفيّ */}
+        <div className="hidden">
             <div className="space-y-2">
               {items.map((it) => (
                 <div key={it.id} className="bg-white border border-stone-200 rounded-lg overflow-hidden">
@@ -228,6 +277,60 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
         />
       )}
     </>
+  );
+}
+
+// مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
+function ItemFromAbove({ item, canCheckout, canEdit, canDelete, editing, busy, onCheckout, onToggleEdit, onDelete, onSaveEdit }) {
+  return (
+    <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${editing ? 'col-span-2 sm:col-span-3 md:col-span-4' : ''}`}
+      style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
+      {!editing ? (
+        <>
+          {/* صورة الصنف */}
+          <div className="aspect-square bg-stone-50 relative overflow-hidden">
+            {item.photo_url ? (
+              <img src={item.photo_url} alt={item.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-4xl text-stone-300">🔧</div>
+            )}
+            {/* شارة الكميّة */}
+            <div className="absolute top-1 right-1 bg-brand-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
+              ×{item.quantity}
+            </div>
+          </div>
+          {/* اسم الصنف */}
+          <div className="p-2">
+            <h5 className="text-xs font-medium text-stone-900 truncate text-center">{item.name}</h5>
+            <div className="flex items-center justify-center gap-1 mt-1.5">
+              {canCheckout && (
+                <button onClick={onCheckout}
+                  className="text-[9px] bg-brand-blue text-white px-2 py-0.5 rounded hover:bg-blue-800">
+                  إخراج
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={onToggleEdit} disabled={busy}
+                  className="text-[9px] border border-stone-300 px-1.5 py-0.5 rounded hover:bg-stone-100">
+                  ✏️
+                </button>
+              )}
+              {canDelete && (
+                <button onClick={onDelete} disabled={busy}
+                  className="text-[9px] bg-red-50 border border-red-200 text-red-700 px-1.5 py-0.5 rounded hover:bg-red-100">
+                  🗑
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="p-3">
+          <h5 className="text-xs font-bold mb-2">✏️ تعديل: {item.name}</h5>
+          <EditItemInline item={item} busy={busy} onCancel={onToggleEdit} onSave={onSaveEdit} />
+        </div>
+      )}
+    </div>
   );
 }
 
