@@ -64,6 +64,7 @@ export default function CardboardBox({
 }
 
 // مصغّرة (للمواضع الضيّقة)
+// ملاحظة: كل العناصر الداخليّة pointer-events-none لتمرير حدث السحب للحاوية
 export function CardboardBoxMini({ code, itemCount = 0, isHighlighted = false, isOut = false, photoUrl = null }) {
   let bg = 'linear-gradient(135deg, #d4a574 0%, #c19661 50%, #a07a4a 100%)';
   let textColor = 'text-amber-950';
@@ -76,14 +77,15 @@ export function CardboardBoxMini({ code, itemCount = 0, isHighlighted = false, i
   }
 
   return (
-    <div className={`relative rounded-sm border border-amber-900/40 ${textColor} h-full flex flex-col items-center justify-center gap-0.5 overflow-hidden`}
+    <div className={`relative rounded-sm border border-amber-900/40 ${textColor} h-full flex flex-col items-center justify-center gap-0.5 overflow-hidden select-none`}
       style={{ background: bg, boxShadow: '0 1px 2px rgba(120,80,40,0.3), inset 0 1px 0 rgba(255,255,255,0.3)' }}>
-      <div className="absolute top-0 left-0 right-0 h-1 bg-amber-200/60 border-b border-amber-900/20"></div>
+      <div className="absolute top-0 left-0 right-0 h-1 bg-amber-200/60 border-b border-amber-900/20 pointer-events-none"></div>
       {photoUrl && (
-        <img src={photoUrl} alt={code} className="absolute inset-0 w-full h-full object-cover opacity-30" />
+        <img src={photoUrl} alt={code} draggable={false}
+          className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none select-none" />
       )}
-      <span className="text-[10px] font-bold leading-none relative">{code}</span>
-      <span className="text-[8px] opacity-75 leading-none relative">{itemCount} أصناف</span>
+      <span className="text-[10px] font-bold leading-none relative pointer-events-none">{code}</span>
+      <span className="text-[8px] opacity-75 leading-none relative pointer-events-none">{itemCount} أصناف</span>
     </div>
   );
 }

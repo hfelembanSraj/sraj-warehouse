@@ -13,6 +13,7 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
+  const [showAddItem, setShowAddItem] = useState(false);
   const [confirming, setConfirming] = useState(null);
   const [checkoutItem, setCheckoutItem] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -67,6 +68,24 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تم الحفظ');
     setEditingItemId(null);
+    await loadItems();
+    await onRefresh();
+  }
+
+  async function handleAddItem(values) {
+    if (!values.name?.trim()) return flash('اسم الصنف مطلوب', 'error');
+    setBusy(true);
+    const { error } = await supabase.from('items').insert({
+      box_id: box.id,
+      name: values.name.trim(),
+      quantity: Number(values.quantity) || 1,
+      status: 'ok',
+      photo_url: values.photo_url || null
+    });
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ تمت إضافة "${values.name}"`);
+    setShowAddItem(false);
     await loadItems();
     await onRefresh();
   }
@@ -150,7 +169,23 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
         <div className="border-t border-stone-200 pt-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-display font-bold text-stone-700">📦 منظور علوي للصندوق ({items.length} صنف)</h3>
+            {(isFounder || can('add')) && (
+              <button onClick={() => setShowAddItem(s => !s)} disabled={busy}
+                className="text-xs bg-brand-blue text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 disabled:opacity-50 font-medium">
+                + إضافة صنف
+              </button>
+            )}
           </div>
+
+          {showAddItem && (
+            <div className="mb-4">
+              <AddItemInBoxForm
+                busy={busy}
+                onCancel={() => setShowAddItem(false)}
+                onSave={handleAddItem}
+              />
+            </div>
+          )}
           {loading ? (
             <p className="text-center text-sm text-stone-400 py-8">جاري التحميل...</p>
           ) : (
@@ -277,6 +312,51 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
         />
       )}
     </>
+  );
+}
+
+// نموذج إضافة صنف داخل الصندوق
+function AddItemInBoxForm({ busy, onCancel, onSave }) {
+  const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const isValid = name.trim().length > 0;
+
+  return (
+    <div className="bg-white border-2 border-blue-400 rounded-xl p-4 animate-fade-in">
+      <h4 className="text-xs font-display font-bold text-blue-900 mb-3">+ صنف جديد داخل هذا الصندوق</h4>
+      <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+        <div className="col-span-2">
+          <label className="block text-[10px] text-stone-600 mb-1">اسم الصنف *</label>
+          <input value={name} onChange={e => setName(e.target.value)}
+            placeholder="مثال: حبال تجاذب"
+            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+        </div>
+        <div>
+          <label className="block text-[10px] text-stone-600 mb-1">الكميّة</label>
+          <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
+            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+        </div>
+        <div className="col-span-2">
+          <PhotoUploader
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            prefix="items"
+            label="صورة الصنف (اختياريّة)"
+          />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => onSave({ name, quantity, photo_url: photoUrl })}
+          disabled={busy || !isValid}
+          className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+          💾 حفظ
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+          إلغاء
+        </button>
+      </div>
+    </div>
   );
 }
 
