@@ -474,6 +474,30 @@ export function EditBoxForm({ box, busy, onCancel, onSave }) {
   );
 }
 
+// مكوّن مودال للنماذج — يظهر عائماً مركزياً، لا يضيع عند التمرير
+export function FormModal({ title, subtitle, children, onClose, maxWidth = 'max-w-md' }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in"
+      onClick={onClose}>
+      <div
+        className={`bg-white rounded-2xl shadow-2xl ${maxWidth} w-full max-h-[90vh] overflow-hidden flex flex-col`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-gradient-to-l from-blue-50 to-stone-50 border-b border-stone-200 px-5 py-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-display font-bold">{title}</h3>
+            {subtitle && <p className="text-[11px] text-stone-600 mt-0.5">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-700 text-2xl leading-none px-2">×</button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // مربّع تأكيد حذف
 export function ConfirmDelete({ message, busy, onConfirm, onCancel }) {
   return (

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
 import { shelfDisplayName } from '../lib/helpers';
-import { EditBoxForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem } from '../lib/warehouseOps';
 
 export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, onBackToShelf, onRefresh }) {
@@ -154,15 +154,18 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
         </div>
 
         {isFounder && editing && (
-          <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 mb-4">
-            <h4 className="text-xs font-display font-bold mb-2">✏️ تعديل بيانات الصندوق</h4>
+          <FormModal
+            title={`✏️ تعديل الصندوق ${currentBox.code}`}
+            onClose={() => setEditing(false)}
+            maxWidth="max-w-md"
+          >
             <EditBoxForm
               box={currentBox}
               busy={busy}
               onCancel={() => setEditing(false)}
               onSave={handleUpdate}
             />
-          </div>
+          </FormModal>
         )}
 
         {/* المنظور العلوي للصندوق المفتوح + الأصناف داخله */}
@@ -178,13 +181,18 @@ export default function BoxView({ zone, shelf, box, onBackToMap, onBackToZone, o
           </div>
 
           {showAddItem && (
-            <div className="mb-4">
+            <FormModal
+              title="+ صنف جديد داخل هذا الصندوق"
+              subtitle={`الصندوق: ${currentBox.code}`}
+              onClose={() => setShowAddItem(false)}
+              maxWidth="max-w-md"
+            >
               <AddItemInBoxForm
                 busy={busy}
                 onCancel={() => setShowAddItem(false)}
                 onSave={handleAddItem}
               />
-            </div>
+            </FormModal>
           )}
           {loading ? (
             <p className="text-center text-sm text-stone-400 py-8">جاري التحميل...</p>

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { shelfDisplayName } from '../lib/helpers';
 import CheckoutModal from './CheckoutModal';
 import AddBoxModal from './AddBoxModal';
-import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { CardboardBoxMini } from './CardboardBox';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
@@ -26,6 +26,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   const [selectedBoxForMove, setSelectedBoxForMove] = useState(null);
   const [dragOverShelfId, setDragOverShelfId] = useState(null);
   const [dragOverTrash, setDragOverTrash] = useState(false);
+  // الصندوق المُضاف حديثاً (لإبرازه بصرياً)
+  const [recentlyAddedBoxId, setRecentlyAddedBoxId] = useState(null);
 
   // الصندوق "النشط" للسحب أو النقل (سواء بالماوس أو اللمس)
   const activeBoxForMove = draggedBox || selectedBoxForMove;
@@ -137,7 +139,6 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   async function handleQuickAddBox(shelf, position = null) {
     const currentBoxes = data.boxes.filter(b => b.code.startsWith(`${fresh.letter}-${shelf.shelf_index}-`)).length;
     setBusy(true);
-    // إذا الرف ممتلئ والموقع المطلوب يتطلّب توسعة، نزيد الحدّ الأقصى أوّلاً
     if (currentBoxes >= shelf.max_boxes || (position && position > shelf.max_boxes)) {
       const newMax = Math.max(shelf.max_boxes + 1, position || 0);
       const { error: upErr } = await rpcUpdateShelf(shelf.id, { max_boxes: newMax });
@@ -146,7 +147,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         return flash('فشل: ' + upErr.message, 'error');
       }
     }
-    const { error } = await rpcAddBox(shelf.id, {
+    const { data: newId, error } = await rpcAddBox(shelf.id, {
       description: '',
       width_cm: 50,
       height_cm: 65,
@@ -154,7 +155,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     });
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash(position ? `✅ صندوق جديد في الموقع ${position}` : '✅ تمت إضافة صندوق');
+    const expectedCode = `${fresh.letter}-${shelf.shelf_index}-${position || (currentBoxes + 1)}`;
+    flash(position
+      ? `✅ صندوق جديد في الموقع ${position} (الرمز: ${expectedCode})`
+      : `✅ تمت إضافة صندوق (${expectedCode})`);
+    // ميّز الصندوق الجديد لمدّة 3 ثوانٍ
+    if (newId) {
+      setRecentlyAddedBoxId(newId);
+      setTimeout(() => setRecentlyAddedBoxId(null), 3000);
+    }
     await onRefresh();
   }
 
@@ -286,17 +295,21 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         </div>
 
-        {/* نموذج تعديل المساحة */}
+        {/* نموذج تعديل المساحة — مودال يبقى ظاهراً أثناء التمرير */}
         {isFounder && editingZone && (
-          <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 mb-4">
-            <h4 className="text-xs font-display font-bold mb-2">✏️ تعديل بيانات المساحة</h4>
+          <FormModal
+            title={`✏️ تعديل المساحة ${fresh.letter}`}
+            subtitle={fresh.name}
+            onClose={() => setEditingZone(false)}
+            maxWidth="max-w-lg"
+          >
             <EditZoneForm
               zone={fresh}
               busy={busy}
               onCancel={() => setEditingZone(false)}
               onSave={handleUpdateZone}
             />
-          </div>
+          </FormModal>
         )}
 
         {/* مبدّل وضع العرض */}
@@ -444,13 +457,14 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           const isHighlighted = highlightedBox === box.code;
                           const isDragging = draggedBox?.id === box.id;
                           const isSelected = selectedBoxForMove?.id === box.id;
+                          const isRecentlyAdded = recentlyAddedBoxId === box.id;
                           return (
                             <div key={`box-${position}`}
                               draggable={editMode && isFounder}
                               onDragStart={editMode ? (e) => handleBoxDragStart(e, box) : undefined}
                               onDragEnd={editMode ? handleBoxDragEnd : undefined}
                               onClick={editMode && isFounder ? (e) => handleBoxClickToSelect(box, e) : undefined}
-                              className={`flex-1 relative ${editMode && isFounder ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} transition`}>
+                              className={`flex-1 relative ${editMode && isFounder ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} transition`}>
                               <CardboardBoxMini
                                 code={box.code}
                                 itemCount={items.length}
@@ -480,10 +494,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                             key={`empty-${position}`}
                             onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, position); }}
                             disabled={busy}
-                            className="flex-1 border-2 border-dashed border-green-400 bg-green-50 hover:bg-green-100 rounded text-[10px] text-green-800 font-bold flex flex-col items-center justify-center gap-0.5 transition"
-                            title={`إضافة صندوق في الموقع ${position}`}>
-                            <span className="text-base leading-none">+</span>
-                            <span className="text-[9px] opacity-80">موقع {position}</span>
+                            className="flex-1 border-2 border-dashed border-green-500 bg-green-50 hover:bg-green-200 rounded text-green-900 font-bold flex flex-col items-center justify-center gap-0.5 transition group"
+                            title={`اضغط لتُضاف هنا بالضبط (موقع ${position})`}>
+                            <span className="text-lg leading-none group-hover:scale-125 transition">⊕</span>
+                            <span className="text-[9px] font-bold leading-none">هنا</span>
+                            <span className="text-[8px] opacity-60 leading-none">#{position}</span>
                           </button>
                         ) : (
                           <div key={`empty-${position}`} className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-400 flex items-center justify-center pointer-events-none">
@@ -575,22 +590,32 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         🗑
                       </button>
                     </div>
-                    {editingShelfId === s.id && (
-                      <div className="bg-white border-t border-stone-200 p-3">
-                        <EditShelfForm
-                          shelf={s}
-                          busy={busy}
-                          onCancel={() => setEditingShelfId(null)}
-                          onSave={(patch) => handleUpdateShelf(s, patch)}
-                        />
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
+
+        {/* مودال تعديل الرف — يبقى ظاهراً أثناء التمرير */}
+        {editingShelfId && (() => {
+          const s = shelves.find(x => x.id === editingShelfId);
+          if (!s) return null;
+          return (
+            <FormModal
+              title={`✏️ تعديل ${shelfDisplayName(s, shelves)}`}
+              onClose={() => setEditingShelfId(null)}
+              maxWidth="max-w-md"
+            >
+              <EditShelfForm
+                shelf={s}
+                busy={busy}
+                onCancel={() => setEditingShelfId(null)}
+                onSave={(patch) => handleUpdateShelf(s, patch)}
+              />
+            </FormModal>
+          );
+        })()}
       </div>
 
       {checkoutItem && <CheckoutModal item={checkoutItem} onClose={() => setCheckoutItem(null)} onSaved={onRefresh} />}
