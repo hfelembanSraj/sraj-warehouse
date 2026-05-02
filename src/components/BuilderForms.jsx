@@ -36,22 +36,22 @@ export function CreateWarehouseForm({ busy, onCancel, onSave }) {
           <button type="button" onClick={() => setTemplate('stairway')}
             className={`p-3 rounded-xl border-2 text-right transition ${
               template === 'stairway'
-                ? 'bg-pink-50 border-brand-pink ring-2 ring-brand-pink/20'
+                ? 'bg-amber-50 border-amber-700 ring-2 ring-amber-700/20'
                 : 'bg-white border-stone-200 hover:border-stone-400'
             }`}>
             <div className="flex items-start gap-2">
               <span className="text-2xl">🪜</span>
               <div className="flex-1">
-                <div className="text-sm font-bold">بمدرج تخزين</div>
-                <div className="text-[10px] text-stone-500 mt-0.5">درجان × مساحتان = 4 مساحات</div>
+                <div className="text-sm font-bold">بمدرج خشبيّ</div>
+                <div className="text-[10px] text-stone-500 mt-0.5">3 سفلي · 2 علوي = 5 مساحات</div>
               </div>
-              {template === 'stairway' && <span className="text-brand-pink font-bold">✓</span>}
+              {template === 'stairway' && <span className="text-amber-800 font-bold">✓</span>}
             </div>
           </button>
         </div>
         {template === 'stairway' && (
-          <div className="mt-2 bg-pink-50 border border-pink-200 rounded-lg p-2.5 text-[11px] text-pink-900">
-            🪜 سيُنشَأ المستودع مع <strong>4 مساحات تخزين</strong> داخل المدرج: درج سفلي بمساحتين (مفصولتين بالنصف)، ودرج علوي بمساحتين أكبر (تخزينه يمتدّ للأرض). يمكنك تعديل المواقع لاحقاً.
+          <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900">
+            🪜 سيُنشَأ المستودع مع <strong>5 مساحات تخزين</strong>: درج سفلي بـ3 مساحات مفتوحة (بدون رفوف داخليّة)، ودرج علوي بمساحتين كلّ منهما رفّان (تخزينه يمتدّ للأرض). كلّها بلون خشبيّ بنّي موحّد.
           </div>
         )}
       </div>

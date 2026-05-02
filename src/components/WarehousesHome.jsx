@@ -69,26 +69,29 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
       return flash('فشل: ' + error.message, 'error');
     }
 
-    // إن اختار المستخدم قالب "بمدرج تخزين"، أنشئ المساحات الأربع تلقائياً
+    // إن اختار المستخدم قالب "بمدرج تخزين"، أنشئ المساحات الخمس تلقائياً
     if (values.template === 'stairway' && newWhId) {
+      const WOOD = '#8B6F3F';  // لون خشبي بنّي موحّد
       const stairwayZones = [
-        // الدرج السفلي (يمين الوسط، يسار الوسط) — مساحة عادية بـ2 رفّ
-        { letter: 'A', name: 'درج سفلي · يمين', color: '#F58220', shelves_count: 2,
-          pos: { pos_top: 52, pos_left: 22, pos_right: null, pos_width: 18, pos_height: 42 } },
-        { letter: 'B', name: 'درج سفلي · يسار', color: '#FFCC00', shelves_count: 2,
-          pos: { pos_top: 52, pos_left: 4,  pos_right: null, pos_width: 18, pos_height: 42 } },
-        // الدرج العلوي (يمين، يسار) — مساحة مضاعفة بـ4 أرفف (التخزين يمتدّ للأرض)
-        { letter: 'C', name: 'درج علوي · يمين', color: '#7B2D8E', shelves_count: 4,
-          pos: { pos_top: 6,  pos_left: 22, pos_right: null, pos_width: 18, pos_height: 42 } },
-        { letter: 'D', name: 'درج علوي · يسار', color: '#E91E8B', shelves_count: 4,
-          pos: { pos_top: 6,  pos_left: 4,  pos_right: null, pos_width: 18, pos_height: 42 } }
+        // الدرج السفلي: 3 مساحات في صفّ، رفّ واحد لكلّ منها (مفتوح بدون تقسيم رأسي)
+        { letter: 'A', name: 'سفلي · يمين',  shelves_count: 1, max_per_shelf: 4,
+          pos: { pos_top: 55, pos_left: 30, pos_right: null, pos_width: 14, pos_height: 38 } },
+        { letter: 'B', name: 'سفلي · وسط',   shelves_count: 1, max_per_shelf: 4,
+          pos: { pos_top: 55, pos_left: 16, pos_right: null, pos_width: 14, pos_height: 38 } },
+        { letter: 'C', name: 'سفلي · يسار',  shelves_count: 1, max_per_shelf: 4,
+          pos: { pos_top: 55, pos_left: 2,  pos_right: null, pos_width: 14, pos_height: 38 } },
+        // الدرج العلوي: 2 مساحة، رفّان لكلّ مساحة (التخزين يمتدّ للأرض)
+        { letter: 'D', name: 'علوي · يمين',  shelves_count: 2, max_per_shelf: 4,
+          pos: { pos_top: 5,  pos_left: 23, pos_right: null, pos_width: 21, pos_height: 42 } },
+        { letter: 'E', name: 'علوي · يسار',  shelves_count: 2, max_per_shelf: 4,
+          pos: { pos_top: 5,  pos_left: 2,  pos_right: null, pos_width: 21, pos_height: 42 } }
       ];
 
       for (const z of stairwayZones) {
         const { data: zoneId, error: zErr } = await rpcAddZone(newWhId, {
           letter: z.letter,
           name: z.name,
-          color: z.color,
+          color: WOOD,
           width_cm: 100, height_cm: 230, depth_cm: 65,
           shelves_count: z.shelves_count
         });
@@ -96,7 +99,7 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
           setBusy(false);
           return flash('فشل إنشاء مساحة: ' + zErr.message, 'error');
         }
-        // اضبط الموقع المخصّص بعد الإنشاء (رمز الإنشاء يستخدم مواقع افتراضيّة)
+        // اضبط الموقع المخصّص + max_boxes للأرفف (الإنشاء يستخدم مواقع افتراضيّة)
         await supabase.rpc('update_zone', {
           z_id: zoneId,
           z_name: null, z_color: null,
@@ -107,6 +110,16 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
           z_pos_width: z.pos.pos_width,
           z_pos_height: z.pos.pos_height
         });
+        // اضبط max_boxes على كلّ رفّ (الافتراضي 4 — جيّد، لكن نُؤكّد)
+        const { data: shelves } = await supabase.from('shelves').select('id').eq('zone_id', zoneId);
+        for (const s of (shelves || [])) {
+          await supabase.rpc('update_shelf', {
+            s_id: s.id,
+            s_height_cm: null,
+            s_max_boxes: z.max_per_shelf,
+            s_label: null
+          });
+        }
       }
     }
 
