@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { CreateWarehouseForm, EditWarehouseForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
-import { rpcCreateWarehouse, rpcRenameWarehouse, rpcDeleteWarehouse, fetchWarehouseLayout } from '../lib/warehouseOps';
+import { rpcCreateWarehouse, rpcRenameWarehouse, rpcDeleteWarehouse, fetchWarehouseLayout, rpcAddZone } from '../lib/warehouseOps';
 
 const VIEW_MODE_KEY = 'sraj.warehousesViewMode';
 
@@ -63,10 +63,55 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
 
   async function handleCreate(values) {
     setBusy(true);
-    const { error } = await rpcCreateWarehouse(values);
+    const { data: newWhId, error } = await rpcCreateWarehouse(values);
+    if (error) {
+      setBusy(false);
+      return flash('فشل: ' + error.message, 'error');
+    }
+
+    // إن اختار المستخدم قالب "بمدرج تخزين"، أنشئ المساحات الأربع تلقائياً
+    if (values.template === 'stairway' && newWhId) {
+      const stairwayZones = [
+        // الدرج السفلي (يمين الوسط، يسار الوسط) — مساحة عادية بـ2 رفّ
+        { letter: 'A', name: 'درج سفلي · يمين', color: '#F58220', shelves_count: 2,
+          pos: { pos_top: 52, pos_left: 22, pos_right: null, pos_width: 18, pos_height: 42 } },
+        { letter: 'B', name: 'درج سفلي · يسار', color: '#FFCC00', shelves_count: 2,
+          pos: { pos_top: 52, pos_left: 4,  pos_right: null, pos_width: 18, pos_height: 42 } },
+        // الدرج العلوي (يمين، يسار) — مساحة مضاعفة بـ4 أرفف (التخزين يمتدّ للأرض)
+        { letter: 'C', name: 'درج علوي · يمين', color: '#7B2D8E', shelves_count: 4,
+          pos: { pos_top: 6,  pos_left: 22, pos_right: null, pos_width: 18, pos_height: 42 } },
+        { letter: 'D', name: 'درج علوي · يسار', color: '#E91E8B', shelves_count: 4,
+          pos: { pos_top: 6,  pos_left: 4,  pos_right: null, pos_width: 18, pos_height: 42 } }
+      ];
+
+      for (const z of stairwayZones) {
+        const { data: zoneId, error: zErr } = await rpcAddZone(newWhId, {
+          letter: z.letter,
+          name: z.name,
+          color: z.color,
+          width_cm: 100, height_cm: 230, depth_cm: 65,
+          shelves_count: z.shelves_count
+        });
+        if (zErr) {
+          setBusy(false);
+          return flash('فشل إنشاء مساحة: ' + zErr.message, 'error');
+        }
+        // اضبط الموقع المخصّص بعد الإنشاء (رمز الإنشاء يستخدم مواقع افتراضيّة)
+        await supabase.rpc('update_zone', {
+          z_id: zoneId,
+          z_name: null, z_color: null,
+          z_width_cm: null, z_height_cm: null, z_depth_cm: null,
+          z_pos_top: z.pos.pos_top,
+          z_pos_left: z.pos.pos_left,
+          z_pos_right: z.pos.pos_right,
+          z_pos_width: z.pos.pos_width,
+          z_pos_height: z.pos.pos_height
+        });
+      }
+    }
+
     setBusy(false);
-    if (error) return flash('فشل: ' + error.message, 'error');
-    flash(`✅ تم إنشاء "${values.name}"`);
+    flash(`✅ تم إنشاء "${values.name}"${values.template === 'stairway' ? ' مع مساحات المدرج' : ''}`);
     setShowCreate(false);
     await onRefresh();
     await loadStatsAndLayouts();

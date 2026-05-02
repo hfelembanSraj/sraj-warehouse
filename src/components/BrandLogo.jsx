@@ -1,29 +1,40 @@
-// شعار الجمعيّة — مثلّثات هندسيّة بألوان الشعار السبعة
-// مُستوحى من شعار "جمعيّة المسؤوليّة الاجتماعيّة بمحافظة جدّة"
+// شعار الجمعيّة — يستخدم الصورة الرسميّة من /logo.png
+// إن لم تتوفّر الصورة، يستخدم بديلاً SVG هندسيّاً مُستوحى من الشعار
+
+import { useState } from 'react';
 
 export default function BrandLogo({ size = 40, className = '' }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (!imgFailed) {
+    return (
+      <img
+        src="/logo.png"
+        alt="جمعيّة المسؤوليّة الاجتماعيّة بمحافظة جدّة"
+        width={size}
+        height={size}
+        className={`object-contain ${className}`}
+        onError={() => setImgFailed(true)}
+        draggable={false}
+      />
+    );
+  }
+
+  // البديل الهندسي إن لم يجد الصورة
   return (
     <svg viewBox="0 0 100 100" width={size} height={size} className={className}>
-      {/* مثلّثات متداخلة بألوان الشعار */}
-      {/* الخلفيّة الفيروزيّة */}
       <polygon points="50,80 18,80 34,55" fill="#00A8B5" />
-      {/* البنفسجي */}
       <polygon points="50,15 30,55 50,55" fill="#7B2D8E" />
-      {/* الزهري */}
       <polygon points="50,15 70,55 50,55" fill="#E91E8B" />
-      {/* الأخضر */}
       <polygon points="50,80 82,80 66,55" fill="#6CB33E" />
-      {/* الأصفر */}
       <polygon points="50,55 30,55 40,75" fill="#FFCC00" />
-      {/* البرتقالي */}
       <polygon points="50,55 70,55 60,75" fill="#F58220" />
-      {/* الأزرق الفاتح في الأسفل */}
       <polygon points="40,75 60,75 50,90" fill="#2196F3" />
     </svg>
   );
 }
 
-// شريط الألوان السبعة — يُستخدم في رؤوس الصفحات وحوافّ المكوّنات
+// شريط الألوان السبعة — يُستخدم في رؤوس الصفحات
 export function BrandStripe({ height = 4, className = '', animated = false }) {
   return (
     <div
@@ -33,7 +44,7 @@ export function BrandStripe({ height = 4, className = '', animated = false }) {
   );
 }
 
-// أيقونة "س" مع تدرّج لوني — بديل عن النصّ المسطّح
+// شارة "س" بتدرّج لوني (لمواقع لا تحتاج الشعار الكامل)
 export function BrandLetterBadge({ size = 36, className = '' }) {
   return (
     <div
@@ -46,7 +57,6 @@ export function BrandLetterBadge({ size = 36, className = '' }) {
       }}
     >
       <span className="relative z-10 drop-shadow-sm">س</span>
-      {/* لمعة في الزاوية */}
       <div className="absolute top-0 left-0 w-1/2 h-1/2 bg-white/20 rounded-br-full pointer-events-none" />
     </div>
   );

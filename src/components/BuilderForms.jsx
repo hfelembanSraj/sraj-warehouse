@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { PRESET_COLORS, PRESET_POSITIONS } from '../lib/warehouseOps';
 import PhotoUploader from './PhotoUploader';
 
-// نموذج إنشاء مستودع
+// نموذج إنشاء مستودع — يدعم قوالب جاهزة (قياسي / بمدرج تخزين)
 export function CreateWarehouseForm({ busy, onCancel, onSave }) {
+  const [template, setTemplate] = useState('standard');  // 'standard' | 'stairway'
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [width_m, setWidthM] = useState(4);
@@ -12,39 +13,82 @@ export function CreateWarehouseForm({ busy, onCancel, onSave }) {
   const isValid = name.trim().length > 0;
 
   return (
-    <div className="bg-white border-2 border-green-400 rounded-xl p-4 animate-fade-in">
-      <h4 className="text-xs font-display font-bold text-green-900 mb-3">+ مستودع جديد</h4>
-      <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+    <div className="space-y-4">
+      {/* اختيار القالب */}
+      <div>
+        <label className="block text-xs font-bold text-stone-700 mb-2">📐 قالب المستودع</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button type="button" onClick={() => setTemplate('standard')}
+            className={`p-3 rounded-xl border-2 text-right transition ${
+              template === 'standard'
+                ? 'bg-blue-50 border-brand-navy ring-2 ring-brand-navy/20'
+                : 'bg-white border-stone-200 hover:border-stone-400'
+            }`}>
+            <div className="flex items-start gap-2">
+              <span className="text-2xl">🏢</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold">قياسي</div>
+                <div className="text-[10px] text-stone-500 mt-0.5">4 مساحات في الزوايا</div>
+              </div>
+              {template === 'standard' && <span className="text-brand-navy font-bold">✓</span>}
+            </div>
+          </button>
+          <button type="button" onClick={() => setTemplate('stairway')}
+            className={`p-3 rounded-xl border-2 text-right transition ${
+              template === 'stairway'
+                ? 'bg-pink-50 border-brand-pink ring-2 ring-brand-pink/20'
+                : 'bg-white border-stone-200 hover:border-stone-400'
+            }`}>
+            <div className="flex items-start gap-2">
+              <span className="text-2xl">🪜</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold">بمدرج تخزين</div>
+                <div className="text-[10px] text-stone-500 mt-0.5">درجان × مساحتان = 4 مساحات</div>
+              </div>
+              {template === 'stairway' && <span className="text-brand-pink font-bold">✓</span>}
+            </div>
+          </button>
+        </div>
+        {template === 'stairway' && (
+          <div className="mt-2 bg-pink-50 border border-pink-200 rounded-lg p-2.5 text-[11px] text-pink-900">
+            🪜 سيُنشَأ المستودع مع <strong>4 مساحات تخزين</strong> داخل المدرج: درج سفلي بمساحتين (مفصولتين بالنصف)، ودرج علوي بمساحتين أكبر (تخزينه يمتدّ للأرض). يمكنك تعديل المواقع لاحقاً.
+          </div>
+        )}
+      </div>
+
+      {/* الحقول العامّة */}
+      <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الاسم *</label>
+          <label className="block text-[11px] text-stone-700 font-medium mb-1">الاسم *</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="مثال: مستودع المدينة"
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2.5 py-2 border border-stone-300 rounded-lg" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الوصف (اختياري)</label>
+          <label className="block text-[11px] text-stone-700 font-medium mb-1">الوصف (اختياري)</label>
           <input value={description} onChange={e => setDescription(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2.5 py-2 border border-stone-300 rounded-lg" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العرض (م)</label>
+          <label className="block text-[11px] text-stone-700 font-medium mb-1">العرض (م)</label>
           <input type="number" step="0.1" value={width_m} onChange={e => setWidthM(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2.5 py-2 border border-stone-300 rounded-lg" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العمق (م)</label>
+          <label className="block text-[11px] text-stone-700 font-medium mb-1">العمق (م)</label>
           <input type="number" step="0.1" value={depth_m} onChange={e => setDepthM(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2.5 py-2 border border-stone-300 rounded-lg" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (م)</label>
+          <label className="block text-[11px] text-stone-700 font-medium mb-1">الارتفاع (م)</label>
           <input type="number" step="0.1" value={height_m} onChange={e => setHeightM(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2.5 py-2 border border-stone-300 rounded-lg" />
         </div>
       </div>
-      <div className="flex gap-2">
-        <button onClick={() => onSave({ name, description, width_m, depth_m, height_m })}
+
+      <div className="flex gap-2 pt-2 border-t border-stone-200">
+        <button onClick={() => onSave({ name, description, width_m, depth_m, height_m, template })}
           disabled={busy || !isValid}
-          className="flex-1 bg-green-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-2.5 rounded-lg text-xs font-bold shadow hover:shadow-lg disabled:opacity-50 transition">
           💾 حفظ وإنشاء
         </button>
         <button onClick={onCancel} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
