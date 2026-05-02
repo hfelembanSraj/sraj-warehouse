@@ -253,13 +253,11 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                         canEdit={isFounder || can('edit')}
                         canDelete={isFounder || can('delete')}
                         canMove={isFounder || can('edit')}
-                        editing={editingItemId === it.id}
                         busy={busy}
                         isSelected={selectedItemForMove?.id === it.id}
                         onCheckout={() => setCheckoutItem({ ...it, boxCode: currentBox.code, boxId: currentBox.id })}
-                        onToggleEdit={() => setEditingItemId(editingItemId === it.id ? null : it.id)}
+                        onToggleEdit={() => setEditingItemId(it.id)}
                         onDelete={() => setConfirming({ type: 'item', item: it })}
-                        onSaveEdit={(patch) => handleUpdateItem(it, patch)}
                         onClickHandle={(e) => handleItemClickHandle(it, e)}
                         onMove={() => setMovingItem(it)}
                       />
@@ -274,59 +272,6 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           )}
         </div>
 
-        {/* قائمة الأصناف بالشكل القديم — احتياطي مخفيّ */}
-        <div className="hidden">
-            <div className="space-y-2">
-              {items.map((it) => (
-                <div key={it.id} className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-                  <div className="p-3 flex items-center gap-3">
-                    {it.photo_url ? (
-                      <img src={it.photo_url} alt={it.name}
-                        className="w-14 h-14 object-cover rounded border border-stone-200 cursor-zoom-in"
-                        onClick={() => window.open(it.photo_url, '_blank')} />
-                    ) : (
-                      <div className="w-14 h-14 rounded bg-stone-100 flex items-center justify-center text-xl">🔧</div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium truncate">{it.name}</h4>
-                      <p className="text-[10px] text-stone-500">الكميّة: {it.quantity}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      {can('checkout') && (
-                        <button onClick={() => setCheckoutItem({ ...it, boxCode: currentBox.code, boxId: currentBox.id })}
-                          className="text-[10px] bg-brand-blue text-white px-2.5 py-1.5 rounded hover:bg-blue-800">
-                          إخراج
-                        </button>
-                      )}
-                      {(isFounder || can('edit')) && (
-                        <button onClick={() => setEditingItemId(editingItemId === it.id ? null : it.id)} disabled={busy}
-                          className="text-[10px] border border-stone-300 px-2 py-1.5 rounded hover:bg-stone-100">
-                          ✏️
-                        </button>
-                      )}
-                      {(isFounder || can('delete')) && (
-                        <button onClick={() => setConfirming({ type: 'item', item: it })} disabled={busy}
-                          className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded hover:bg-red-100">
-                          🗑
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {editingItemId === it.id && (
-                    <div className="bg-stone-50 border-t border-stone-200 p-3">
-                      <EditItemInline
-                        item={it}
-                        busy={busy}
-                        onCancel={() => setEditingItemId(null)}
-                        onSave={(patch) => handleUpdateItem(it, patch)}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {checkoutItem && <CheckoutModal item={checkoutItem} onClose={() => setCheckoutItem(null)} onSaved={() => { loadItems(); onRefresh(); }} />}
@@ -349,6 +294,27 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           onCancel={() => setConfirming(null)}
         />
       )}
+
+      {/* مودال تعديل غرض */}
+      {editingItemId && (() => {
+        const it = items.find(x => x.id === editingItemId);
+        if (!it) return null;
+        return (
+          <FormModal
+            title={`✏️ تعديل "${it.name}"`}
+            subtitle={`في صندوق ${currentBox.code}`}
+            onClose={() => setEditingItemId(null)}
+            maxWidth="max-w-md"
+          >
+            <EditItemInline
+              item={it}
+              busy={busy}
+              onCancel={() => setEditingItemId(null)}
+              onSave={(patch) => handleUpdateItem(it, patch)}
+            />
+          </FormModal>
+        );
+      })()}
 
       {/* مودال نقل غرض إلى صندوق آخر */}
       {movingItem && (
@@ -481,12 +447,11 @@ function AddItemInBoxForm({ busy, onCancel, onSave }) {
 }
 
 // مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
-function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, editing, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onSaveEdit, onDragStart, onDragEnd, onClickHandle, onMove }) {
+function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onDragStart, onDragEnd, onClickHandle, onMove }) {
   return (
-    <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${editing ? 'col-span-2 sm:col-span-3 md:col-span-4' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
+    <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
       style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
-      {!editing ? (
-        <>
+      <>
           {/* صورة الصنف */}
           <div className="aspect-square bg-stone-50 relative overflow-hidden">
             {item.photo_url ? (
@@ -549,12 +514,6 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, editing
             </div>
           </div>
         </>
-      ) : (
-        <div className="p-3">
-          <h5 className="text-xs font-bold mb-2">✏️ تعديل: {item.name}</h5>
-          <EditItemInline item={item} busy={busy} onCancel={onToggleEdit} onSave={onSaveEdit} />
-        </div>
-      )}
     </div>
   );
 }

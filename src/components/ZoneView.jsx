@@ -247,6 +247,19 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     }
     const boxes = activeBoxesForMove;
     if (boxes.length === 0) return;
+
+    // فحص "ممتلئة": هل تتّسع المساحة الهدف لكلّ الصناديق المختارة؟
+    const targetShelves = targetZone.shelves || [];
+    if (targetShelves.length === 0) {
+      return flash(`المساحة ${targetZone.letter} لا تحوي أرففاً — أنشئ رفّاً أوّلاً`, 'error');
+    }
+    const targetCapacity = targetShelves.reduce((s, sh) => s + (sh.max_boxes || 0), 0);
+    const targetUsed = data.boxes.filter(b => b.code.startsWith(targetZone.letter + '-')).length;
+    const targetAvailable = targetCapacity - targetUsed;
+    if (targetAvailable < boxes.length) {
+      return flash(`المساحة ${targetZone.letter} ممتلئة — متاح ${targetAvailable} فقط من أصل ${boxes.length} مطلوب`, 'error');
+    }
+
     setBusy(true);
     const { error } = await bulkMoveBoxesToZone(boxes.map(b => b.id), targetZone.id);
     setBusy(false);
@@ -779,14 +792,19 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
             </div>
 
             {showAddShelfForm && (
-              <div className="mb-3">
+              <FormModal
+                title="+ رفّ جديد"
+                subtitle={`في مساحة ${fresh.letter} — ${fresh.name}`}
+                onClose={() => setShowAddShelfForm(false)}
+                maxWidth="max-w-md"
+              >
                 <AddShelfForm
                   busy={busy}
                   hasExistingShelves={shelves.length > 0}
                   onCancel={() => setShowAddShelfForm(false)}
                   onSave={handleAddShelf}
                 />
-              </div>
+              </FormModal>
             )}
 
             {/* قائمة الأرفف بأزرار إعادة تسمية ظاهرة */}

@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import AddItemModal from './AddItemModal';
-import { AddZoneForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
-import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, softDeleteItem } from '../lib/warehouseOps';
+import { supabase, logActivity } from '../lib/supabase';
+import LocationPicker from './LocationPicker';
+import PhotoUploader from './PhotoUploader';
+import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem } from '../lib/warehouseOps';
 
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
-  const { can, isFounder, activeWarehouse } = useAuth();
-  const [showAddItem, setShowAddItem] = useState(false);
+  const { can, isFounder, activeWarehouse, warehouseId } = useAuth();
   const [showAddZone, setShowAddZone] = useState(false);
   const [editingZoneId, setEditingZoneId] = useState(null);
   const [confirming, setConfirming] = useState(null);
@@ -17,6 +18,10 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [viewMode, setViewMode] = useState('map');
   // مودال عرض القائمة عند النقر على بطاقة إحصائيّة
   const [statModal, setStatModal] = useState(null); // 'boxes' | 'items' | 'checkouts'
+  // منتقي مكان: 'box' لإضافة صندوق، 'item' لإضافة غرض. null = مغلق
+  const [pickerMode, setPickerMode] = useState(null);
+  // البيانات المختارة من المنتقي + بيانات النموذج التالي
+  const [selectedLocation, setSelectedLocation] = useState(null);  // { zone, shelf, position } أو { zone, box }
 
   const totalBoxes = data.boxes.length;
   const totalItemTypes = data.items.length;          // عدد الأغراض (الأصناف المتميّزة)
@@ -63,6 +68,41 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     await onRefresh();
   }
 
+  function handleLocationPicked(location) {
+    setSelectedLocation({ ...location, mode: pickerMode });
+    setPickerMode(null);
+  }
+
+  async function handleSubmitNewBox(values) {
+    const { shelf, position } = selectedLocation;
+    setBusy(true);
+    const { error } = await rpcAddBox(shelf.id, { ...values, position });
+    setBusy(false);
+    setSelectedLocation(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ تمّ إنشاء الصندوق في الموقع ${position}`);
+    await onRefresh();
+  }
+
+  async function handleSubmitNewItem(values) {
+    const { box } = selectedLocation;
+    if (!values.name?.trim()) return flash('اسم الغرض مطلوب', 'error');
+    setBusy(true);
+    const { error } = await supabase.from('items').insert({
+      box_id: box.id,
+      name: values.name.trim(),
+      quantity: Number(values.quantity) || 1,
+      status: 'ok',
+      photo_url: values.photo_url || null
+    });
+    setBusy(false);
+    if (!error) await logActivity('إضافة', `${values.name.trim()} × ${values.quantity}`, box.code);
+    setSelectedLocation(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ تمّ إضافة "${values.name}" إلى ${box.code}`);
+    await onRefresh();
+  }
+
   return (
     <>
       <StatusToast msg={msg} />
@@ -89,10 +129,16 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 + 👑 مساحة جديدة
               </button>
             )}
+            {isFounder && viewMode === 'map' && (
+              <button onClick={() => setPickerMode('box')}
+                className="bg-green-100 border border-green-300 text-green-900 text-xs px-3 py-2 rounded-lg hover:bg-green-200">
+                + 📦 صندوق جديد
+              </button>
+            )}
             {can('add') && (
-              <button onClick={() => setShowAddItem(true)}
+              <button onClick={() => setPickerMode('item')}
                 className="bg-brand-blue text-white text-xs px-3 py-2 rounded-lg hover:bg-blue-800">
-                + إضافة أداة جديدة
+                + 🔧 إضافة أداة
               </button>
             )}
           </div>
@@ -111,14 +157,18 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         </div>
 
         {showAddZone && viewMode === 'map' && (
-          <div className="mb-4">
+          <FormModal
+            title="+ مساحة تخزين جديدة"
+            onClose={() => setShowAddZone(false)}
+            maxWidth="max-w-lg"
+          >
             <AddZoneForm
               busy={busy}
               existingLetters={zones.map(z => z.letter)}
               onCancel={() => setShowAddZone(false)}
               onSave={handleAddZone}
             />
-          </div>
+          </FormModal>
         )}
 
         {viewMode === 'map' ? (
@@ -164,27 +214,24 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 </div>
               </div>
 
-              {isFounder && editingZoneId && (
-                <div className="mt-4 bg-stone-50 border border-stone-200 rounded-xl p-3">
-                  {(() => {
-                    const z = zones.find(z2 => z2.id === editingZoneId);
-                    if (!z) return null;
-                    return (
-                      <>
-                        <h4 className="text-xs font-display font-bold mb-2">
-                          ✏️ تعديل مساحة {z.letter} — {z.name}
-                        </h4>
-                        <EditZoneForm
-                          zone={z}
-                          busy={busy}
-                          onCancel={() => setEditingZoneId(null)}
-                          onSave={(patch) => handleUpdateZone(z, patch)}
-                        />
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
+              {isFounder && editingZoneId && (() => {
+                const z = zones.find(z2 => z2.id === editingZoneId);
+                if (!z) return null;
+                return (
+                  <FormModal
+                    title={`✏️ تعديل مساحة ${z.letter} — ${z.name}`}
+                    onClose={() => setEditingZoneId(null)}
+                    maxWidth="max-w-lg"
+                  >
+                    <EditZoneForm
+                      zone={z}
+                      busy={busy}
+                      onCancel={() => setEditingZoneId(null)}
+                      onSave={(patch) => handleUpdateZone(z, patch)}
+                    />
+                  </FormModal>
+                );
+              })()}
             </>
           )
         ) : (
@@ -192,7 +239,47 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         )}
       </div>
 
-      {showAddItem && <AddItemModal data={data} onClose={() => setShowAddItem(false)} onSaved={onRefresh} />}
+      {/* منتقي المكان لصندوق أو غرض جديد */}
+      {pickerMode && (
+        <LocationPicker
+          mode={pickerMode}
+          data={data}
+          activeWarehouse={activeWarehouse}
+          onCancel={() => setPickerMode(null)}
+          onSelect={handleLocationPicked}
+        />
+      )}
+
+      {/* بعد اختيار المكان: نموذج تفاصيل العنصر */}
+      {selectedLocation?.mode === 'box' && (
+        <FormModal
+          title={`📦 تفاصيل الصندوق الجديد`}
+          subtitle={`في ${selectedLocation.zone.letter}-${selectedLocation.shelf.shelf_index}-${selectedLocation.position}`}
+          onClose={() => setSelectedLocation(null)}
+          maxWidth="max-w-md"
+        >
+          <AddBoxForm
+            busy={busy}
+            onCancel={() => setSelectedLocation(null)}
+            onSave={handleSubmitNewBox}
+          />
+        </FormModal>
+      )}
+      {selectedLocation?.mode === 'item' && (
+        <FormModal
+          title={`🔧 تفاصيل الغرض الجديد`}
+          subtitle={`سيُحفَظ في صندوق ${selectedLocation.box.code}`}
+          onClose={() => setSelectedLocation(null)}
+          maxWidth="max-w-md"
+        >
+          <NewItemForm
+            busy={busy}
+            onCancel={() => setSelectedLocation(null)}
+            onSave={handleSubmitNewItem}
+          />
+        </FormModal>
+      )}
+
       {confirming && (
         <ConfirmDelete
           message={`سيُحذف ${confirming.zone.letter} — ${confirming.zone.name} مع كل أرففه وصناديقه. هل أنت متأكّد؟`}
@@ -219,6 +306,46 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         </FormModal>
       )}
     </>
+  );
+}
+
+// نموذج تفاصيل غرض جديد (الاسم + الكميّة + صورة)
+function NewItemForm({ busy, onCancel, onSave }) {
+  const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const isValid = name.trim().length > 0;
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if (isValid) onSave({ name, quantity, photo_url: photoUrl }); }}
+      className="space-y-3">
+      <div>
+        <label className="block text-xs text-stone-600 mb-1">اسم الغرض *</label>
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus
+          placeholder="مثال: حبال تجاذب"
+          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+      </div>
+      <div>
+        <label className="block text-xs text-stone-600 mb-1">الكميّة</label>
+        <input type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)}
+          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+      </div>
+      <PhotoUploader
+        value={photoUrl}
+        onChange={setPhotoUrl}
+        prefix="items"
+        label="صورة الغرض (اختياريّة)"
+      />
+      <div className="flex gap-2 pt-2">
+        <button type="submit" disabled={busy || !isValid}
+          className="flex-1 bg-brand-blue text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-800 disabled:opacity-50">
+          {busy ? '...' : '💾 حفظ'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+          إلغاء
+        </button>
+      </div>
+    </form>
   );
 }
 

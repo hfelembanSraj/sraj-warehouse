@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { CreateWarehouseForm, EditWarehouseForm, ConfirmDelete, StatusToast, useFlash } from './BuilderForms';
+import { CreateWarehouseForm, EditWarehouseForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { rpcCreateWarehouse, rpcRenameWarehouse, rpcDeleteWarehouse, fetchWarehouseLayout } from '../lib/warehouseOps';
 
 const VIEW_MODE_KEY = 'sraj.warehousesViewMode';
@@ -141,13 +141,17 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
       </div>
 
       {showCreate && (
-        <div className="mb-4">
+        <FormModal
+          title="🏢 إنشاء مستودع جديد"
+          onClose={() => setShowCreate(false)}
+          maxWidth="max-w-lg"
+        >
           <CreateWarehouseForm
             busy={busy}
             onCancel={() => setShowCreate(false)}
             onSave={handleCreate}
           />
-        </div>
+        </FormModal>
       )}
 
       {viewMode === 'grid' ? (
@@ -226,14 +230,18 @@ function GridCard({ wh, stats, busy, editingId, totalCount, onEnter, onToggleEdi
         </button>
       </div>
       {editingId === wh.id && (
-        <div className="bg-white border-t border-stone-200 p-3">
+        <FormModal
+          title={`✏️ تعديل "${wh.name}"`}
+          onClose={onCancelEdit}
+          maxWidth="max-w-md"
+        >
           <EditWarehouseForm
             initial={wh}
             busy={busy}
             onCancel={onCancelEdit}
             onSave={onRename}
           />
-        </div>
+        </FormModal>
       )}
     </div>
   );
@@ -307,14 +315,18 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
         </button>
       </div>
       {editingId === wh.id && (
-        <div className="bg-white border-t border-stone-200 p-3">
+        <FormModal
+          title={`✏️ تعديل "${wh.name}"`}
+          onClose={onCancelEdit}
+          maxWidth="max-w-md"
+        >
           <EditWarehouseForm
             initial={wh}
             busy={busy}
             onCancel={onCancelEdit}
             onSave={onRename}
           />
-        </div>
+        </FormModal>
       )}
     </div>
   );
