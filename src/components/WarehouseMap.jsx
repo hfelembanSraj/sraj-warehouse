@@ -235,7 +235,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
             </>
           )
         ) : (
-          <AllItemsList data={data} onItemClick={onItemClick} onRefresh={onRefresh} />
+          <AllItemsList data={data} onItemClick={onItemClick} onRefresh={onRefresh} onAddItem={() => setPickerMode('item')} />
         )}
       </div>
 
@@ -553,11 +553,12 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, 
 }
 
 // ====== قائمة كل الأغراض في المستودع ======
-function AllItemsList({ data, onItemClick, onRefresh }) {
+function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
   const { isFounder, can } = useAuth();
   const [search, setSearch] = useState('');
   const [filterZone, setFilterZone] = useState('all');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
   const [busy, setBusy] = useState(false);
 
   async function handleQuickDelete(item) {
@@ -566,6 +567,20 @@ function AllItemsList({ data, onItemClick, onRefresh }) {
     setBusy(false);
     setConfirmDelete(null);
     if (error) return alert('فشل الحذف: ' + error.message);
+    onRefresh?.();
+  }
+
+  async function handleSaveEdit(patch) {
+    if (!editingItem) return;
+    setBusy(true);
+    const { error } = await supabase.from('items').update({
+      name: patch.name?.trim(),
+      quantity: Number(patch.quantity) || 1,
+      photo_url: patch.photo_url || null
+    }).eq('id', editingItem.id);
+    setBusy(false);
+    setEditingItem(null);
+    if (error) return alert('فشل التعديل: ' + error.message);
     onRefresh?.();
   }
 
@@ -610,8 +625,16 @@ function AllItemsList({ data, onItemClick, onRefresh }) {
         </select>
       </div>
 
-      <div className="text-[11px] text-stone-500 mb-2">
-        عرض {filtered.length} من {enriched.length} صنف · اضغط أيّ صنف للذهاب لمكانه مباشرة
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div className="text-[11px] text-stone-500">
+          عرض {filtered.length} من {enriched.length} صنف · اضغط أيّ صنف للذهاب لمكانه
+        </div>
+        {can('add') && onAddItem && (
+          <button onClick={onAddItem}
+            className="text-xs bg-gradient-to-l from-brand-navy to-brand-purple text-white px-3 py-1.5 rounded-lg hover:opacity-90 font-medium shadow-sm">
+            + إضافة غرض جديد
+          </button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -645,6 +668,16 @@ function AllItemsList({ data, onItemClick, onRefresh }) {
                 </span>
                 <span className="text-stone-400">→</span>
               </button>
+              {(isFounder || can('edit')) && (
+                <button
+                  onClick={() => setEditingItem(it)}
+                  disabled={busy}
+                  className="text-[10px] bg-stone-50 border border-stone-300 text-stone-700 px-2 py-1.5 rounded hover:bg-stone-100 flex-shrink-0"
+                  title="تعديل هذا الصنف"
+                >
+                  ✏️
+                </button>
+              )}
               {(isFounder || can('delete')) && (
                 <button
                   onClick={() => setConfirmDelete(it)}
@@ -668,6 +701,65 @@ function AllItemsList({ data, onItemClick, onRefresh }) {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+
+      {editingItem && (
+        <FormModal
+          title={`✏️ تعديل "${editingItem.name}"`}
+          subtitle={`في صندوق ${editingItem.boxCode}`}
+          onClose={() => setEditingItem(null)}
+          maxWidth="max-w-md"
+        >
+          <EditItemFormInline
+            item={editingItem}
+            busy={busy}
+            onCancel={() => setEditingItem(null)}
+            onSave={handleSaveEdit}
+          />
+        </FormModal>
+      )}
     </div>
+  );
+}
+
+// نموذج تعديل غرض من قائمة "كل الأغراض"
+function EditItemFormInline({ item, busy, onCancel, onSave }) {
+  const [name, setName] = useState(item.name);
+  const [quantity, setQuantity] = useState(item.quantity);
+  const [photoUrl, setPhotoUrl] = useState(item.photo_url || null);
+  const dirty =
+    name !== item.name ||
+    Number(quantity) !== Number(item.quantity) ||
+    photoUrl !== (item.photo_url || null);
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl }); }}
+      className="space-y-3">
+      <div>
+        <label className="block text-xs text-stone-700 font-medium mb-1">الاسم</label>
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus
+          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+      </div>
+      <div>
+        <label className="block text-xs text-stone-700 font-medium mb-1">الكميّة</label>
+        <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
+          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+      </div>
+      <PhotoUploader
+        value={photoUrl}
+        onChange={setPhotoUrl}
+        prefix="items"
+        label="صورة الغرض (اختياريّة)"
+      />
+      <div className="flex gap-2 pt-2 border-t border-stone-200">
+        <button type="submit" disabled={busy || !dirty || !name.trim()}
+          className="flex-1 bg-brand-navy text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50">
+          {busy ? '...' : '💾 حفظ'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+          إلغاء
+        </button>
+      </div>
+    </form>
   );
 }
