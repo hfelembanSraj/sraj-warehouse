@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import CheckoutModal from './CheckoutModal';
@@ -6,6 +6,7 @@ import PhotoUploader from './PhotoUploader';
 import LocationPicker from './LocationPicker';
 import CopyCodeButton from './CopyCodeButton';
 import { printBoxLabel } from './PrintBoxLabel';
+import TagInput, { TagChips } from './TagInput';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
@@ -71,7 +72,10 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
 
   async function handleUpdateItem(item, patch) {
     setBusy(true);
-    const { error } = await supabase.from('items').update(patch).eq('id', item.id);
+    // patch قد يحوي tags كمصفوفة — Supabase يقبلها مباشرة
+    const update = { ...patch };
+    if (update.tags === undefined) delete update.tags;
+    const { error } = await supabase.from('items').update(update).eq('id', item.id);
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تم الحفظ');
@@ -79,6 +83,13 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
     await loadItems();
     await onRefresh();
   }
+
+  // اقتراحات الوسوم: كل الوسوم الموجودة حالياً في المستودع (فريدة)
+  const tagSuggestions = useMemo(() => {
+    const all = new Set();
+    (data?.items || []).forEach(it => (it.tags || []).forEach(t => all.add(t)));
+    return Array.from(all).sort();
+  }, [data?.items]);
 
   // ====== سحب الأصناف (نقل لصندوق آخر) — مبدئيّاً يعمل عبر النقر للاختيار ======
   // عند اختيار صنف ثم النقر على صندوق آخر في صفحة أخرى، يحتاج state مشترك. للآن نُطلق إشارة عبر window.
@@ -101,7 +112,8 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
       name: values.name.trim(),
       quantity: Number(values.quantity) || 1,
       status: 'ok',
-      photo_url: values.photo_url || null
+      photo_url: values.photo_url || null,
+      tags: values.tags || []
     }).select().single();
     if (!error && newItem) {
       // تسجيل في سجلّ النشاط (للسجلّ المُنظَّم)
@@ -270,6 +282,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                 busy={busy}
                 onCancel={() => setShowAddItem(false)}
                 onSave={handleAddItem}
+                tagSuggestions={tagSuggestions}
               />
             </FormModal>
           )}
@@ -364,6 +377,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
               busy={busy}
               onCancel={() => setEditingItemId(null)}
               onSave={(patch) => handleUpdateItem(it, patch)}
+              tagSuggestions={tagSuggestions}
             />
           </FormModal>
         );
@@ -421,10 +435,11 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
 }
 
 // نموذج إضافة صنف داخل الصندوق
-function AddItemInBoxForm({ busy, onCancel, onSave }) {
+function AddItemInBoxForm({ busy, onCancel, onSave, tagSuggestions = [] }) {
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [tags, setTags] = useState([]);
   const isValid = name.trim().length > 0;
 
   return (
@@ -443,6 +458,10 @@ function AddItemInBoxForm({ busy, onCancel, onSave }) {
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
         <div className="col-span-2">
+          <label className="block text-[10px] text-stone-600 mb-1">🏷 وسوم (تصنيفات)</label>
+          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+        </div>
+        <div className="col-span-2">
           <PhotoUploader
             value={photoUrl}
             onChange={setPhotoUrl}
@@ -452,9 +471,9 @@ function AddItemInBoxForm({ busy, onCancel, onSave }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ name, quantity, photo_url: photoUrl })}
+        <button onClick={() => onSave({ name, quantity, photo_url: photoUrl, tags })}
           disabled={busy || !isValid}
-          className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm">
           💾 حفظ
         </button>
         <button onClick={onCancel} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
@@ -511,10 +530,15 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
               </span>
             )}
           </div>
-          {/* اسم الصنف (يظهر تحت الصورة فقط — وإن لم توجد صورة فالاسم في الأعلى) */}
+          {/* اسم الصنف + الوسوم (يظهران تحت الصورة فقط — وإن لم توجد صورة فالاسم في الأعلى) */}
           <div className="p-2">
             {item.photo_url && (
-              <h5 className="text-xs font-medium text-stone-900 truncate text-center mb-1.5">{item.name}</h5>
+              <h5 className="text-xs font-medium text-stone-900 truncate text-center mb-1">{item.name}</h5>
+            )}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex justify-center mb-1.5">
+                <TagChips tags={item.tags} max={2} />
+              </div>
             )}
             <div className="flex items-center justify-center gap-1 flex-wrap">
               {canCheckout && (
@@ -549,15 +573,17 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
   );
 }
 
-// نموذج تعديل صنف داخل الصندوق
-function EditItemInline({ item, busy, onCancel, onSave }) {
+// نموذج تعديل صنف داخل الصندوق (مع الوسوم)
+function EditItemInline({ item, busy, onCancel, onSave, tagSuggestions = [] }) {
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity);
   const [photoUrl, setPhotoUrl] = useState(item.photo_url || null);
+  const [tags, setTags] = useState(item.tags || []);
   const dirty =
     name !== item.name ||
     Number(quantity) !== Number(item.quantity) ||
-    photoUrl !== (item.photo_url || null);
+    photoUrl !== (item.photo_url || null) ||
+    JSON.stringify(tags) !== JSON.stringify(item.tags || []);
 
   return (
     <div className="text-xs">
@@ -573,16 +599,15 @@ function EditItemInline({ item, busy, onCancel, onSave }) {
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
         <div className="col-span-2">
-          <PhotoUploader
-            value={photoUrl}
-            onChange={setPhotoUrl}
-            prefix="items"
-            label="صورة الصنف"
-          />
+          <label className="block text-[10px] text-stone-600 mb-1">🏷 وسوم</label>
+          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+        </div>
+        <div className="col-span-2">
+          <PhotoUploader value={photoUrl} onChange={setPhotoUrl} prefix="items" label="صورة الصنف" />
         </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ name: name.trim(), quantity: Number(quantity), photo_url: photoUrl })}
+        <button onClick={() => onSave({ name: name.trim(), quantity: Number(quantity), photo_url: photoUrl, tags })}
           disabled={busy || !dirty || !name.trim()}
           className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-30 shadow-sm">
           💾 حفظ

@@ -724,7 +724,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         <div className="flex justify-center mb-3">
           <div className="w-full max-w-md bg-stone-100 rounded-lg p-4">
             <div
-              className="relative w-full bg-white border-4 rounded-md p-2 flex flex-col gap-1.5"
+              className={`relative w-full border-4 rounded-md p-2 flex flex-col gap-1.5 ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white'}`}
               style={{
                 aspectRatio: editMode ? `${fresh.width_cm}/${fresh.height_cm + 80}` : `${fresh.width_cm}/${fresh.height_cm}`,
                 borderColor: fresh.color
@@ -758,7 +758,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       onDragLeave={() => setDragOverShelfId(null)}
                       onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
                       role={editMode ? undefined : 'button'}
-                      className={`flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative text-right transition ${
+                      className={`flex-1 border-2 rounded p-1 flex gap-1 relative text-right transition ${
+                        fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50'
+                      } ${
                         (editMode || dragModeActive) ? '' : 'hover:bg-blue-50 hover:border-brand-blue cursor-pointer'
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
