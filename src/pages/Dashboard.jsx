@@ -24,6 +24,7 @@ import WarehouseBuilder from '../components/WarehouseBuilder';
 import QrScannerModal from '../components/QrScannerModal';
 import GlobalSearch from '../components/GlobalSearch';
 import RecoveryBin from '../components/RecoveryBin';
+import InitiativesTab from '../components/InitiativesTab';
 import BrandLogo, { BrandStripe } from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import { useGlobalShortcuts } from '../lib/useKeyboard';
@@ -171,6 +172,7 @@ export default function Dashboard() {
   }
   tabs.push(
     { key: 'checkouts', label: 'الإخراج/الإرجاع', badge: overdueCount },
+    { key: 'initiatives', label: '🎪 المبادرات' },
     { key: 'damaged', label: 'المتلفات' },
     { key: 'donated', label: 'الدعم' },
     { key: 'log', label: 'السجل' },
@@ -404,6 +406,7 @@ export default function Dashboard() {
           )}
           {showMapContent && renderMapDrillDown()}
           {activeTab === 'checkouts' && <CheckoutsTab data={data} onRefresh={loadAllData} />}
+          {activeTab === 'initiatives' && <InitiativesTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
           {activeTab === 'donated' && <DonatedTab data={data} />}
           {activeTab === 'log' && <LogTab data={data} />}
