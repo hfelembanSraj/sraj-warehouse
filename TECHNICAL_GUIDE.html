@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<title>الدليل التقني — مشروع Sraj-Warehouse</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Tajawal', 'Cairo', 'Arial', sans-serif;
+    direction: rtl;
+    color: #1A1A1A;
+    line-height: 1.7;
+    margin: 0;
+    background: #FAFAF7;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  }
+  .stripe {
+    height: 8px;
+    background: linear-gradient(90deg, #E91E8B 0%, #7B2D8E 16.6%, #2196F3 33.3%, #00A8B5 50%, #6CB33E 66.6%, #FFCC00 83.3%, #F58220 100%);
+  }
+  .cover {
+    text-align: center;
+    padding: 80px 40px 40px;
+    page-break-after: always;
+    background: linear-gradient(135deg, #1A2B5F, #7B2D8E);
+    color: white;
+    min-height: 70vh;
+  }
+  .cover h1 { font-size: 32pt; margin: 0 0 10pt 0; line-height: 1.2; }
+  .cover h2 { font-size: 16pt; opacity: 0.85; font-weight: normal; margin: 0 0 30pt 0; }
+  .cover .meta { font-size: 11pt; opacity: 0.75; margin-top: 60pt; }
+  .cover .for { background: rgba(255,255,255,0.15); padding: 14pt 24pt; border-radius: 12pt; display: inline-block; margin-top: 30pt; }
+
+  .content { padding: 30pt 50pt; }
+
+  h1 {
+    color: #1A2B5F;
+    font-size: 22pt;
+    border-bottom: 3px solid #1A2B5F;
+    padding-bottom: 6pt;
+    margin-top: 28pt;
+    page-break-before: always;
+  }
+  h1:first-of-type { page-break-before: auto; }
+  h2 {
+    color: #7B2D8E;
+    font-size: 15pt;
+    margin-top: 20pt;
+    border-right: 4px solid #7B2D8E;
+    padding-right: 10pt;
+  }
+  h3 {
+    color: #1A2B5F;
+    font-size: 12pt;
+    margin-top: 14pt;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12pt 0;
+    font-size: 10pt;
+    background: white;
+  }
+  th {
+    background: #1A2B5F;
+    color: white;
+    padding: 8pt 10pt;
+    text-align: right;
+  }
+  td {
+    padding: 8pt 10pt;
+    border-bottom: 1px solid #E5E7EB;
+    text-align: right;
+  }
+  tr:nth-child(even) td { background: #FAFAF7; }
+
+  .compare th:nth-child(2) { background: #6CB33E; }
+  .compare th:nth-child(3) { background: #F58220; }
+  .compare th:nth-child(4) { background: #E91E8B; }
+
+  code {
+    background: #F3F4F6;
+    padding: 2pt 6pt;
+    border-radius: 4pt;
+    font-family: 'Courier New', monospace;
+    font-size: 9.5pt;
+    color: #7B2D8E;
+  }
+  pre {
+    background: #1A2B5F;
+    color: #E5F0FF;
+    padding: 10pt 14pt;
+    border-radius: 8pt;
+    font-family: 'Courier New', monospace;
+    font-size: 9pt;
+    overflow-x: auto;
+    direction: ltr;
+    text-align: left;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2pt 8pt;
+    border-radius: 12pt;
+    font-size: 9pt;
+    font-weight: bold;
+    margin: 0 2pt;
+  }
+  .pill-free { background: #DCFCE7; color: #166534; }
+  .pill-paid { background: #FEE2E2; color: #991B1B; }
+  .pill-tier { background: #FEF3C7; color: #854D0E; }
+
+  .callout {
+    background: #FEF3C7;
+    border-right: 4px solid #F58220;
+    padding: 10pt 14pt;
+    border-radius: 6pt;
+    margin: 12pt 0;
+    font-size: 10.5pt;
+  }
+  .callout.tip { background: #DCFCE7; border-color: #16A34A; }
+  .callout.warn { background: #FEE2E2; border-color: #DC2626; }
+
+  ul li { margin-bottom: 4pt; }
+
+  .toc {
+    background: #F9FAFB;
+    border: 2px solid #E5E7EB;
+    border-radius: 8pt;
+    padding: 18pt;
+    margin: 14pt 0 28pt 0;
+  }
+  .toc h2 { margin-top: 0; }
+  .toc ol { padding-right: 20pt; }
+  .toc ol li { margin-bottom: 6pt; }
+
+  .stability-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10pt;
+    margin: 14pt 0;
+  }
+  .stability-card {
+    border: 1px solid #E5E7EB;
+    border-radius: 8pt;
+    padding: 10pt 14pt;
+    background: #FAFAF7;
+  }
+  .stability-card .label {
+    font-size: 10pt;
+    color: #6B7280;
+    margin-bottom: 4pt;
+  }
+  .stability-card .score {
+    font-size: 20pt;
+    font-weight: bold;
+  }
+  .score-high { color: #15803D; }
+  .score-mid { color: #C2410C; }
+  .score-low { color: #B91C1C; }
+
+  .footer {
+    text-align: center;
+    padding: 20pt;
+    background: #F3F4F6;
+    color: #6B7280;
+    font-size: 9pt;
+  }
+
+  @media print {
+    body { background: white; }
+    .container { box-shadow: none; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ============ غلاف ============ -->
+<div class="stripe"></div>
+<div class="cover">
+  <div style="font-size: 60pt; margin-bottom: 10pt;">📚</div>
+  <h1>الدليل التقني</h1>
+  <h2>المعرفة وراء بناء<br/>نظام إدارة مستودعات الجمعيّة</h2>
+  <div class="for">
+    <strong style="font-size: 13pt;">إعداد خاصّ لـ:</strong><br/>
+    <span style="font-size: 14pt;">م. حسين فلمبان</span><br/>
+    <small>مؤسّس جمعيّة المسؤوليّة الاجتماعيّة بمحافظة جدّة</small>
+  </div>
+  <div class="meta">
+    تاريخ الإعداد: 2026-05-02 · إعداد: Claude (Anthropic)
+  </div>
+</div>
+
+<!-- ============ المحتوى ============ -->
+<div class="content">
+
+<div class="toc">
+  <h2 style="margin-top: 0;">📑 الفهرس</h2>
+  <ol>
+    <li>الفلسفة العامّة لاختيار التقنيّات</li>
+    <li>الواجهة الأماميّة (Frontend)</li>
+    <li>الخادم وقاعدة البيانات (Backend)</li>
+    <li>الاستضافة (Hosting)</li>
+    <li>المصادقة (Authentication)</li>
+    <li>تخزين الملفّات (File Storage)</li>
+    <li>البريد الإلكتروني (Email Services)</li>
+    <li>المراقبة والاستقرار (Monitoring)</li>
+    <li>التحكّم في الإصدارات و CI/CD</li>
+    <li>الإجابة الكبرى: مدى استقرار الموقع</li>
+    <li>متى ندفع المال (Free → Paid)</li>
+    <li>المعرفة المستفادة لمشاريع قادمة</li>
+  </ol>
+</div>
+
+<!-- ============ الفصل 1 ============ -->
+<h1>1. الفلسفة العامّة لاختيار التقنيّات</h1>
+
+<p>عند بناء موقع لمنظّمة غير ربحيّة بميزانيّة <strong>صفر</strong>، نتّبع 4 مبادئ:</p>
+
+<ol>
+  <li><strong>المجانيّة الكاملة في البداية</strong>: كل خدمة تستخدم الطبقة المجانيّة (Free Tier) لها</li>
+  <li><strong>القابليّة للتوسّع</strong>: لو احتجت يوماً للترقية، يكفي دفع المال — لا حاجة لإعادة بناء</li>
+  <li><strong>النضج والاستقرار</strong>: نختار خدمات تأسّست منذ سنوات ولها سمعة قويّة</li>
+  <li><strong>التخصّص في كلّ مكوّن</strong>: لا نستخدم خدمة واحدة لكلّ شيء — كلّ خدمة مُتخصّصة في عمل واحد تتقنه</li>
+</ol>
+
+<div class="callout tip">
+  <strong>💡 المبدأ الأهمّ</strong>: في عصرنا الحاضر يمكن لشخص واحد بناء موقع ضخم بربط 4-5 خدمات مجانيّة (المعروف بـ <em>Jamstack</em>). لا حاجة لاستئجار خوادم.
+</div>
+
+<h2>المكوّنات الأساسيّة لأيّ موقع حديث</h2>
+
+<table>
+  <tr><th>المكوّن</th><th>المهمّة</th><th>أمثلة على الخدمات</th></tr>
+  <tr><td>الواجهة الأماميّة</td><td>ما يراه المستخدم في المتصفّح</td><td>React, Vue, Angular, Svelte</td></tr>
+  <tr><td>الاستضافة</td><td>توصيل الموقع للعالم بسرعة</td><td>Vercel, Netlify, Cloudflare Pages</td></tr>
+  <tr><td>قاعدة البيانات</td><td>تخزين البيانات بشكل دائم</td><td>Supabase, Firebase, PlanetScale</td></tr>
+  <tr><td>المصادقة</td><td>تسجيل الدخول والصلاحيّات</td><td>Supabase Auth, Clerk, Auth0</td></tr>
+  <tr><td>تخزين الملفّات</td><td>الصور والمرفقات</td><td>Supabase Storage, S3, Cloudinary</td></tr>
+  <tr><td>البريد</td><td>إرسال إيميلات</td><td>Resend, SendGrid, Postmark</td></tr>
+  <tr><td>المراقبة</td><td>تأكّد أنّ الموقع يعمل</td><td>UptimeRobot, Pingdom, Better Uptime</td></tr>
+</table>
+
+<!-- ============ الفصل 2 ============ -->
+<h1>2. الواجهة الأماميّة (Frontend)</h1>
+
+<h2>ما اخترنا: React + Vite + Tailwind CSS</h2>
+
+<h3>React</h3>
+<p>مكتبة من Facebook (Meta) لبناء واجهات تفاعليّة. تأسّست 2013، الأكثر استخداماً عالمياً.</p>
+
+<table>
+  <tr><th>الإيجابيّات</th><th>السلبيّات</th></tr>
+  <tr>
+    <td>
+      • مجتمع ضخم — كلّ مشكلة تجد لها حلّاً<br/>
+      • مكتبات لكلّ شيء (تقاويم، رسوم بيانيّة، جداول)<br/>
+      • سوق العمل ضخم<br/>
+      • مرن — يناسب كلّ أنواع المشاريع
+    </td>
+    <td>
+      • منحنى تعلّم متوسّط<br/>
+      • يحتاج بناء (لا يعمل بـHTML خام)<br/>
+      • قرارات كثيرة (أيّ توجيه، أيّ مدير حالة...)
+    </td>
+  </tr>
+</table>
+
+<h3>البدائل وميّزاتها</h3>
+
+<table class="compare">
+  <tr><th>التقنيّة</th><th>متى تختارها</th><th>متى تتجنّبها</th><th>صعوبة التعلّم</th></tr>
+  <tr><td><strong>Vue.js</strong></td><td>سهلة جدّاً، ممتازة للمبتدئين</td><td>سوق العمل أصغر</td><td>منخفضة</td></tr>
+  <tr><td><strong>Svelte</strong></td><td>أسرع وأخفّ مكتبة</td><td>مجتمع أصغر</td><td>متوسطة</td></tr>
+  <tr><td><strong>Angular</strong></td><td>للشركات الكبرى</td><td>ثقيل للمشاريع الصغيرة</td><td>عالية</td></tr>
+  <tr><td><strong>HTMX + جانب الخادم</strong></td><td>للمواقع البسيطة جدّاً</td><td>للتطبيقات المعقّدة</td><td>منخفضة</td></tr>
+</table>
+
+<h3>Vite</h3>
+<p>أداة بناء سريعة جدّاً (من مؤسّس Vue). تجمع وتُحسّن الكود قبل الإنتاج.</p>
+
+<div class="callout">
+  <strong>البديل المعروف</strong>: <code>Create React App</code> (مهجور الآن من Facebook) أو <code>Webpack</code> (أبطأ بكثير). Vite هو المعيار الجديد.
+</div>
+
+<h3>Tailwind CSS</h3>
+<p>إطار CSS بفلسفة "Utility-First" — تستخدم classes صغيرة بدل كتابة CSS مخصّص.</p>
+
+<pre>&lt;!-- بدل كتابة class مخصّص: --&gt;
+&lt;div class="my-card"&gt;...&lt;/div&gt;
+
+&lt;!-- في Tailwind: --&gt;
+&lt;div class="bg-white rounded-xl border p-4 shadow-md"&gt;...&lt;/div&gt;</pre>
+
+<table>
+  <tr><th>الإيجابيّات</th><th>السلبيّات</th></tr>
+  <tr>
+    <td>
+      • ما تحتاج تكتب CSS غالباً<br/>
+      • الحجم النهائي صغير جدّاً (يحذف غير المستخدم)<br/>
+      • تصميم متجاوب جاهز
+    </td>
+    <td>
+      • HTML يصبح طويلاً<br/>
+      • منحنى تعلّم للأسماء (px-4 = padding-x = 16px)
+    </td>
+  </tr>
+</table>
+
+<h3>البدائل</h3>
+<ul>
+  <li><strong>Bootstrap</strong>: قديم، مكوّنات جاهزة جدّاً، أكثر عاميّة</li>
+  <li><strong>Material UI / Chakra UI</strong>: مكوّنات React جاهزة (سريع للبدء، أصعب للتخصيص)</li>
+  <li><strong>CSS الخام</strong>: أكثر تحكّماً، أكثر عملاً</li>
+</ul>
+
+<!-- ============ الفصل 3 ============ -->
+<h1>3. الخادم وقاعدة البيانات (Backend)</h1>
+
+<h2>ما اخترنا: Supabase</h2>
+
+<p><strong>Supabase</strong> هو "Backend-as-a-Service" — يقدّم لك قاعدة بيانات + مصادقة + تخزين ملفّات + REST API + Realtime — كلّ هذا بدون كتابة سطر backend واحد.</p>
+
+<p>تأسّست 2020. مفتوحة المصدر. مبنيّة على PostgreSQL (الأقوى عالمياً في قواعد البيانات).</p>
+
+<h3>الطبقة المجانيّة (Free Tier) — ما الذي نحصل عليه</h3>
+<ul>
+  <li>قاعدة بيانات PostgreSQL <strong>500 MB</strong></li>
+  <li>تخزين ملفّات <strong>1 GB</strong></li>
+  <li>مصادقة <strong>50,000 مستخدم نشط شهرياً</strong></li>
+  <li>2 مشروع نشط (لا يُستخدمان لمدّة 7 أيّام = يُجمَّد)</li>
+  <li>500 MB نقل بيانات شهرياً</li>
+</ul>
+
+<div class="callout warn">
+  <strong>⚠ التجميد بعد 7 أيّام عدم استخدام</strong>: نحلّ هذا بـ Cron-job.org يُرسل ping يوميّاً لإبقاء المشروع نشطاً.
+</div>
+
+<h3>البدائل وميّزاتها</h3>
+
+<table class="compare">
+  <tr><th>الخدمة</th><th>الإيجابيّات</th><th>السلبيّات</th><th>المجانيّة</th></tr>
+  <tr>
+    <td><strong>Supabase</strong> ⭐</td>
+    <td>PostgreSQL كامل، مفتوح المصدر، يمكن استضافته بنفسك</td>
+    <td>الجيل الأحدث، أقلّ نضجاً من Firebase</td>
+    <td><span class="pill pill-free">مجاني</span></td>
+  </tr>
+  <tr>
+    <td><strong>Firebase</strong></td>
+    <td>من Google، النضج، مكتبات لكلّ المنصّات</td>
+    <td>قاعدة بيانات NoSQL غريبة، مغلق المصدر، صعب التحميل</td>
+    <td><span class="pill pill-tier">طبقة محدودة</span></td>
+  </tr>
+  <tr>
+    <td><strong>PocketBase</strong></td>
+    <td>ملفّ تنفيذي واحد، تستضيفه بنفسك</td>
+    <td>أصغر، أقلّ ميزات، مكتوب بـGo</td>
+    <td><span class="pill pill-free">مجاني تماماً</span></td>
+  </tr>
+  <tr>
+    <td><strong>PlanetScale</strong></td>
+    <td>MySQL ممتاز للتوسع الكبير</td>
+    <td>أنهى الطبقة المجانيّة 2024</td>
+    <td><span class="pill pill-paid">$29+/شهرياً</span></td>
+  </tr>
+  <tr>
+    <td><strong>Neon</strong></td>
+    <td>PostgreSQL سحابي، توسّع تلقائي</td>
+    <td>أحدث، أقلّ ميزات</td>
+    <td><span class="pill pill-tier">طبقة محدودة</span></td>
+  </tr>
+</table>
+
+<h3>ميزات Supabase التي استخدمناها</h3>
+<ul>
+  <li><strong>PostgreSQL Tables</strong>: 11 جدولاً للمستودع والمساحات والصناديق والأغراض</li>
+  <li><strong>RLS (Row Level Security)</strong>: تحكّم بمن يقرأ ماذا — مثل أنّ المؤسّس فقط يرى مفتاح Resend</li>
+  <li><strong>RPC Functions</strong>: 16 دالّة SQL مخصّصة (مثل `move_box_to_position`)</li>
+  <li><strong>Triggers</strong>: محفّزات تلقائيّة (مثل بريد الترحيب)</li>
+  <li><strong>pg_net Extension</strong>: استدعاء HTTP من قاعدة البيانات</li>
+  <li><strong>Storage Buckets</strong>: لتخزين صور الصناديق والأغراض</li>
+  <li><strong>Auth</strong>: تسجيل الدخول بالبريد + الإيميلات التلقائيّة</li>
+</ul>
+
+<!-- ============ الفصل 4 ============ -->
+<h1>4. الاستضافة (Hosting)</h1>
+
+<h2>ما اخترنا: Vercel</h2>
+
+<p><strong>Vercel</strong> هي شركة مؤسّس Next.js. تستضيف المواقع الأماميّة بسرعة عالميّة عبر CDN.</p>
+
+<h3>الطبقة المجانيّة</h3>
+<ul>
+  <li><strong>100 GB</strong> نقل بيانات شهرياً</li>
+  <li>مشاريع غير محدودة</li>
+  <li>SSL تلقائي (HTTPS)</li>
+  <li>نطاق فرعي مجاني (`*.vercel.app`)</li>
+  <li>نشر تلقائي عند كلّ <code>git push</code></li>
+  <li>Preview deployments لكلّ pull request</li>
+</ul>
+
+<h3>البدائل</h3>
+
+<table class="compare">
+  <tr><th>الخدمة</th><th>الإيجابيّات</th><th>السلبيّات</th><th>الحدّ المجاني</th></tr>
+  <tr>
+    <td><strong>Vercel</strong> ⭐</td>
+    <td>الأسرع، أحسن DX (تجربة المطوّر)</td>
+    <td>محدود نقل البيانات</td>
+    <td>100 GB/شهر</td>
+  </tr>
+  <tr>
+    <td><strong>Netlify</strong></td>
+    <td>الأقدم، نفس الفكرة، Forms مجاني</td>
+    <td>أبطأ قليلاً من Vercel</td>
+    <td>100 GB/شهر</td>
+  </tr>
+  <tr>
+    <td><strong>Cloudflare Pages</strong></td>
+    <td>أسرع CDN عالمياً، نقل بيانات لا محدود</td>
+    <td>أقلّ ميزات تلقائيّة</td>
+    <td><strong>غير محدود</strong></td>
+  </tr>
+  <tr>
+    <td><strong>GitHub Pages</strong></td>
+    <td>دمج مباشر مع GitHub</td>
+    <td>للمواقع الثابتة فقط، لا توجد بيئات معاينة</td>
+    <td>1 GB التخزين</td>
+  </tr>
+</table>
+
+<div class="callout tip">
+  <strong>💡 لو احتجت توسّع</strong>: انتقل إلى <strong>Cloudflare Pages</strong> — مجانيّ بالكامل بلا حدود نقل، ويمتلك أكبر شبكة CDN في العالم.
+</div>
+
+<!-- ============ الفصل 5 ============ -->
+<h1>5. المصادقة (Authentication)</h1>
+
+<h2>ما اخترنا: Supabase Auth (مدمَج)</h2>
+
+<p>بدل استخدام خدمة منفصلة، استخدمنا المصادقة المدمجة في Supabase. هذا يبسّط الأمور.</p>
+
+<h3>ما تقدّمه</h3>
+<ul>
+  <li>تسجيل دخول بـEmail/Password</li>
+  <li>تأكيد البريد تلقائياً (يمكن تعطيله للتطوير)</li>
+  <li>إعادة تعيين كلمة السرّ</li>
+  <li>JWT tokens للأمان</li>
+  <li>OAuth (Google, GitHub, ...)— لم نستخدمه</li>
+  <li>Magic Links (دخول بدون كلمة سرّ) — لم نستخدمه</li>
+</ul>
+
+<h3>البدائل</h3>
+
+<table class="compare">
+  <tr><th>الخدمة</th><th>الميزة الأبرز</th><th>السلبيّة</th><th>المجانيّة</th></tr>
+  <tr><td><strong>Supabase Auth</strong> ⭐</td><td>مدمَجة مع قاعدة البيانات</td><td>أبسط من Auth0</td><td>50K مستخدم</td></tr>
+  <tr><td><strong>Clerk</strong></td><td>أحلى UI جاهزة، إدارة سهلة</td><td>منفصلة عن قاعدة البيانات</td><td>10K مستخدم</td></tr>
+  <tr><td><strong>Auth0</strong></td><td>الأقدم، الأكثر ميزات</td><td>غالٍ بعد المجاني، معقّد</td><td>7K مستخدم</td></tr>
+  <tr><td><strong>Firebase Auth</strong></td><td>سهلة جدّاً</td><td>مغلقة، ربط مع Google</td><td>50K مستخدم</td></tr>
+</table>
+
+<!-- ============ الفصل 6 ============ -->
+<h1>6. تخزين الملفّات (File Storage)</h1>
+
+<h2>ما اخترنا: Supabase Storage</h2>
+
+<p>للصور (صور الأغراض والصناديق). مدمَج مع Supabase = سياسات أمن مشتركة.</p>
+
+<h3>كيف يعمل عندنا</h3>
+<ol>
+  <li>المستخدم يختار صورة من جهازه</li>
+  <li>المتصفّح يضغطها (browser-image-compression) إلى ~500 KB</li>
+  <li>تُرفَع لـ Supabase Storage في bucket اسمه `sraj-photos`</li>
+  <li>يُحفَظ الرابط في حقل `photo_url` للغرض/الصندوق</li>
+</ol>
+
+<h3>البدائل</h3>
+
+<table class="compare">
+  <tr><th>الخدمة</th><th>التخصّص</th><th>المجاني</th><th>الميزة الفريدة</th></tr>
+  <tr><td><strong>Supabase Storage</strong></td><td>عام</td><td>1 GB</td><td>RLS مدمج</td></tr>
+  <tr><td><strong>Cloudinary</strong></td><td>الصور والفيديو</td><td>25 GB + 25 GB نقل</td><td>تحويل وضغط تلقائيّ</td></tr>
+  <tr><td><strong>AWS S3</strong></td><td>عام</td><td>5 GB سنة واحدة</td><td>الأقوى للتوسّع</td></tr>
+  <tr><td><strong>Cloudflare R2</strong></td><td>عام، متوافق مع S3</td><td>10 GB</td><td>بدون رسوم نقل!</td></tr>
+  <tr><td><strong>Backblaze B2</strong></td><td>تخزين بارد</td><td>10 GB</td><td>الأرخص للتوسّع</td></tr>
+</table>
+
+<div class="callout">
+  <strong>للصور تحديداً</strong>: <strong>Cloudinary</strong> ممتازة لأنّها تحوّل الصور تلقائياً (resize, webp, إلخ) عند الطلب. لكن تعقّدت Free Tier فيها مؤخّراً.
+</div>
+
+<!-- ============ الفصل 7 ============ -->
+<h1>7. البريد الإلكتروني (Email Services)</h1>
+
+<h2>ما اخترنا: Resend</h2>
+
+<p><strong>Resend</strong> خدمة بريد حديثة (2022)، صنعها مؤسّسو React Email. بسيطة جدّاً.</p>
+
+<h3>استخداماتنا</h3>
+<ol>
+  <li><strong>تنبيهات تأخّر الإرجاع اليوميّة</strong> (GitHub Actions cron)</li>
+  <li><strong>بريد الترحيب التلقائي</strong> (DB trigger via pg_net)</li>
+</ol>
+
+<h3>الطبقة المجانيّة</h3>
+<ul>
+  <li><strong>3,000 رسالة/شهر</strong> (100/يوم)</li>
+  <li>1 نطاق فقط (نطاقهم: `resend.dev`)</li>
+  <li>Sandbox mode — ترسل لأيّ بريد بدون تحقّق</li>
+</ul>
+
+<div class="callout warn">
+  <strong>⚠ التحقّق من النطاق (Domain Verification)</strong>: لإرسال بريد من نطاقك (مثل <code>noreply@sraj.org.sa</code>) تحتاج تحقّق DNS — ميزة مجانيّة لكن تحتاج صلاحيّات على نطاق الجمعيّة.
+</div>
+
+<h3>البدائل</h3>
+
+<table class="compare">
+  <tr><th>الخدمة</th><th>المجاني/شهر</th><th>الإيجابيّات</th><th>السلبيّات</th></tr>
+  <tr><td><strong>Resend</strong> ⭐</td><td>3,000</td><td>الأسهل، API نظيفة</td><td>جديدة</td></tr>
+  <tr><td><strong>SendGrid</strong></td><td>100/يوم</td><td>الأقدم، الأشهر</td><td>UI معقّد، محدود</td></tr>
+  <tr><td><strong>Mailgun</strong></td><td>100/يوم 3 أشهر فقط</td><td>قوي للمطوّرين</td><td>المجاني محدود زمنياً</td></tr>
+  <tr><td><strong>Postmark</strong></td><td>100/شهر</td><td>الأسرع تسليماً</td><td>محدود جدّاً مجاناً</td></tr>
+  <tr><td><strong>Brevo (Sendinblue)</strong></td><td>300/يوم</td><td>الأكرم مجاناً</td><td>UI ثقيل</td></tr>
+</table>
+
+<!-- ============ الفصل 8 ============ -->
+<h1>8. المراقبة والاستقرار (Monitoring)</h1>
+
+<h2>ما اخترنا: ثلاث طبقات</h2>
+
+<h3>1. UptimeRobot — مراقبة وقت التشغيل</h3>
+<p>يفحص الموقع كلّ 5 دقائق ويرسل بريد إذا توقّف.</p>
+<ul>
+  <li>مجاني: 50 monitor، فحص كلّ 5 دقائق</li>
+  <li>تنبيه فوريّ على الإيميل عند التوقّف وعند العودة</li>
+  <li>صفحة حالة عامّة (status page)</li>
+</ul>
+
+<h3>2. Cron-job.org — إبقاء قاعدة البيانات نشطة</h3>
+<p>Supabase Free Tier يُجمِّد المشروع بعد 7 أيّام بلا استخدام. حلّنا: ping يومي.</p>
+<ul>
+  <li>مجاني: 50 cron job</li>
+  <li>دقّة الجدولة دقيقة واحدة</li>
+  <li>سجلّ كامل للنتائج</li>
+</ul>
+
+<h3>3. GitHub Actions — نسخ احتياطيّة + تنبيهات</h3>
+<p>GitHub يُتيح 2,000 دقيقة CI/CD مجانيّة شهرياً للمستودعات الخاصّة. عندنا workflow يوميّ ينسخ قاعدة البيانات JSON إلى فرع `backups`.</p>
+
+<h3>البدائل للمراقبة</h3>
+
+<table class="compare">
+  <tr><th>الخدمة</th><th>التخصّص</th><th>المجاني</th></tr>
+  <tr><td><strong>UptimeRobot</strong> ⭐</td><td>وقت تشغيل</td><td>50 monitor</td></tr>
+  <tr><td><strong>Better Uptime</strong></td><td>وقت تشغيل + status page جميلة</td><td>10 monitors</td></tr>
+  <tr><td><strong>Pingdom</strong></td><td>الأقدم، مدفوع غالباً</td><td>1 monitor</td></tr>
+  <tr><td><strong>Sentry</strong></td><td>تتبّع الأخطاء (error tracking)</td><td>5K حدث/شهر</td></tr>
+  <tr><td><strong>LogRocket</strong></td><td>تسجيل جلسات المستخدمين</td><td>1K جلسة/شهر</td></tr>
+</table>
+
+<!-- ============ الفصل 9 ============ -->
+<h1>9. التحكّم في الإصدارات و CI/CD</h1>
+
+<h2>ما اخترنا: Git + GitHub + GitHub Actions</h2>
+
+<h3>Git</h3>
+<p>أداة التحكّم في الإصدارات الأقدم والأقوى. بدون بديل عملي.</p>
+
+<h3>GitHub</h3>
+<p>منصّة استضافة Git (مملوكة لـMicrosoft منذ 2018).</p>
+
+<h3>البدائل</h3>
+<ul>
+  <li><strong>GitLab</strong>: مفتوح المصدر، يمكن استضافته بنفسك، CI/CD مدمج أقوى</li>
+  <li><strong>Bitbucket</strong>: من Atlassian، تكامل مع Jira</li>
+  <li><strong>Gitea</strong>: استضافة ذاتيّة خفيفة</li>
+</ul>
+
+<h3>GitHub Actions</h3>
+<p>أتمتة المهامّ — تشغيل سكربتات عند أحداث (push, schedule, manual).</p>
+<p><strong>عندنا</strong>: 4 workflows (backup, notify-overdue, create-stairway, fix-stairway)</p>
+
+<h3>البدائل لـCI/CD</h3>
+<ul>
+  <li><strong>GitLab CI</strong>: الأقوى</li>
+  <li><strong>CircleCI</strong>: مستقل، مجاني محدود</li>
+  <li><strong>Jenkins</strong>: استضافة ذاتيّة، تقليديّ</li>
+</ul>
+
+<!-- ============ الفصل 10 ============ -->
+<h1>10. الإجابة الكبرى: مدى استقرار الموقع</h1>
+
+<div class="stability-grid">
+  <div class="stability-card">
+    <div class="label">الاستقرار العام</div>
+    <div class="score score-high">8/10</div>
+  </div>
+  <div class="stability-card">
+    <div class="label">للاستخدام الحاليّ (مؤسّس وحده)</div>
+    <div class="score score-high">9/10</div>
+  </div>
+  <div class="stability-card">
+    <div class="label">للتوسّع (10+ مستخدمين)</div>
+    <div class="score score-mid">6/10</div>
+  </div>
+  <div class="stability-card">
+    <div class="label">للأمان من فقدان البيانات</div>
+    <div class="score score-high">9/10</div>
+  </div>
+</div>
+
+<h2>نقاط القوّة (لماذا هو مستقرّ)</h2>
+
+<table>
+  <tr><th>العامل</th><th>الإسهام</th></tr>
+  <tr><td><strong>Vercel CDN العالمي</strong></td><td>وقت تشغيل 99.99% — نادراً ما يتعطّل</td></tr>
+  <tr><td><strong>Supabase Free Tier</strong></td><td>مدعوم فعلياً، يستمرّ ما دامت الشركة موجودة</td></tr>
+  <tr><td><strong>UptimeRobot كلّ 5 دقائق</strong></td><td>إن تعطّل الموقع، يصل تنبيه فوراً للإيميل</td></tr>
+  <tr><td><strong>Cron-job daily</strong></td><td>قاعدة البيانات لا تُجمَّد أبداً</td></tr>
+  <tr><td><strong>نسخ احتياطيّة يوميّة</strong></td><td>تُحفَظ في GitHub لمدّة 90 يوماً</td></tr>
+  <tr><td><strong>Soft Delete</strong></td><td>البيانات لا تُحذَف نهائياً — كلّ شيء قابل للاسترجاع من السلّة</td></tr>
+  <tr><td><strong>Static Build</strong></td><td>لا توجد خوادم ديناميكيّة قابلة للتعطّل — موقع ثابت سريع</td></tr>
+  <tr><td><strong>HTTPS + JWT</strong></td><td>كلّ الاتّصالات مُشفّرة. التوكنات قصيرة العمر</td></tr>
+</table>
+
+<h2>نقاط الضعف (المحتمَلة)</h2>
+
+<table>
+  <tr><th>العامل</th><th>المخاطرة</th><th>الحلّ المستقبلي</th></tr>
+  <tr>
+    <td><strong>RLS متساهلة</strong></td>
+    <td>أيّ مستخدم مُسجَّل يستطيع تعديل أيّ مستودع</td>
+    <td>تشديد RLS عند انضمام مستخدمين غير المؤسّس</td>
+  </tr>
+  <tr>
+    <td><strong>منطقة Supabase الواحدة</strong></td>
+    <td>قد تكون أبطأ من خارج المنطقة (USA East)</td>
+    <td>الترقية لطبقة Pro لاختيار منطقة الشرق الأوسط</td>
+  </tr>
+  <tr>
+    <td><strong>صفر اختبارات</strong></td>
+    <td>تعديل قد يُعطّل ميزة بدون اكتشاف</td>
+    <td>إضافة Vitest + Playwright تدريجياً</td>
+  </tr>
+  <tr>
+    <td><strong>حدود Free Tier</strong></td>
+    <td>تجاوز 50K مستخدم/100GB نقل/500MB قاعدة بيانات</td>
+    <td>الترقية ($25-29/شهر) عند الاقتراب من الحدود</td>
+  </tr>
+  <tr>
+    <td><strong>شعار يعتمد على CDN خارجيّ</strong></td>
+    <td>بطيء التحميل أوّل مرّة</td>
+    <td>(محلول الآن — الشعار في `public/logo.png`)</td>
+  </tr>
+  <tr>
+    <td><strong>عدم نسخ احتياطيّ للصور</strong></td>
+    <td>صور Storage لا تُنسَخ احتياطياً</td>
+    <td>إضافة workflow لنسخ Storage يومياً</td>
+  </tr>
+</table>
+
+<h2>سيناريوهات الكوارث ومدى الاستعداد</h2>
+
+<table>
+  <tr><th>السيناريو</th><th>هل أنت محميّ؟</th><th>وقت التعافي</th></tr>
+  <tr><td>تعطّل Vercel</td><td>✅ — Vercel غالباً يعود في دقائق</td><td>دقائق</td></tr>
+  <tr><td>تعطّل Supabase</td><td>⚠ — قاعدة بياناتك معطّلة، الموقع لا يعمل</td><td>ساعات (نادر)</td></tr>
+  <tr><td>حذف خاطئ لمستودع</td><td>✅ — استرجاع من نسخة `backups/` على GitHub</td><td>15 دقيقة</td></tr>
+  <tr><td>اختراق حساب المؤسّس</td><td>⚠ — تغيير كلمة السرّ + 2FA على GitHub</td><td>ساعة</td></tr>
+  <tr><td>انتهاء صلاحيّة مفتاح Resend</td><td>✅ — البريد لا يُرسَل لكنّ الموقع يعمل</td><td>5 دقائق (تجديد المفتاح)</td></tr>
+  <tr><td>تجاوز حدود Free Tier</td><td>⚠ — Vercel يتوقّف، Supabase يبطّئ</td><td>يوم (الترقية)</td></tr>
+</table>
+
+<h2>التوصية النهائيّة</h2>
+
+<div class="callout tip">
+  <strong>للاستخدام الحاليّ (المؤسّس + 10 متطوّعين كحدّ أقصى)</strong>:
+  <ul>
+    <li>الموقع <strong>مستقرّ جدّاً</strong></li>
+    <li>التكلفة <strong>صفر</strong> دولار</li>
+    <li>المخاطر التي يجب الانتباه لها: تشديد RLS قبل دعوة متطوّعين</li>
+  </ul>
+</div>
+
+<div class="callout warn">
+  <strong>عند التوسّع (مستودعات أخرى، 50+ مستخدم)</strong>:
+  <ul>
+    <li>ادفع $25/شهر لـ Supabase Pro (8GB قاعدة بيانات + 100GB تخزين + اختيار المنطقة)</li>
+    <li>اشدّد RLS بناءً على عضويّة المستودع</li>
+    <li>أضِف Sentry لتتبّع الأخطاء</li>
+    <li>اختبارات أساسيّة (لا داعي لتغطية كاملة)</li>
+  </ul>
+</div>
+
+<!-- ============ الفصل 11 ============ -->
+<h1>11. متى ندفع المال (Free → Paid)</h1>
+
+<h2>الإشارات التي تستوجب الترقية</h2>
+
+<table>
+  <tr><th>الخدمة</th><th>إشارة الترقية</th><th>التكلفة</th><th>ما تحصل عليه</th></tr>
+  <tr><td>Supabase</td><td>قاعدة البيانات > 400 MB، أو > 40K مستخدم</td><td>$25/شهر</td><td>8 GB، 100 GB تخزين، نسخ احتياطية تلقائيّة</td></tr>
+  <tr><td>Vercel</td><td>نقل بيانات > 80 GB/شهر</td><td>$20/شهر</td><td>1 TB، تحليلات، فرق متعدّدين</td></tr>
+  <tr><td>Resend</td><td>> 2,500 رسالة/شهر</td><td>$20/شهر</td><td>50,000 رسالة، نطاقات متعدّدة</td></tr>
+  <tr><td>UptimeRobot</td><td>الحاجة لفحص كلّ دقيقة</td><td>$8/شهر</td><td>دقّة 1 دقيقة + SMS</td></tr>
+  <tr><td>GitHub Actions</td><td>تجاوز 2,000 دقيقة CI/شهر</td><td>$4/شهر بعدها</td><td>3,000 دقيقة + المزيد</td></tr>
+</table>
+
+<div class="callout">
+  <strong>المجموع لو ترقّيت كلّ شيء</strong>: ~$77/شهر (~290 ريال). للمنظّمات غير الربحيّة، Supabase وVercel يعطون خصومات (يجب الطلب صراحةً).
+</div>
+
+<!-- ============ الفصل 12 ============ -->
+<h1>12. المعرفة المستفادة لمشاريع قادمة</h1>
+
+<h2>قواعد ذهبيّة تعلّمناها</h2>
+
+<ol>
+  <li><strong>ابدأ بالبيانات أوّلاً</strong>: قبل كتابة أيّ كود واجهة، اقرأ كيف ستُخزَّن بياناتك. التخطيط في قاعدة البيانات يوفّر أسابيع لاحقاً.</li>
+  <li><strong>Soft Delete دائماً</strong>: لا تحذف من قاعدة البيانات نهائياً أبداً. حذف خاطئ يساوي كارثة. ضع `deleted_at` بدلاً من ذلك.</li>
+  <li><strong>Migrations مرقّمة</strong>: كلّ تغيير في قاعدة البيانات يكون ملفّاً منفصلاً مرقّماً. لا تعدّل ملفّاً قديماً — أنشئ جديداً.</li>
+  <li><strong>Vercel + Supabase + GitHub = 90% من احتياجاتك</strong>: لا تُعقّد الأمور.</li>
+  <li><strong>RLS من البداية</strong>: لا تترك سياسات الأمان للنهاية. ابدأها ضيّقة وفكّها عند الحاجة، لا العكس.</li>
+  <li><strong>اكتب نسخ احتياطيّة قبل الإطلاق</strong>: قبل أيّ مستخدم حقيقيّ، تأكّد أنّك تستطيع استرجاع كلّ شيء.</li>
+  <li><strong>UptimeRobot قبل الإطلاق</strong>: تنبيه فوري لو تعطّل شيء قبل أن يكتشفه المستخدم.</li>
+  <li><strong>Tailwind CSS = أوفر وقت كبير</strong>: لا تعد لكتابة CSS بعد تجربتها.</li>
+  <li><strong>RTL ليس مشكلة</strong>: <code>dir="rtl"</code> في HTML + flex-direction: row يكفيان لمعظم التصاميم.</li>
+  <li><strong>المؤسّس هو نفسه DBA</strong>: لو لم تُعدّ الأمور لتكون قابلة للإدارة من واجهة، ستندم.</li>
+</ol>
+
+<h2>أخطاء وقعنا فيها وتعلّمنا منها</h2>
+
+<table>
+  <tr><th>الخطأ</th><th>الدرس</th></tr>
+  <tr>
+    <td>استخدام `ORDER BY code` لترتيب الصناديق</td>
+    <td>النصوص تُرتَّب أبجدياً (`A-1-10` قبل `A-1-2`). استخدم أعمدة رقميّة.</td>
+  </tr>
+  <tr>
+    <td>القيد UNIQUE الصارم على رمز الصندوق</td>
+    <td>منع إعادة استخدام الرموز بعد الحذف. الحلّ: فهرس فريد جزئي `WHERE deleted_at IS NULL`.</td>
+  </tr>
+  <tr>
+    <td>محاولة `ALTER DATABASE` في Supabase SQL Editor</td>
+    <td>SQL Editor لا يعمل بصلاحيّات superuser. استخدم جدول `app_config` بدلاً منه.</td>
+  </tr>
+  <tr>
+    <td>سياسة RLS متساهلة (`auth all`)</td>
+    <td>كلّ مُسجَّل يستطيع تعديل أيّ شيء. لاحقاً نحتاج تشديد.</td>
+  </tr>
+  <tr>
+    <td>الاعتماد على `target` نصّياً في activity_log</td>
+    <td>عند إعادة تسمية صندوق، يفقد السجل ربطه. الحلّ: `target_id` (UUID).</td>
+  </tr>
+</table>
+
+<h2>الموارد المفيدة للتعلّم</h2>
+
+<ul>
+  <li><strong>React</strong>: <code>react.dev</code> — التعلّم الرسمي</li>
+  <li><strong>Tailwind</strong>: <code>tailwindcss.com</code> — البحث في الأدوات بسرعة</li>
+  <li><strong>Supabase</strong>: <code>supabase.com/docs</code> — أمثلة عمليّة</li>
+  <li><strong>PostgreSQL</strong>: <code>postgresql.org/docs</code> — مرجع شامل</li>
+  <li><strong>YouTube</strong>: <em>Theo (t3.gg)</em>، <em>Web Dev Simplified</em> — تعليم عملي</li>
+</ul>
+
+</div>
+
+<!-- ============ Footer ============ -->
+<div class="stripe"></div>
+<div class="footer">
+  <strong>الدليل التقني — مشروع Sraj-Warehouse</strong><br/>
+  إعداد لـ م. حسين فلمبان · تاريخ الإصدار: 2026-05-02<br/>
+  مع كلّ التقدير لجمعيّة المسؤوليّة الاجتماعيّة بمحافظة جدّة 🌟
+</div>
+
+</div>
+
+<!-- ============ تعليمات للمستخدم (تظهر بدون طباعة) ============ -->
+<div class="no-print" style="position: fixed; top: 20px; left: 20px; background: #1A2B5F; color: white; padding: 16px 24px; border-radius: 12px; max-width: 320px; font-family: Tajawal, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 1000;">
+  <strong>📄 لتحويل هذه الصفحة لـPDF:</strong>
+  <ol style="margin: 8px 0 0 0; padding-right: 20px; font-size: 13px;">
+    <li>اضغط <strong>Ctrl+P</strong> (أو Cmd+P)</li>
+    <li>اختر "حفظ كـPDF" / "Save as PDF"</li>
+    <li>احفظ الملفّ على جهازك</li>
+  </ol>
+</div>
+
+</body>
+</html>
