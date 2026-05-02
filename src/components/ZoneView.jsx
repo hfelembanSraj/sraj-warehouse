@@ -6,6 +6,7 @@ import AddBoxModal from './AddBoxModal';
 import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { CardboardBoxMini } from './CardboardBox';
 import WarehouseMiniMap from './WarehouseMiniMap';
+import LocationPicker from './LocationPicker';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
@@ -72,6 +73,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   const unassignedItems = data.items.filter(it => it.box_id == null && it.zone_id === fresh.id);
   // مودال تحديد مكان غرض غير محدّد
   const [assigningItem, setAssigningItem] = useState(null);
+  // مُنتقي بصريّ لنقل صندوق إلى مساحة أخرى — يحفظ {box, targetZone}
+  const [pickingPositionFor, setPickingPositionFor] = useState(null);
 
   function getBoxItems(boxId) { return data.items.filter(it => it.box_id === boxId); }
   function isCheckedOut(boxId) { return data.checkouts.some(c => c.box_id === boxId); }
@@ -248,7 +251,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     const boxes = activeBoxesForMove;
     if (boxes.length === 0) return;
 
-    // فحص "ممتلئة": هل تتّسع المساحة الهدف لكلّ الصناديق المختارة؟
+    // فحص "ممتلئة"
     const targetShelves = targetZone.shelves || [];
     if (targetShelves.length === 0) {
       return flash(`المساحة ${targetZone.letter} لا تحوي أرففاً — أنشئ رفّاً أوّلاً`, 'error');
@@ -260,12 +263,33 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       return flash(`المساحة ${targetZone.letter} ممتلئة — متاح ${targetAvailable} فقط من أصل ${boxes.length} مطلوب`, 'error');
     }
 
+    // صندوق واحد → افتح المُنتقي البصريّ ليختار المستخدم الموقع بنفسه
+    if (boxes.length === 1) {
+      setPickingPositionFor({ box: boxes[0], targetZone });
+      return;
+    }
+
+    // أكثر من صندوق → نقل جماعي تلقائي (ضع في أوّل المواقع المتاحة)
     setBusy(true);
     const { error } = await bulkMoveBoxesToZone(boxes.map(b => b.id), targetZone.id);
     setBusy(false);
     clearSelection();
     if (error) return flash('فشل النقل: ' + error.message, 'error');
-    flash(`✅ نُقل ${boxes.length} ${boxes.length === 1 ? 'صندوق' : 'صناديق'} إلى مساحة ${targetZone.letter}`);
+    flash(`✅ نُقل ${boxes.length} صناديق إلى مساحة ${targetZone.letter}`);
+    await onRefresh();
+  }
+
+  // عند اختيار الموقع الدقيق من المُنتقي البصريّ
+  async function handlePickedPositionForMove({ shelf, position }) {
+    if (!pickingPositionFor) return;
+    const { box, targetZone } = pickingPositionFor;
+    setBusy(true);
+    const { error } = await moveBoxToPosition(box.id, shelf.id, position);
+    setBusy(false);
+    setPickingPositionFor(null);
+    clearSelection();
+    if (error) return flash('فشل النقل: ' + error.message, 'error');
+    flash(`✅ نُقل إلى ${targetZone.letter}-${shelf.shelf_index}-${position}`);
     await onRefresh();
   }
 
@@ -964,6 +988,20 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         selectionLabel={`${activeBoxesForMove.length} ${activeBoxesForMove.length === 1 ? 'صندوق' : 'صناديق'}`}
         onDropOnZone={handleDropOnZone}
       />
+
+      {/* مُنتقي الموقع الدقيق عند نقل صندوق إلى مساحة أخرى */}
+      {pickingPositionFor && (
+        <LocationPicker
+          mode="box"
+          data={data}
+          initialZone={pickingPositionFor.targetZone}
+          lockZone={true}
+          onCancel={() => setPickingPositionFor(null)}
+          onSelect={handlePickedPositionForMove}
+          title={`📍 نقل ${pickingPositionFor.box.code}`}
+          subtitle={`اختر الموقع الدقيق في مساحة ${pickingPositionFor.targetZone.letter} — ${pickingPositionFor.targetZone.name}`}
+        />
+      )}
 
       {/* مودال تعديل الوصف الجماعي */}
       {showBulkEdit && (

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
+import LocationPicker from './LocationPicker';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
@@ -316,88 +317,18 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
         );
       })()}
 
-      {/* مودال نقل غرض إلى صندوق آخر */}
+      {/* مُنتقي بصريّ لنقل الغرض: خريطة المستودع → مساحة → صندوق */}
       {movingItem && (
-        <FormModal
-          title={`📍 نقل "${movingItem.name}" إلى صندوق آخر`}
-          subtitle={`الكميّة: ${movingItem.quantity} · من ${currentBox.code}`}
-          onClose={() => setMovingItem(null)}
-          maxWidth="max-w-2xl"
-        >
-          <MoveItemTargetPicker
-            currentBoxId={currentBox.id}
-            currentZoneLetter={zone.letter}
-            allBoxes={data?.boxes || []}
-            allZones={data?.zones || []}
-            busy={busy}
-            onCancel={() => setMovingItem(null)}
-            onPick={handleMoveItem}
-          />
-        </FormModal>
+        <LocationPicker
+          mode="item"
+          data={data || { boxes: [], zones: [], items: [] }}
+          onCancel={() => setMovingItem(null)}
+          onSelect={({ box }) => handleMoveItem(box.id)}
+          title={`📍 نقل "${movingItem.name}"`}
+          subtitle={`من ${currentBox.code} · اختر الوجهة من خريطة المستودع`}
+        />
       )}
     </>
-  );
-}
-
-// مكوّن اختيار الصندوق الهدف لنقل الغرض
-function MoveItemTargetPicker({ currentBoxId, currentZoneLetter, allBoxes, allZones, busy, onCancel, onPick }) {
-  const [filterZone, setFilterZone] = useState(currentZoneLetter || 'all');
-  const [search, setSearch] = useState('');
-
-  const filtered = allBoxes.filter(b => {
-    if (b.id === currentBoxId) return false;
-    if (filterZone !== 'all' && !b.code.startsWith(filterZone + '-')) return false;
-    if (search.trim() && !`${b.code} ${b.description || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-stone-600">اختر الصندوق الذي ستُنقَل إليه هذه القطعة:</p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <input
-          type="search"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="🔍 ابحث برقم الصندوق..."
-          className="px-3 py-2 border border-stone-300 rounded-lg text-xs"
-        />
-        <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
-          className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
-          <option value="all">كل المساحات</option>
-          {allZones.map(z => (
-            <option key={z.id} value={z.letter}>{z.letter} — {z.name}</option>
-          ))}
-        </select>
-      </div>
-
-      {filtered.length === 0 ? (
-        <p className="text-sm text-center text-stone-500 py-6">لا توجد صناديق متاحة</p>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
-          {filtered.map(b => {
-            const zone = allZones.find(z => b.code.startsWith(z.letter + '-'));
-            return (
-              <button key={b.id}
-                onClick={() => onPick(b.id)}
-                disabled={busy}
-                className="bg-white border-2 border-stone-200 rounded-lg p-2.5 text-center hover:border-blue-500 hover:bg-blue-50 transition disabled:opacity-50">
-                <div className="text-xs font-mono font-bold" style={{ color: zone?.color || '#185FA5' }}>{b.code}</div>
-                {b.description && <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="flex justify-end gap-2 pt-2 border-t border-stone-200">
-        <button onClick={onCancel} disabled={busy}
-          className="text-xs px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100">
-          إلغاء
-        </button>
-      </div>
-    </div>
   );
 }
 

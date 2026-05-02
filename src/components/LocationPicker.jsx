@@ -7,20 +7,30 @@ import { useState } from 'react';
 import { FormModal } from './BuilderForms';
 import { shelfDisplayName } from '../lib/helpers';
 
-export default function LocationPicker({ mode, data, activeWarehouse, onSelect, onCancel }) {
-  // mode: 'box' | 'item'
-  const [selectedZone, setSelectedZone] = useState(null);
+export default function LocationPicker({
+  mode,                  // 'box' | 'item'
+  data,
+  activeWarehouse,
+  onSelect,
+  onCancel,
+  initialZone = null,    // المساحة المُختارة مسبقاً (لتخطّي الخطوة 1)
+  lockZone = false,      // هل المساحة الأوّليّة مقفلة (لا يمكن تغييرها؟)
+  title: customTitle,    // عنوان مخصّص (للنقل)
+  subtitle: customSubtitle
+}) {
+  const [selectedZone, setSelectedZone] = useState(initialZone);
   const zones = data.zones || [];
 
-  const title = mode === 'box'
-    ? '📦 اختيار مكان للصندوق الجديد'
-    : '🔧 اختيار مكان للغرض الجديد';
+  const title = customTitle || (mode === 'box'
+    ? '📦 اختيار مكان للصندوق'
+    : '🔧 اختيار مكان للغرض');
 
-  const subtitle = !selectedZone
-    ? 'اختر المساحة التي تريد إضافة العنصر فيها'
+  const defaultSubtitle = !selectedZone
+    ? 'اختر المساحة من خريطة المستودع'
     : mode === 'box'
-      ? `الخطوة 2: اختر موقعاً شاغراً في مساحة ${selectedZone.letter}`
-      : `الخطوة 2: اختر صندوقاً في مساحة ${selectedZone.letter}`;
+      ? `اختر موقعاً شاغراً في مساحة ${selectedZone.letter} — ${selectedZone.name}`
+      : `اختر صندوقاً في مساحة ${selectedZone.letter} — ${selectedZone.name}`;
+  const subtitle = customSubtitle || defaultSubtitle;
 
   function getZoneStatus(zone) {
     const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
@@ -58,14 +68,14 @@ export default function LocationPicker({ mode, data, activeWarehouse, onSelect, 
           zone={selectedZone}
           data={data}
           onPick={(shelf, position) => onSelect({ zone: selectedZone, shelf, position })}
-          onBack={() => setSelectedZone(null)}
+          onBack={lockZone ? null : () => setSelectedZone(null)}
         />
       ) : (
         <BoxPickerStep
           zone={selectedZone}
           data={data}
           onPick={(box) => onSelect({ zone: selectedZone, box })}
-          onBack={() => setSelectedZone(null)}
+          onBack={lockZone ? null : () => setSelectedZone(null)}
         />
       )}
     </FormModal>
@@ -148,10 +158,12 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
 
   return (
     <>
-      <button onClick={onBack}
-        className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
-        ← الرجوع لاختيار المساحة
-      </button>
+      {onBack && (
+        <button onClick={onBack}
+          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+          ← الرجوع لاختيار المساحة
+        </button>
+      )}
 
       <div className="space-y-3">
         {shelves.map(sh => {
@@ -210,57 +222,86 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
   );
 }
 
-// ====== الخطوة 2 (للأغراض): اختيار صندوق ======
+// ====== الخطوة 2 (للأغراض): اختيار صندوق — عرض بصريّ بالأرفف ======
 function BoxPickerStep({ zone, data, onPick, onBack }) {
-  const [search, setSearch] = useState('');
+  const shelves = (zone.shelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index);
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
-  const filtered = zoneBoxes.filter(b => {
-    if (!search.trim()) return true;
-    return `${b.code} ${b.description || ''}`.toLowerCase().includes(search.toLowerCase());
-  });
+
+  function getShelfBoxes(shelfIndex) {
+    return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex))
+      .sort((a, b) => (a.box_index || 0) - (b.box_index || 0));
+  }
+
+  if (shelves.length === 0) {
+    return (
+      <>
+        {onBack && (
+          <button onClick={onBack}
+            className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100">
+            ← الرجوع لاختيار المساحة
+          </button>
+        )}
+        <p className="text-center text-sm text-stone-400 py-6">هذه المساحة لا تحوي أرففاً</p>
+      </>
+    );
+  }
 
   return (
     <>
-      <button onClick={onBack}
-        className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
-        ← الرجوع لاختيار المساحة
-      </button>
-
-      <input
-        type="search"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 ابحث برقم الصندوق..."
-        className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs mb-3"
-      />
-
-      {filtered.length === 0 ? (
-        <p className="text-center text-sm text-stone-400 py-6">
-          {zoneBoxes.length === 0 ? 'لا توجد صناديق في هذه المساحة' : 'لا توجد نتائج'}
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
-          {filtered.map(b => {
-            const itemCount = data.items.filter(it => it.box_id === b.id).length;
-            return (
-              <button key={b.id}
-                onClick={() => onPick(b)}
-                className="bg-white border-2 border-stone-200 rounded-xl p-2.5 text-center hover:border-blue-500 hover:bg-blue-50 hover:shadow-md transition">
-                <div className="flex items-center justify-center mb-1">
-                  {b.photo_url ? (
-                    <img src={b.photo_url} alt={b.code} className="w-10 h-10 object-cover rounded" />
-                  ) : (
-                    <div className="w-10 h-10 rounded bg-amber-100 flex items-center justify-center text-xl">📦</div>
-                  )}
-                </div>
-                <div className="text-xs font-mono font-bold" style={{ color: zone.color }}>{b.code}</div>
-                {b.description && <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>}
-                <div className="text-[9px] text-stone-400 mt-0.5">{itemCount} صنف</div>
-              </button>
-            );
-          })}
-        </div>
+      {onBack && (
+        <button onClick={onBack}
+          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+          ← الرجوع لاختيار المساحة
+        </button>
       )}
+
+      <div className="text-[11px] text-stone-500 mb-2 text-center">اضغط على أيّ صندوق لاختياره</div>
+
+      <div className="space-y-3">
+        {shelves.map(sh => {
+          const shelfBoxes = getShelfBoxes(sh.shelf_index);
+          return (
+            <div key={sh.id} className="bg-stone-50 border-2 rounded-xl p-2.5"
+              style={{ borderColor: zone.color + '50' }}>
+              <div className="flex items-center justify-between mb-2 text-xs">
+                <span className="font-display font-bold flex items-center gap-1" style={{ color: zone.color }}>
+                  📚 {shelfDisplayName(sh, shelves)}
+                </span>
+                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full text-stone-700 border border-stone-200">
+                  {shelfBoxes.length} {shelfBoxes.length === 1 ? 'صندوق' : 'صناديق'}
+                </span>
+              </div>
+              {shelfBoxes.length === 0 ? (
+                <p className="text-[10px] text-stone-400 italic text-center py-3">— رفّ فارغ —</p>
+              ) : (
+                <div className="flex gap-1.5 flex-wrap">
+                  {shelfBoxes.map(b => {
+                    const itemCount = data.items.filter(it => it.box_id === b.id).length;
+                    return (
+                      <button key={b.id}
+                        onClick={() => onPick(b)}
+                        className="flex-1 min-w-[110px] bg-white border-2 border-stone-200 rounded-lg p-2 text-center hover:border-blue-500 hover:bg-blue-50 hover:shadow-md transition">
+                        <div className="flex items-center justify-center mb-1">
+                          {b.photo_url ? (
+                            <img src={b.photo_url} alt={b.code} className="w-9 h-9 object-cover rounded" />
+                          ) : (
+                            <div className="w-9 h-9 rounded bg-amber-100 flex items-center justify-center text-base">📦</div>
+                          )}
+                        </div>
+                        <div className="text-xs font-mono font-bold" style={{ color: zone.color }}>{b.code}</div>
+                        {b.description && (
+                          <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>
+                        )}
+                        <div className="text-[9px] text-stone-400 mt-0.5">{itemCount} صنف</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
