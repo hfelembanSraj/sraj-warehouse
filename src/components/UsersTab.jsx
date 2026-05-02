@@ -121,7 +121,7 @@ function EditPermissionsModal({ user, onClose, onSaved }) {
 
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={loading}
-            className="flex-1 bg-brand-blue text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-800 disabled:opacity-50">
+            className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm">
             {loading ? 'جاري الحفظ...' : 'حفظ'}
           </button>
           <button onClick={onClose} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">

@@ -589,14 +589,28 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
       const box = data.boxes.find(b => b.id === it.box_id);
       const zoneLetter = box?.code?.split('-')[0];
       const zone = (data.zones || []).find(z => z.letter === zoneLetter);
+      // مفتاح الفرز الرقمي: حرف المساحة + رقم الرف + رقم الصندوق (كأرقام لا نصوص)
+      const sortKey = box ? [
+        zoneLetter || 'ZZZ',
+        parseInt((box.code || '').split('-')[1] || '0', 10),
+        box.box_index ?? 0
+      ] : ['ZZZ', 0, 0];
       return {
         ...it,
         boxCode: box?.code || '—',
         zoneLetter,
         zoneName: zone?.name || '—',
         zoneColor: zone?.color || '#888',
-        zone
+        zone,
+        sortKey
       };
+    }).sort((a, b) => {
+      // مقارنة المفاتيح بالترتيب: مساحة، رف، موقع — كلها رقمية
+      for (let i = 0; i < 3; i++) {
+        if (a.sortKey[i] < b.sortKey[i]) return -1;
+        if (a.sortKey[i] > b.sortKey[i]) return 1;
+      }
+      return (a.name || '').localeCompare(b.name || '', 'ar');
     });
   }, [data.items, data.boxes, data.zones]);
 

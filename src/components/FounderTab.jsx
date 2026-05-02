@@ -144,7 +144,7 @@ export default function FounderTab({ onRefresh, onOpenBuilder }) {
           <button
             onClick={saveName}
             disabled={busy || !fullName.trim() || fullName === profile?.full_name}
-            className="px-4 py-2 bg-brand-blue text-white text-sm rounded-lg hover:bg-blue-700 disabled:bg-stone-300"
+            className="px-4 py-2 bg-gradient-to-l from-brand-navy to-brand-purple text-white text-sm rounded-lg hover:opacity-90 font-bold disabled:opacity-40 shadow-sm"
           >
             حفظ
           </button>

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
 import LocationPicker from './LocationPicker';
+import CopyCodeButton from './CopyCodeButton';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
@@ -157,7 +158,10 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
               <div className="w-20 h-20 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-3xl">📦</div>
             )}
             <div>
-              <h2 className="text-sm font-display font-bold">صندوق {currentBox.code}</h2>
+              <h2 className="text-sm font-display font-bold flex items-center gap-1.5">
+                صندوق {currentBox.code}
+                <CopyCodeButton code={currentBox.code} />
+              </h2>
               {currentBox.description && <p className="text-xs text-stone-500">{currentBox.description}</p>}
               <p className="text-[10px] text-stone-400 mt-0.5">
                 {currentBox.width_cm}×{currentBox.height_cm}سم · في {shelfDisplayName(shelf, zone?.shelves || [])} من مساحة {zone.letter}
@@ -201,7 +205,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
             <h3 className="text-xs font-display font-bold text-stone-700">📦 منظور علوي للصندوق ({items.length} صنف)</h3>
             {(isFounder || can('add')) && (
               <button onClick={() => setShowAddItem(s => !s)} disabled={busy}
-                className="text-xs bg-brand-blue text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 disabled:opacity-50 font-medium">
+                className="text-xs bg-gradient-to-l from-brand-navy to-brand-purple text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 font-bold shadow-sm">
                 + إضافة صنف
               </button>
             )}
@@ -431,7 +435,7 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
             <div className="flex items-center justify-center gap-1 flex-wrap">
               {canCheckout && (
                 <button onClick={onCheckout}
-                  className="text-[9px] bg-brand-blue text-white px-2 py-0.5 rounded hover:bg-blue-800">
+                  className="text-[9px] bg-gradient-to-l from-brand-navy to-brand-purple text-white px-2 py-0.5 rounded hover:opacity-90 font-bold shadow-sm">
                   إخراج
                 </button>
               )}
@@ -496,7 +500,7 @@ function EditItemInline({ item, busy, onCancel, onSave }) {
       <div className="flex gap-2">
         <button onClick={() => onSave({ name: name.trim(), quantity: Number(quantity), photo_url: photoUrl })}
           disabled={busy || !dirty || !name.trim()}
-          className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-30">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-30 shadow-sm">
           💾 حفظ
         </button>
         <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 rounded text-xs hover:bg-stone-100">

@@ -122,7 +122,7 @@ export function EditWarehouseForm({ initial, busy, onCancel, onSave }) {
       <div className="flex gap-2">
         <button onClick={() => onSave({ name, description })}
           disabled={busy || !dirty || !name.trim()}
-          className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-50">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm">
           💾 حفظ التعديلات
         </button>
         <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 rounded text-xs hover:bg-stone-100">
@@ -297,7 +297,7 @@ export function EditZoneForm({ zone, busy, onCancel, onSave }) {
       </div>
       <div className="flex gap-2">
         <button onClick={() => onSave(buildPatch())} disabled={busy || !dirty}
-          className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-30">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-30 shadow-sm">
           💾 حفظ التعديلات
         </button>
         <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 rounded text-xs hover:bg-stone-100">
@@ -405,7 +405,7 @@ export function EditShelfForm({ shelf, busy, onCancel, onSave }) {
       <div className="flex gap-2">
         <button onClick={() => onSave({ height_cm: Number(height_cm), max_boxes: Number(max_boxes), label })}
           disabled={busy || !dirty}
-          className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-30">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-30 shadow-sm">
           💾 حفظ التعديلات
         </button>
         <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 rounded text-xs hover:bg-stone-100">
@@ -507,7 +507,7 @@ export function EditBoxForm({ box, busy, onCancel, onSave }) {
       <div className="flex gap-2">
         <button onClick={() => onSave({ description, width_cm: Number(width_cm), height_cm: Number(height_cm), photo_url: photoUrl })}
           disabled={busy || !dirty}
-          className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-30">
+          className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-30 shadow-sm">
           💾 حفظ التعديلات
         </button>
         <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 rounded text-xs hover:bg-stone-100">

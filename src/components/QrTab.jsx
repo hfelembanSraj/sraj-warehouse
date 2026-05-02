@@ -58,7 +58,7 @@ export default function QrTab({ warehouseId, data }) {
             <h2 className="text-sm font-display font-bold">رموز QR للستيكرات</h2>
             <p className="text-xs text-stone-500">جاهزة للطباعة واللصق على المستودع والمساحات والصناديق</p>
           </div>
-          <button onClick={handlePrint} className="bg-brand-blue text-white text-xs px-3 py-2 rounded-lg hover:bg-blue-800">
+          <button onClick={handlePrint} className="bg-gradient-to-l from-brand-navy to-brand-purple text-white text-xs px-3 py-2 rounded-lg hover:opacity-90 font-bold shadow-sm">
             🖨️ طباعة
           </button>
         </div>

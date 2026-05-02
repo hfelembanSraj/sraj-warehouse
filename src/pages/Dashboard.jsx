@@ -109,7 +109,8 @@ export default function Dashboard() {
     try {
       const [boxesR, itemsAssignedR, itemsUnassignedR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR, layoutR] = await Promise.all([
         // الصناديق: غير محذوفة + لها رف موجود (تجاهل الصناديق اليتيمة)
-        supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).is('deleted_at', null).not('shelf_id', 'is', null).order('code'),
+        // الترتيب: shelf_id ثمّ box_index (رقمي) — يضمن A-1-2 قبل A-1-10 وليس بعدها
+        supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).is('deleted_at', null).not('shelf_id', 'is', null).order('shelf_id').order('box_index'),
         // الأصناف المرتبطة بصندوق
         supabase.from('items').select('*, boxes!inner(warehouse_id, deleted_at, shelf_id)').eq('boxes.warehouse_id', warehouseId).is('deleted_at', null).is('boxes.deleted_at', null).not('boxes.shelf_id', 'is', null),
         // الأصناف غير المحدّدة (box_id = null) داخل مساحات هذا المستودع
