@@ -51,7 +51,8 @@ async function main() {
     const { data: zone, error: zErr } = await supa.from('zones').insert({
       warehouse_id: wh.id,
       letter: z.letter, name: z.name, color: WOOD,
-      width_cm: 100, height_cm: 230, depth_cm: 65,
+      // أبعاد المساحة عرضيّة (landscape): الدرج في الواقع عريض مسطّح، ليس طولياً
+      width_cm: 230, height_cm: 100, depth_cm: 65,
       pos_top: z.pos_top, pos_left: z.pos_left, pos_right: null,
       pos_width: z.pos_width, pos_height: z.pos_height,
       display_order: z.display_order

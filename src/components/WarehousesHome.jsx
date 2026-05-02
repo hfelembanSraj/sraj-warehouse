@@ -90,7 +90,8 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
           letter: z.letter,
           name: z.name,
           color: WOOD,
-          width_cm: 100, height_cm: 230, depth_cm: 65,
+          // أبعاد عرضيّة (landscape) — الدرج عريض مسطّح وليس طوليّاً
+          width_cm: 230, height_cm: 100, depth_cm: 65,
           shelves_count: z.shelves_count
         });
         if (zErr) {
