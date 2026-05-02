@@ -1,0 +1,20 @@
+name: Fix Stairway Warehouse Structure
+
+# إعادة هيكلة "مستودع المدرّج":
+#   3 مساحات سفليّة بدون أرفف + 2 مساحة علويّة برفّين، كلّها خشبيّة بنّيّة
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install @supabase/supabase-js@^2.45.0 --no-save --silent
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/fix-stairway-warehouse.mjs
