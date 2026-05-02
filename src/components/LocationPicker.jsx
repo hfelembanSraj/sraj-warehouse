@@ -86,8 +86,12 @@ export default function LocationPicker({
       return { full: false, label: `${available} مكان متاح`, color: 'green' };
     }
     // mode === 'item'
+    if ((zone.shelves || []).length === 0) {
+      return { full: true, label: 'لا توجد أرفف', color: 'red' };
+    }
     if (zoneBoxes.length === 0) {
-      return { full: true, label: 'لا توجد صناديق', color: 'red' };
+      // المساحة فارغة لكن قابلة للاختيار — يستطيع المستخدم إنشاء صندوق بداخلها
+      return { full: false, label: 'فارغة · أضِف صندوقاً', color: 'amber' };
     }
     return { full: false, label: `${zoneBoxes.length} صندوق`, color: 'green' };
   }
@@ -208,9 +212,9 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
                   {z.name}
                 </div>
                 <span className={`mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                  status.color === 'red'
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-green-100 text-green-700'
+                  status.color === 'red'   ? 'bg-red-100 text-red-700' :
+                  status.color === 'amber' ? 'bg-amber-100 text-amber-800' :
+                  'bg-green-100 text-green-700'
                 }`}>
                   {status.label}
                 </span>
@@ -305,11 +309,34 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
 
 // ====== الخطوة 2 (للأغراض): اختيار صندوق — يعرض الرفّ بنفس شكل المساحة الحقيقيّة ======
 function BoxPickerStep({ zone, data, onPick, onBack }) {
+  const [creating, setCreating] = useState(false);
   const shelves = (zone.shelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index);
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
 
   function getShelfBoxes(shelfIndex) {
     return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex));
+  }
+
+  // إنشاء صندوق جديد في أوّل رفّ ثمّ اختياره مباشرة
+  async function createBoxAndPick() {
+    if (shelves.length === 0) return;
+    setCreating(true);
+    const firstShelf = shelves[0];
+    const { data: newBoxId, error } = await supabase.rpc('add_box_to_shelf', {
+      s_id: firstShelf.id,
+      b_description: '',
+      b_width_cm: 50,
+      b_height_cm: 65
+    });
+    if (error || !newBoxId) {
+      setCreating(false);
+      console.error('فشل إنشاء صندوق:', error);
+      alert('فشل إنشاء صندوق: ' + (error?.message || 'خطأ غير معروف'));
+      return;
+    }
+    const { data: newBox } = await supabase.from('boxes').select('*').eq('id', newBoxId).single();
+    setCreating(false);
+    if (newBox) onPick(newBox);
   }
 
   if (shelves.length === 0) {
@@ -321,7 +348,34 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
             ← الرجوع لاختيار المساحة
           </button>
         )}
-        <p className="text-center text-sm text-stone-400 py-6">هذه المساحة لا تحوي أرففاً</p>
+        <div className="text-center py-6 space-y-2">
+          <div className="text-3xl">📭</div>
+          <p className="text-sm text-stone-600">هذه المساحة بدون أرفف</p>
+          <p className="text-[11px] text-stone-500">ادخل المساحة وأضِف رفّاً أوّلاً، ثمّ ارجع لاختيار المكان</p>
+        </div>
+      </>
+    );
+  }
+
+  // مساحة بأرفف لكن بدون صناديق — أتح إنشاء صندوق فوراً
+  if (zoneBoxes.length === 0) {
+    return (
+      <>
+        {onBack && (
+          <button onClick={onBack}
+            className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+            ← الرجوع لاختيار المساحة
+          </button>
+        )}
+        <div className="text-center py-8 space-y-3 border-2 border-dashed border-amber-300 rounded-xl bg-amber-50/50">
+          <div className="text-4xl">📭</div>
+          <p className="text-sm text-stone-700 font-medium">هذه المساحة بدون صناديق بعد</p>
+          <p className="text-[11px] text-stone-500">أنشئ صندوقاً هنا فوراً واستخدمه للنقل</p>
+          <button onClick={createBoxAndPick} disabled={creating}
+            className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold disabled:opacity-50 shadow-md">
+            {creating ? '... جاري الإنشاء' : '+ 📦 أنشئ صندوقاً جديداً واستخدمه'}
+          </button>
+        </div>
       </>
     );
   }

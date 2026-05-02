@@ -16,7 +16,7 @@ import {
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onZoneSwitch, onRefresh }) {
-  const { can, isFounder } = useAuth();
+  const { can, isFounder, activeWarehouse } = useAuth();
   const [highlightedBox, setHighlightedBox] = useState(null);
   const [checkoutItem, setCheckoutItem] = useState(null);
 
@@ -36,6 +36,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   const [recentlyAddedBoxId, setRecentlyAddedBoxId] = useState(null);
   // مودال تعديل الوصف الجماعي
   const [showBulkEdit, setShowBulkEdit] = useState(false);
+  // مُنتقي مستودع آخر لنقل الصناديق إليه
+  const [showCrossWhMove, setShowCrossWhMove] = useState(false);
 
   // قائمة الصناديق "النشطة" للنقل/الحذف:
   //   - إذا في وضع سحب → الصندوق المسحوب (مع كلّ ما هو مختار معه إن كان ضمن الاختيار)
@@ -333,6 +335,33 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
+  // نقل الصناديق المختارة إلى مستودع آخر (ربّما يحتاج اختيار موقع لكل صندوق على حدة)
+  async function handleCrossWarehouseMove({ shelf, position, warehouse, isCrossWh }) {
+    const boxes = activeBoxesForMove;
+    if (boxes.length === 0) return;
+    if (boxes.length === 1) {
+      // صندوق واحد → موقع محدّد
+      setBusy(true);
+      const { error } = await moveBoxToPosition(boxes[0].id, shelf.id, position);
+      setBusy(false);
+      setShowCrossWhMove(false);
+      clearSelection();
+      if (error) return flash('فشل النقل: ' + error.message, 'error');
+      flash(`✅ نُقل إلى ${warehouse.name} · ${position}`);
+      await onRefresh();
+    } else {
+      // عدّة صناديق → نقل جماعي إلى الرفّ المختار (يأخذ مواقع متسلسلة من الموقع المختار)
+      setBusy(true);
+      const { error } = await bulkMoveBoxes(boxes.map(b => b.id), shelf.id);
+      setBusy(false);
+      setShowCrossWhMove(false);
+      clearSelection();
+      if (error) return flash('فشل النقل: ' + error.message, 'error');
+      flash(`✅ نُقل ${boxes.length} ${boxes.length === 1 ? 'صندوق' : 'صناديق'} إلى ${warehouse.name}`);
+      await onRefresh();
+    }
+  }
+
   // ====== السحب والإفلات + النقر للاختيار المتعدّد ======
   function handleBoxDragStart(e, box) {
     // إن لم يكن الصندوق ضمن الاختيار الحالي → اعتبره وحيداً (يستبدل الاختيار)
@@ -601,6 +630,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               </span>
               <span className="text-[10px] opacity-90 hidden sm:inline">اضغط على رف لنقل الكلّ، أو على السلّة للحذف</span>
               <div className="flex items-center gap-1.5 mr-2">
+                <button onClick={() => setShowCrossWhMove(true)}
+                  className="text-[11px] bg-amber-500/30 hover:bg-amber-500/40 px-2.5 py-1 rounded font-medium border border-amber-200/30">
+                  🔄 نقل لمستودع آخر
+                </button>
                 <button onClick={() => setShowBulkEdit(true)}
                   className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
                   ✏️ تعديل الوصف
@@ -1077,6 +1110,19 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           onSelect={handlePickedPositionForMove}
           title={`📍 نقل ${pickingPositionFor.box.code}`}
           subtitle={`اختر الموقع الدقيق في مساحة ${pickingPositionFor.targetZone.letter} — ${pickingPositionFor.targetZone.name}`}
+        />
+      )}
+
+      {/* مُنتقي مستودع آخر — لنقل الصناديق المختارة بين المستودعات */}
+      {showCrossWhMove && (
+        <LocationPicker
+          mode="box"
+          data={data}
+          activeWarehouse={activeWarehouse}
+          onCancel={() => setShowCrossWhMove(false)}
+          onSelect={handleCrossWarehouseMove}
+          title={`🔄 نقل ${activeBoxesForMove.length} ${activeBoxesForMove.length === 1 ? 'صندوق' : 'صناديق'} لمستودع آخر`}
+          subtitle="اختر المستودع الهدف ثمّ المساحة ثمّ الموقع"
         />
       )}
 
