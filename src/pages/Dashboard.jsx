@@ -25,6 +25,7 @@ import QrScannerModal from '../components/QrScannerModal';
 import GlobalSearch from '../components/GlobalSearch';
 import RecoveryBin from '../components/RecoveryBin';
 import BrandLogo, { BrandStripe } from '../components/BrandLogo';
+import NotificationsBell from '../components/NotificationsBell';
 import { useGlobalShortcuts } from '../lib/useKeyboard';
 
 export default function Dashboard() {
@@ -323,6 +324,7 @@ export default function Dashboard() {
             <GlobalSearch onJump={handleSearchJump} />
           </div>
           <div className="flex items-center gap-3">
+            <NotificationsBell />
             {isFounder && profile?.stealth_mode && (
               <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-medium bg-stone-900 text-white px-2 py-1 rounded-full" title="وضع التخفّي مفعّل — أعمالك لا تُسجَّل">
                 👻 تخفّي
