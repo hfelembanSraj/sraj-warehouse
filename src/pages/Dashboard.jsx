@@ -107,14 +107,16 @@ export default function Dashboard() {
     if (!warehouseId) return;
     setLoading(true);
     try {
-      const [boxesR, itemsAssignedR, itemsUnassignedR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR, layoutR] = await Promise.all([
-        // الصناديق: غير محذوفة + لها رف موجود (تجاهل الصناديق اليتيمة)
+      const [boxesR, itemsAssignedR, itemsUnassignedR, itemsOutsideR, checkoutsR, damagedR, donatedR, logR, requestsR, usersR, layoutR] = await Promise.all([
+        // الصناديق: غير محذوفة + لها رف موجود
         // الترتيب: shelf_id ثمّ box_index (رقمي) — يضمن A-1-2 قبل A-1-10 وليس بعدها
         supabase.from('boxes').select('*').eq('warehouse_id', warehouseId).is('deleted_at', null).not('shelf_id', 'is', null).order('shelf_id').order('box_index'),
         // الأصناف المرتبطة بصندوق
         supabase.from('items').select('*, boxes!inner(warehouse_id, deleted_at, shelf_id)').eq('boxes.warehouse_id', warehouseId).is('deleted_at', null).is('boxes.deleted_at', null).not('boxes.shelf_id', 'is', null),
-        // الأصناف غير المحدّدة (box_id = null) داخل مساحات هذا المستودع
-        supabase.from('items').select('*, zones!inner(warehouse_id)').eq('zones.warehouse_id', warehouseId).is('box_id', null).is('deleted_at', null),
+        // الأصناف غير المحدّدة (داخل مساحة بدون صندوق)
+        supabase.from('items').select('*, zones!inner(warehouse_id)').eq('zones.warehouse_id', warehouseId).is('box_id', null).not('zone_id', 'is', null).is('deleted_at', null),
+        // الأصناف خارج المساحات (داخل المستودع لكن ليس في أيّ مساحة)
+        supabase.from('items').select('*').eq('warehouse_id', warehouseId).is('box_id', null).is('zone_id', null).is('deleted_at', null),
         supabase.from('checkouts').select('*').eq('warehouse_id', warehouseId).is('returned_at', null).is('damaged_at', null).is('donated_at', null).order('date_out', { ascending: false }),
         supabase.from('damaged_items').select('*').eq('warehouse_id', warehouseId).order('damaged_at', { ascending: false }),
         supabase.from('donated_items').select('*').eq('warehouse_id', warehouseId).order('donated_at', { ascending: false }),
@@ -123,7 +125,11 @@ export default function Dashboard() {
         supabase.from('user_warehouses').select('*, profiles!inner(*)').eq('warehouse_id', warehouseId),
         supabase.rpc('get_warehouse_layout', { wh_id: warehouseId })
       ]);
-      const allItems = [...(itemsAssignedR.data || []), ...(itemsUnassignedR.data || [])];
+      const allItems = [
+        ...(itemsAssignedR.data || []),
+        ...(itemsUnassignedR.data || []),
+        ...(itemsOutsideR.data || [])
+      ];
       setData({
         boxes: boxesR.data || [],
         items: allItems,

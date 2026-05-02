@@ -24,9 +24,15 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [selectedLocation, setSelectedLocation] = useState(null);  // { zone, shelf, position } أو { zone, box }
 
   const totalBoxes = data.boxes.length;
-  const totalItemTypes = data.items.length;          // عدد الأغراض (الأصناف المتميّزة)
+  const totalItemTypes = data.items.length;
   const totalQty = data.items.reduce((s, it) => s + (it.quantity || 0), 0);
   const checkedOutCount = data.checkouts.length;
+  // الأغراض المُخزّنة خارج كلّ المساحات (أشياء كبيرة كالطاولات والبنرات الكبيرة)
+  const outsideItems = data.items.filter(it => it.box_id == null && it.zone_id == null && it.warehouse_id != null);
+  // مودال إضافة غرض خارج المساحات
+  const [showAddOutside, setShowAddOutside] = useState(false);
+  // مودال تعديل غرض خارج المساحات
+  const [editingOutsideItem, setEditingOutsideItem] = useState(null);
 
   const zones = data.zones || [];
 
@@ -103,6 +109,53 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     await onRefresh();
   }
 
+  // إضافة غرض خارج المساحات — للأشياء الكبيرة التي لا تدخل صناديق
+  async function handleSubmitOutsideItem(values) {
+    if (!values.name?.trim()) return flash('اسم الغرض مطلوب', 'error');
+    setBusy(true);
+    const { error } = await supabase.from('items').insert({
+      warehouse_id: warehouseId,
+      box_id: null,
+      zone_id: null,
+      name: values.name.trim(),
+      quantity: Number(values.quantity) || 1,
+      status: 'ok',
+      photo_url: values.photo_url || null
+    });
+    setBusy(false);
+    if (!error) await logActivity('إضافة', `${values.name.trim()} × ${values.quantity}`, '(خارج المساحات)');
+    setShowAddOutside(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(`✅ أُضيف "${values.name}" في منطقة التخزين المفتوحة`);
+    await onRefresh();
+  }
+
+  async function handleSaveOutsideEdit(patch) {
+    if (!editingOutsideItem) return;
+    setBusy(true);
+    const { error } = await supabase.from('items').update({
+      name: patch.name?.trim(),
+      quantity: Number(patch.quantity) || 1,
+      photo_url: patch.photo_url || null
+    }).eq('id', editingOutsideItem.id);
+    setBusy(false);
+    setEditingOutsideItem(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ تمّ التعديل');
+    await onRefresh();
+  }
+
+  async function handleDeleteOutsideItem(item) {
+    if (!confirm(`حذف "${item.name}"؟ يمكن استرجاعه من سلّة المحذوفات.`)) return;
+    setBusy(true);
+    const { error } = await supabase.from('items')
+      .update({ deleted_at: new Date().toISOString() }).eq('id', item.id);
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ نُقل لسلّة المحذوفات');
+    await onRefresh();
+  }
+
   return (
     <>
       <StatusToast msg={msg} />
@@ -137,8 +190,15 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
             )}
             {can('add') && (
               <button onClick={() => setPickerMode('item')}
-                className="bg-brand-blue text-white text-xs px-3 py-2 rounded-lg hover:bg-blue-800">
+                className="bg-gradient-to-l from-brand-navy to-brand-purple text-white text-xs px-3 py-2 rounded-lg hover:opacity-90 font-bold shadow-sm">
                 + 🔧 إضافة أداة
+              </button>
+            )}
+            {can('add') && (
+              <button onClick={() => setShowAddOutside(true)}
+                className="bg-stone-100 border border-stone-300 text-stone-800 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 font-medium"
+                title="غرض كبير لا يدخل صندوقاً (مثل طاولة كبيرة)">
+                + 📐 خارج المساحات
               </button>
             )}
           </div>
@@ -232,6 +292,43 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   </FormModal>
                 );
               })()}
+
+              {/* قسم "أغراض خارج المساحات" — للأشياء الكبيرة كالطاولات الكبيرة */}
+              {outsideItems.length > 0 && (
+                <div className="mt-5 bg-amber-50/60 border-2 border-dashed border-amber-300 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h4 className="text-sm font-display font-bold text-amber-900 flex items-center gap-1.5">
+                      📐 أغراض خارج المساحات ({outsideItems.length})
+                    </h4>
+                    <span className="text-[11px] text-amber-700">
+                      أشياء كبيرة لا تدخل صناديق — تُخزَّن في المستودع مباشرة
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {outsideItems.map(it => (
+                      <div key={it.id} className="bg-white border border-amber-200 rounded-lg p-2.5 flex items-center gap-2.5">
+                        {it.photo_url ? (
+                          <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{it.name}</div>
+                          <div className="text-[10px] text-stone-500">الكميّة: {it.quantity}</div>
+                        </div>
+                        {(isFounder || can('edit')) && (
+                          <button onClick={() => setEditingOutsideItem(it)}
+                            className="text-[10px] bg-stone-50 border border-stone-300 px-2 py-1.5 rounded hover:bg-stone-100">✏️</button>
+                        )}
+                        {(isFounder || can('delete')) && (
+                          <button onClick={() => handleDeleteOutsideItem(it)}
+                            className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded hover:bg-red-100">🗑</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )
         ) : (
@@ -287,6 +384,39 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           onConfirm={handleDeleteZone}
           onCancel={() => setConfirming(null)}
         />
+      )}
+
+      {/* مودال إضافة غرض خارج المساحات */}
+      {showAddOutside && (
+        <FormModal
+          title="📐 إضافة غرض خارج المساحات"
+          subtitle="للأشياء الكبيرة التي تُخزَّن في المستودع مباشرة (طاولات كبيرة، بنرات، إلخ)"
+          onClose={() => setShowAddOutside(false)}
+          maxWidth="max-w-md"
+        >
+          <NewItemForm
+            busy={busy}
+            onCancel={() => setShowAddOutside(false)}
+            onSave={handleSubmitOutsideItem}
+          />
+        </FormModal>
+      )}
+
+      {/* مودال تعديل غرض خارج المساحات */}
+      {editingOutsideItem && (
+        <FormModal
+          title={`✏️ تعديل "${editingOutsideItem.name}"`}
+          subtitle="غرض في منطقة التخزين المفتوحة"
+          onClose={() => setEditingOutsideItem(null)}
+          maxWidth="max-w-md"
+        >
+          <EditItemFormInline
+            item={editingOutsideItem}
+            busy={busy}
+            onCancel={() => setEditingOutsideItem(null)}
+            onSave={handleSaveOutsideEdit}
+          />
+        </FormModal>
       )}
 
       {/* مودال قائمة عند النقر على بطاقة إحصائيّة */}
