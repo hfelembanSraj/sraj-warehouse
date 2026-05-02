@@ -1,0 +1,28 @@
+name: Create Stairway Warehouse
+
+# سكربت لمرّة واحدة لإنشاء "مستودع المدرّج" بكامل بنيته
+# يُشغَّل يدوياً من واجهة GitHub أو عبر `gh workflow run`
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Supabase client
+        run: npm install @supabase/supabase-js@^2.45.0 --no-save --silent
+
+      - name: Run create script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/create-stairway-warehouse.mjs
