@@ -408,13 +408,8 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
                 }`}
                 title="اسحب أو اضغط لنقل الصنف"
               >
-                <svg viewBox="0 0 14 16" className={`w-3.5 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
-                  <circle cx="4" cy="3" r="1.3"/>
-                  <circle cx="10" cy="3" r="1.3"/>
-                  <circle cx="4" cy="8" r="1.3"/>
-                  <circle cx="10" cy="8" r="1.3"/>
-                  <circle cx="4" cy="13" r="1.3"/>
-                  <circle cx="10" cy="13" r="1.3"/>
+                <svg viewBox="0 0 24 24" className={`w-4 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
+                  <path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/>
                 </svg>
               </div>
             )}

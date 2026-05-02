@@ -435,6 +435,12 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           <div className="flex items-center gap-1.5 flex-wrap">
             {isFounder && (
               <>
+                {zoneBoxes.length > 0 && (
+                  <button onClick={selectAllInZone} disabled={busy}
+                    className="text-[11px] bg-blue-50 border border-blue-300 text-blue-800 px-2.5 py-1.5 rounded hover:bg-blue-100 font-medium">
+                    ✓ حدّد كل الصناديق ({zoneBoxes.length})
+                  </button>
+                )}
                 <button onClick={() => setEditMode(e => !e)} disabled={busy}
                   className={`text-[11px] px-3 py-1.5 rounded-lg font-medium border transition ${
                     editMode
@@ -559,10 +565,6 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
                   ✏️ تعديل الوصف
                 </button>
-                <button onClick={selectAllInZone}
-                  className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
-                  ⊞ تحديد الكلّ في المساحة
-                </button>
                 <button onClick={clearSelection}
                   className="text-[11px] bg-white/30 hover:bg-white/40 px-2.5 py-1 rounded font-medium">
                   ✕ إلغاء
@@ -649,24 +651,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
                     >
-                      <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none" style={{ backgroundColor: fresh.color }}>
+                      <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow-md pointer-events-none z-30" style={{ backgroundColor: fresh.color }}>
                         {shelfDisplayName(shelf, shelves)}
                       </span>
                       {!editMode && (
-                        <span className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1 py-0.5 rounded-tr rounded-bl pointer-events-none">
+                        <span className="absolute -top-2.5 left-2 bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-md font-medium shadow-md pointer-events-none z-30">
                           ادخل ←
                         </span>
-                      )}
-
-                      {/* زر تحديد كل صناديق هذا الرف — للمؤسّس */}
-                      {isFounder && shelfBoxes.length > 1 && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); selectAllInShelf(shelf.shelf_index); }}
-                          className="absolute bottom-0 right-1 text-[9px] bg-white/90 border border-blue-300 text-blue-700 px-1.5 py-0.5 rounded shadow-sm hover:bg-blue-50 z-30"
-                          title={`تحديد كلّ صناديق ${shelfDisplayName(shelf, shelves)}`}
-                        >
-                          ⊞ حدّد الكلّ
-                        </button>
                       )}
 
                       {/* رسم الـ slots على أساس الموقع — كل slot = موقع 1, 2, 3... */}
@@ -703,8 +694,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 photoUrl={box.photo_url}
                               />
                               {isPositionDropTarget && (
-                                <div className="absolute inset-0 bg-purple-500/20 backdrop-blur-[1px] flex items-center justify-center pointer-events-none rounded">
-                                  <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow">↪ إفلات هنا</span>
+                                <div className="absolute inset-0 bg-purple-500/25 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none rounded-lg ring-2 ring-purple-500 ring-offset-1 animate-pulse">
+                                  <svg viewBox="0 0 24 24" className="w-7 h-7 text-purple-700 fill-current drop-shadow">
+                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                  </svg>
                                 </div>
                               )}
                               {/* مقبض السحب — أيقونة "نقاط الإمساك" المعتمدة عالمياً */}
@@ -721,13 +714,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                   }`}
                                   title="اسحب أو اضغط لنقل الصندوق"
                                 >
-                                  <svg viewBox="0 0 14 16" className={`w-3.5 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
-                                    <circle cx="4" cy="3" r="1.3"/>
-                                    <circle cx="10" cy="3" r="1.3"/>
-                                    <circle cx="4" cy="8" r="1.3"/>
-                                    <circle cx="10" cy="8" r="1.3"/>
-                                    <circle cx="4" cy="13" r="1.3"/>
-                                    <circle cx="10" cy="13" r="1.3"/>
+                                  <svg viewBox="0 0 24 24" className={`w-4 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
+                                    <path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/>
                                   </svg>
                                 </div>
                               )}
@@ -759,17 +747,28 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                               }
                             }}
                             disabled={busy}
-                            className={`flex-1 border-2 border-dashed rounded font-bold flex flex-col items-center justify-center gap-0.5 transition ${
+                            className={`flex-1 border-2 border-dashed rounded-lg font-bold flex flex-col items-center justify-center gap-0.5 transition ${
                               hasActiveSelection
-                                ? 'border-purple-400 bg-purple-50 hover:bg-purple-100 hover:border-purple-600 text-purple-800'
+                                ? 'border-purple-500 bg-purple-50 hover:bg-purple-100 hover:border-purple-700 text-purple-800'
                                 : 'border-green-400 bg-green-50 hover:bg-green-100 hover:border-green-500 text-green-800'
                             }`}
                             title={hasActiveSelection
                               ? `أفلت هنا لنقل الصندوق إلى الموقع ${position}`
                               : `اضغط لإضافة صندوق هنا (موقع ${position})`}>
-                            <span className="text-lg leading-none">{hasActiveSelection ? '↪' : '+'}</span>
-                            <span className="text-[10px] leading-none">{hasActiveSelection ? 'انقل هنا' : 'صندوق'}</span>
-                            <span className="text-[8px] opacity-50 leading-none">#{position}</span>
+                            {hasActiveSelection ? (
+                              <>
+                                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current drop-shadow-sm">
+                                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                </svg>
+                                <span className="text-[9px] opacity-70 leading-none">#{position}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-lg leading-none">+</span>
+                                <span className="text-[10px] leading-none">صندوق</span>
+                                <span className="text-[8px] opacity-50 leading-none">#{position}</span>
+                              </>
+                            )}
                           </button>
                         ) : (
                           <div key={`empty-${position}`} className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-400 flex items-center justify-center pointer-events-none">
