@@ -69,22 +69,20 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
       return flash('فشل: ' + error.message, 'error');
     }
 
-    // إن اختار المستخدم قالب "بمدرج تخزين"، أنشئ المساحات الخمس تلقائياً
+    // قالب "بمدرج تخزين": مدرّجان متلاصقان، كل مدرّج = علوي يسار + سفلي يمين
     if (values.template === 'stairway' && newWhId) {
-      const WOOD = '#8B6F3F';  // لون خشبي بنّي موحّد
+      const WOOD = '#8B6F3F';
       const stairwayZones = [
-        // الدرج السفلي: 3 مساحات في صفّ، رفّ واحد لكلّ منها (مفتوح بدون تقسيم رأسي)
-        { letter: 'A', name: 'سفلي · يمين',  shelves_count: 1, max_per_shelf: 4,
-          pos: { pos_top: 55, pos_left: 30, pos_right: null, pos_width: 14, pos_height: 38 } },
-        { letter: 'B', name: 'سفلي · وسط',   shelves_count: 1, max_per_shelf: 4,
-          pos: { pos_top: 55, pos_left: 16, pos_right: null, pos_width: 14, pos_height: 38 } },
-        { letter: 'C', name: 'سفلي · يسار',  shelves_count: 1, max_per_shelf: 4,
-          pos: { pos_top: 55, pos_left: 2,  pos_right: null, pos_width: 14, pos_height: 38 } },
-        // الدرج العلوي: 2 مساحة، رفّان لكلّ مساحة (التخزين يمتدّ للأرض)
-        { letter: 'D', name: 'علوي · يمين',  shelves_count: 2, max_per_shelf: 4,
-          pos: { pos_top: 5,  pos_left: 23, pos_right: null, pos_width: 21, pos_height: 42 } },
-        { letter: 'E', name: 'علوي · يسار',  shelves_count: 2, max_per_shelf: 4,
-          pos: { pos_top: 5,  pos_left: 2,  pos_right: null, pos_width: 21, pos_height: 42 } }
+        // المدرّج الأمامي (قرب المدخل)
+        { letter: 'A', name: 'علوي · أمامي', shelves_count: 2, max_per_shelf: 4,
+          pos: { pos_top: 52, pos_left: 2,  pos_right: null, pos_width: 18, pos_height: 43 } },
+        { letter: 'B', name: 'سفلي · أمامي', shelves_count: 1, max_per_shelf: 3,
+          pos: { pos_top: 52, pos_left: 22, pos_right: null, pos_width: 18, pos_height: 43 } },
+        // المدرّج الخلفي (بجانبه، خلف الأمامي)
+        { letter: 'C', name: 'علوي · خلفي', shelves_count: 2, max_per_shelf: 4,
+          pos: { pos_top: 5,  pos_left: 2,  pos_right: null, pos_width: 18, pos_height: 43 } },
+        { letter: 'D', name: 'سفلي · خلفي', shelves_count: 1, max_per_shelf: 3,
+          pos: { pos_top: 5,  pos_left: 22, pos_right: null, pos_width: 18, pos_height: 43 } }
       ];
 
       for (const z of stairwayZones) {

@@ -43,7 +43,7 @@ export function CreateWarehouseForm({ busy, onCancel, onSave }) {
               <span className="text-2xl">🪜</span>
               <div className="flex-1">
                 <div className="text-sm font-bold">بمدرج خشبيّ</div>
-                <div className="text-[10px] text-stone-500 mt-0.5">3 سفلي · 2 علوي = 5 مساحات</div>
+                <div className="text-[10px] text-stone-500 mt-0.5">مدرّجان × (علوي + سفلي) = 4 مساحات</div>
               </div>
               {template === 'stairway' && <span className="text-amber-800 font-bold">✓</span>}
             </div>
@@ -51,7 +51,7 @@ export function CreateWarehouseForm({ busy, onCancel, onSave }) {
         </div>
         {template === 'stairway' && (
           <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900">
-            🪜 سيُنشَأ المستودع مع <strong>5 مساحات تخزين</strong>: درج سفلي بـ3 مساحات مفتوحة (بدون رفوف داخليّة)، ودرج علوي بمساحتين كلّ منهما رفّان (تخزينه يمتدّ للأرض). كلّها بلون خشبيّ بنّي موحّد.
+            🪜 سيُنشَأ المستودع مع <strong>مدرّجين متلاصقين</strong>. كلّ مدرّج فيه: درج علوي على اليسار (رفّان)، ودرج سفلي على يمينه (3 مساحات داخليّة). المجموع: <strong>4 مساحات تخزين</strong> بلون خشبيّ بنّي موحّد.
           </div>
         )}
       </div>
