@@ -178,7 +178,7 @@ export default function GlobalSearch({ onJump }) {
                         key={it.id}
                         icon={it.photo_url
                           ? <img src={it.photo_url} alt="" className="w-8 h-8 object-cover rounded" />
-                          : '🔧'
+                          : <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[7px] font-bold text-stone-700 text-center p-0.5 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
                         }
                         title={it.name}
                         subtitle={`${it.warehouseName}${z ? ` ← ${z.letter}` : ''} ← ${it.boxes?.code || '—'} · كميّة: ${it.quantity}`}

@@ -251,7 +251,7 @@ export default function RecoveryBin({ onRefresh }) {
                       {it.photo_url ? (
                         <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200" />
                       ) : (
-                        <div className="w-12 h-12 rounded bg-stone-100 flex items-center justify-center text-xl">🔧</div>
+                        <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-700 text-center p-1 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
                       )}
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-display font-bold">{it.name}</h4>

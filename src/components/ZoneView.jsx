@@ -662,7 +662,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   {it.photo_url ? (
                     <img src={it.photo_url} alt={it.name} className="w-10 h-10 object-cover rounded border border-stone-200 flex-shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded bg-stone-100 flex items-center justify-center text-lg flex-shrink-0">🔧</div>
+                    <div className="w-10 h-10 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[8px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate">{it.name}</div>
@@ -1274,7 +1274,7 @@ function ZoneItemsList({ items, zoneBoxes, zone, onItemClick }) {
               {it.photo_url ? (
                 <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
               ) : (
-                <div className="w-12 h-12 rounded bg-stone-100 flex items-center justify-center text-xl flex-shrink-0">🔧</div>
+                <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
               )}
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-medium truncate">{it.name}</h4>

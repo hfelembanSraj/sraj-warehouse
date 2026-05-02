@@ -310,6 +310,7 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
 // ====== الخطوة 2 (للأغراض): اختيار صندوق — يعرض الرفّ بنفس شكل المساحة الحقيقيّة ======
 function BoxPickerStep({ zone, data, onPick, onBack }) {
   const [creating, setCreating] = useState(false);
+  const [pickingNewBoxPosition, setPickingNewBoxPosition] = useState(false);
   const shelves = (zone.shelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index);
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
 
@@ -317,13 +318,12 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
     return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex));
   }
 
-  // إنشاء صندوق جديد في أوّل رفّ ثمّ اختياره مباشرة
-  async function createBoxAndPick() {
-    if (shelves.length === 0) return;
+  // إنشاء صندوق جديد في موقع محدّد ثمّ اختياره
+  async function createBoxAtPositionAndPick(shelf, position) {
     setCreating(true);
-    const firstShelf = shelves[0];
-    const { data: newBoxId, error } = await supabase.rpc('add_box_to_shelf', {
-      s_id: firstShelf.id,
+    const { data: newBoxId, error } = await supabase.rpc('add_box_at_position', {
+      s_id: shelf.id,
+      p_position: position,
       b_description: '',
       b_width_cm: 50,
       b_height_cm: 65
@@ -336,6 +336,7 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
     }
     const { data: newBox } = await supabase.from('boxes').select('*').eq('id', newBoxId).single();
     setCreating(false);
+    setPickingNewBoxPosition(false);
     if (newBox) onPick(newBox);
   }
 
@@ -357,6 +358,35 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
     );
   }
 
+  // وضع "اختر موقع الصندوق الجديد" — يعرض الرفّ ويسمح بنقر موقع شاغر
+  if (pickingNewBoxPosition) {
+    return (
+      <>
+        <button onClick={() => setPickingNewBoxPosition(false)} disabled={creating}
+          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+          ← الرجوع
+        </button>
+        <div className="text-[11px] text-stone-600 mb-2 text-center">
+          🆕 اختر الموقع الذي سيُنشَأ فيه الصندوق الجديد
+        </div>
+        <PositionPickerStep
+          zone={zone}
+          data={data}
+          onPick={(shelf, position) => createBoxAtPositionAndPick(shelf, position)}
+          onBack={null}
+        />
+        {creating && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-5 shadow-2xl">
+              <div className="w-8 h-8 border-3 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-xs text-stone-600">جاري إنشاء الصندوق...</p>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   // مساحة بأرفف لكن بدون صناديق — أتح إنشاء صندوق فوراً
   if (zoneBoxes.length === 0) {
     return (
@@ -370,10 +400,10 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
         <div className="text-center py-8 space-y-3 border-2 border-dashed border-amber-300 rounded-xl bg-amber-50/50">
           <div className="text-4xl">📭</div>
           <p className="text-sm text-stone-700 font-medium">هذه المساحة بدون صناديق بعد</p>
-          <p className="text-[11px] text-stone-500">أنشئ صندوقاً هنا فوراً واستخدمه للنقل</p>
-          <button onClick={createBoxAndPick} disabled={creating}
-            className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold disabled:opacity-50 shadow-md">
-            {creating ? '... جاري الإنشاء' : '+ 📦 أنشئ صندوقاً جديداً واستخدمه'}
+          <p className="text-[11px] text-stone-500">أنشئ صندوقاً في الموقع الذي تختاره واستخدمه</p>
+          <button onClick={() => setPickingNewBoxPosition(true)}
+            className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold shadow-md">
+            + 📦 اختر موقعاً وأنشئ صندوقاً
           </button>
         </div>
       </>
@@ -438,10 +468,14 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
                       );
                     }
                     return (
-                      <div key={`empty-${position}`}
-                        className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-300 flex items-center justify-center pointer-events-none">
-                        فارغ
-                      </div>
+                      <button key={`empty-${position}`}
+                        onClick={() => createBoxAtPositionAndPick(shelf, position)}
+                        disabled={creating}
+                        className="flex-1 border-2 border-dashed border-amber-400 bg-amber-50 hover:bg-amber-100 hover:border-amber-600 rounded text-[10px] text-amber-800 font-bold flex flex-col items-center justify-center transition disabled:opacity-50"
+                        title={`أنشئ صندوقاً جديداً هنا (موقع ${position})`}>
+                        <span className="text-base leading-none">+</span>
+                        <span className="text-[8px] leading-none mt-0.5">جديد #{position}</span>
+                      </button>
                     );
                   })}
                 </div>

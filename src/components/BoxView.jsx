@@ -383,12 +383,16 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
     <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
       style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
       <>
-          {/* صورة الصنف */}
+          {/* صورة الصنف — أو الاسم نصّاً إن لم توجد صورة */}
           <div className="aspect-square bg-stone-50 relative overflow-hidden">
             {item.photo_url ? (
               <img src={item.photo_url} alt={item.name} draggable={false} className="w-full h-full object-cover pointer-events-none" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl text-stone-300 pointer-events-none">🔧</div>
+              <div className="w-full h-full flex items-center justify-center p-2 bg-gradient-to-br from-amber-50 to-stone-100 pointer-events-none">
+                <span className="text-sm font-display font-bold text-stone-800 text-center break-words leading-tight">
+                  {item.name}
+                </span>
+              </div>
             )}
             {/* شارة الكميّة */}
             <div className="absolute top-1 right-1 bg-brand-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none">
@@ -419,10 +423,12 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
               </span>
             )}
           </div>
-          {/* اسم الصنف */}
+          {/* اسم الصنف (يظهر تحت الصورة فقط — وإن لم توجد صورة فالاسم في الأعلى) */}
           <div className="p-2">
-            <h5 className="text-xs font-medium text-stone-900 truncate text-center">{item.name}</h5>
-            <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap">
+            {item.photo_url && (
+              <h5 className="text-xs font-medium text-stone-900 truncate text-center mb-1.5">{item.name}</h5>
+            )}
+            <div className="flex items-center justify-center gap-1 flex-wrap">
               {canCheckout && (
                 <button onClick={onCheckout}
                   className="text-[9px] bg-brand-blue text-white px-2 py-0.5 rounded hover:bg-blue-800">
