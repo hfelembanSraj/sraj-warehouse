@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import BrandLogo, { BrandStripe } from '../components/BrandLogo';
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -49,50 +50,63 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-50 to-orange-50 p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl border border-stone-200 p-8">
-          <div className="text-center mb-6">
-            <h1 className="text-xl font-display font-bold text-stone-900">إنشاء حساب جديد</h1>
-            <p className="text-sm text-stone-500 mt-1">طلب الانضمام لمستودع</p>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-stone-50 via-white to-pink-50/30 p-4">
+      <BrandStripe height={5} animated className="fixed top-0 left-0 right-0 z-50" />
+      <div className="flex-1 flex items-center justify-center pt-6">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden">
+            <div className="relative bg-gradient-to-br from-brand-navy to-brand-purple px-8 py-6 text-center text-white">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-xl mb-2 p-1.5">
+                <BrandLogo size={52} />
+              </div>
+              <h1 className="text-base font-display font-bold">إنشاء حساب جديد</h1>
+              <p className="text-[11px] opacity-80 mt-0.5">طلب الانضمام لمستودع</p>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand-stripe" />
+            </div>
+
+            <div className="p-7">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-lg text-sm mb-4">{error}</div>
+              )}
+
+              <form onSubmit={handleSignup} className="space-y-3">
+                <div>
+                  <label className="block text-xs text-stone-700 font-medium mb-1.5">الاسم الكامل</label>
+                  <input type="text" required value={form.fullName} onChange={(e) => setForm({...form, fullName: e.target.value})}
+                    className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition" />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-700 font-medium mb-1.5">البريد الإلكتروني</label>
+                  <input type="email" required value={form.email} onChange={(e) => setForm({...form, email: e.target.value})}
+                    className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition" />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-700 font-medium mb-1.5">كلمة المرور (6 أحرف على الأقل)</label>
+                  <input type="password" required minLength={6} value={form.password} onChange={(e) => setForm({...form, password: e.target.value})}
+                    className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition" />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-700 font-medium mb-1.5">المستودع المطلوب</label>
+                  <select required value={form.warehouseId} onChange={(e) => setForm({...form, warehouseId: e.target.value})}
+                    className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none bg-white transition">
+                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full bg-gradient-to-l from-brand-navy to-brand-purple text-white py-3 rounded-lg text-sm font-bold hover:shadow-lg transition disabled:opacity-50 mt-2 shadow-md">
+                  {loading ? 'جاري الإرسال...' : 'إرسال طلب الانضمام'}
+                </button>
+              </form>
+
+              <div className="mt-5 pt-5 border-t border-stone-200 text-center">
+                <Link to="/login" className="text-sm text-brand-navy font-medium hover:text-brand-pink transition">→ الرجوع لتسجيل الدخول</Link>
+              </div>
+            </div>
           </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-lg text-sm mb-4">{error}</div>
-          )}
-
-          <form onSubmit={handleSignup} className="space-y-3">
-            <div>
-              <label className="block text-xs text-stone-600 mb-1.5">الاسم الكامل</label>
-              <input type="text" required value={form.fullName} onChange={(e) => setForm({...form, fullName: e.target.value})}
-                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-blue outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs text-stone-600 mb-1.5">البريد الإلكتروني</label>
-              <input type="email" required value={form.email} onChange={(e) => setForm({...form, email: e.target.value})}
-                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-blue outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs text-stone-600 mb-1.5">كلمة المرور (6 أحرف على الأقل)</label>
-              <input type="password" required minLength={6} value={form.password} onChange={(e) => setForm({...form, password: e.target.value})}
-                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-blue outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs text-stone-600 mb-1.5">المستودع المطلوب</label>
-              <select required value={form.warehouseId} onChange={(e) => setForm({...form, warehouseId: e.target.value})}
-                className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-blue outline-none bg-white">
-                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </div>
-            <button type="submit" disabled={loading}
-              className="w-full bg-brand-blue text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-800 transition disabled:opacity-50 mt-2">
-              {loading ? 'جاري الإرسال...' : 'إرسال طلب الانضمام'}
-            </button>
-          </form>
-
-          <div className="mt-5 pt-5 border-t border-stone-200 text-center">
-            <Link to="/login" className="text-sm text-brand-blue hover:underline">→ الرجوع لتسجيل الدخول</Link>
-          </div>
+          <p className="text-center text-xs text-stone-400 mt-4">
+            © 2026 جمعيّة المسؤوليّة الاجتماعيّة بمحافظة جدّة
+          </p>
         </div>
       </div>
     </div>

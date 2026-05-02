@@ -55,8 +55,33 @@ body {
   .no-print { display: none !important; }
 }
 
-/* Custom focus ring */
+/* Custom focus ring — لون الجمعيّة الأساسي (Navy) */
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-  outline: 2px solid #185FA5;
+  outline: 2px solid #1A2B5F;
   outline-offset: 2px;
+}
+
+/* شعار الجمعيّة — أيقونة مصغّرة بمثلّثات الشعار */
+.brand-logo-icon {
+  display: inline-block;
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+.brand-logo-icon::before,
+.brand-logo-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* أنميشن لمعان للشريط البرندي */
+@keyframes brand-shimmer {
+  0%   { background-position:   0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
+}
+.animate-brand-shimmer {
+  background-size: 200% 100%;
+  animation: brand-shimmer 8s ease-in-out infinite;
 }

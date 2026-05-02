@@ -24,6 +24,7 @@ import WarehouseBuilder from '../components/WarehouseBuilder';
 import QrScannerModal from '../components/QrScannerModal';
 import GlobalSearch from '../components/GlobalSearch';
 import RecoveryBin from '../components/RecoveryBin';
+import BrandLogo, { BrandStripe } from '../components/BrandLogo';
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
@@ -282,15 +283,20 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {/* شريط ألوان الجمعيّة العلوي */}
+      <BrandStripe height={4} animated className="sticky top-0 z-30 no-print" />
+
       {/* Top Bar */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-20 no-print">
+      <header className="bg-white border-b border-stone-200 sticky top-1 z-20 no-print shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-brand-blue text-white flex items-center justify-center font-display font-bold">س</div>
+            <div className="w-10 h-10 bg-white rounded-xl shadow-md p-1 flex items-center justify-center">
+              <BrandLogo size={36} />
+            </div>
             <WarehouseSwitcher />
             <button
               onClick={() => setShowScanner(true)}
-              className="inline-flex items-center gap-1 text-[11px] bg-brand-blue text-white hover:bg-blue-800 px-2.5 py-1.5 rounded-lg font-medium"
+              className="inline-flex items-center gap-1 text-[11px] bg-gradient-to-l from-brand-navy to-brand-purple text-white hover:opacity-90 px-2.5 py-1.5 rounded-lg font-medium shadow"
               title="مسح رمز QR"
             >
               📷 مسح
@@ -312,7 +318,7 @@ export default function Dashboard() {
               </div>
               <div className="text-[10px] text-stone-500">{isFounder ? 'المؤسّس' : USER_ROLES[role]}</div>
             </div>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isFounder ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-400' : 'bg-blue-100 text-brand-blue'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isFounder ? 'bg-gradient-to-br from-brand-yellow to-brand-orange text-white ring-2 ring-brand-orange shadow-md' : 'bg-gradient-to-br from-brand-cyan to-brand-blue text-white shadow'}`}>
               {getInitials(profile?.full_name)}
             </div>
             <button onClick={handleLogout} className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100">
@@ -335,16 +341,18 @@ export default function Dashboard() {
         )}
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl border border-stone-200 p-1 mb-4 overflow-x-auto no-print">
+        <div className="bg-white rounded-xl border border-stone-200 p-1 mb-4 overflow-x-auto no-print shadow-sm">
           <div className="flex gap-1 min-w-max">
             {tabs.map(t => (
               <button key={t.key} onClick={() => handleTabChange(t.key)}
                 className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap transition flex items-center gap-1.5 ${
-                  activeTab === t.key ? 'bg-brand-blue text-white font-medium' : 'text-stone-600 hover:bg-stone-100'
+                  activeTab === t.key
+                    ? 'bg-gradient-to-l from-brand-navy to-brand-purple text-white font-bold shadow'
+                    : 'text-stone-600 hover:bg-stone-100'
                 }`}>
                 {t.label}
                 {t.badge > 0 && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-white text-brand-blue' : 'bg-red-500 text-white'}`}>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-white text-brand-navy' : 'bg-brand-pink text-white'}`}>
                     {t.badge}
                   </span>
                 )}
