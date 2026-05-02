@@ -5,12 +5,13 @@ import CheckoutModal from './CheckoutModal';
 import PhotoUploader from './PhotoUploader';
 import LocationPicker from './LocationPicker';
 import CopyCodeButton from './CopyCodeButton';
+import { printBoxLabel } from './PrintBoxLabel';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
 
 export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZone, onBackToShelf, onRefresh }) {
-  const { isFounder, can } = useAuth();
+  const { isFounder, can, activeWarehouse } = useAuth();
   const [items, setItems] = useState([]);
   const [movingItem, setMovingItem] = useState(null);  // الغرض الذي نختار له صندوقاً جديداً
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,10 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
 
   // الصندوق الحديث (يُحدَّث محليّاً بعد التعديل)
   const [currentBox, setCurrentBox] = useState(box);
+  // سجلّ حركة الصندوق + أغراضه
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     setCurrentBox(box);
@@ -91,13 +96,23 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
   async function handleAddItem(values) {
     if (!values.name?.trim()) return flash('اسم الصنف مطلوب', 'error');
     setBusy(true);
-    const { error } = await supabase.from('items').insert({
+    const { data: newItem, error } = await supabase.from('items').insert({
       box_id: box.id,
       name: values.name.trim(),
       quantity: Number(values.quantity) || 1,
       status: 'ok',
       photo_url: values.photo_url || null
-    });
+    }).select().single();
+    if (!error && newItem) {
+      // تسجيل في سجلّ النشاط (للسجلّ المُنظَّم)
+      await import('../lib/supabase').then(m => m.logActivity(
+        'إضافة',
+        `${values.name.trim()} × ${values.quantity}`,
+        currentBox.code,
+        'item',
+        newItem.id
+      ));
+    }
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
     flash(`✅ تمت إضافة "${values.name}"`);
@@ -115,6 +130,28 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
     flash('✅ تم النقل لسلّة المحذوفات');
     await loadItems();
     await onRefresh();
+  }
+
+  // تحميل سجلّ هذا الصندوق وأغراضه
+  async function loadHistory() {
+    setHistoryLoading(true);
+    setShowHistory(true);
+    const itemIds = items.map(i => i.id);
+    const targetIds = [box.id, ...itemIds];
+    // أوّلاً: نحاول البحث بـtarget_id (إن وُجد بعد الترقية 11)
+    const { data: byId } = await supabase.from('activity_log')
+      .select('*').in('target_id', targetIds).order('created_at', { ascending: false }).limit(100);
+    // ثانياً: نضيف بحثاً نصياً قديماً عن رمز الصندوق (للسجلّات قبل الترقية)
+    const { data: byText } = await supabase.from('activity_log')
+      .select('*').or(`target.ilike.%${box.code}%,location.ilike.%${box.code}%`)
+      .order('created_at', { ascending: false }).limit(100);
+    const all = [...(byId || []), ...(byText || [])];
+    // إزالة التكرار بالـid
+    const seen = new Set();
+    const unique = all.filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+    unique.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    setHistoryEntries(unique);
+    setHistoryLoading(false);
   }
 
   async function handleMoveItem(targetBoxId) {
@@ -168,7 +205,18 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button onClick={loadHistory}
+              className="text-[11px] bg-stone-50 border border-stone-300 text-stone-700 px-2.5 py-1.5 rounded hover:bg-stone-100"
+              title="سجلّ حركة هذا الصندوق وأغراضه">
+              📜 السجلّ
+            </button>
+            <button
+              onClick={() => printBoxLabel(currentBox, activeWarehouse?.id, activeWarehouse?.name, zone?.name)}
+              className="text-[11px] bg-blue-50 border border-blue-300 text-blue-800 px-2.5 py-1.5 rounded hover:bg-blue-100"
+              title="اطبع ملصق هذا الصندوق فقط (QR + رمز + اسم المساحة)">
+              🖨 طباعة الملصق
+            </button>
             {isFounder && (
               <>
                 <button onClick={() => setEditing(e => !e)} disabled={busy}
@@ -331,6 +379,42 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           title={`📍 نقل "${movingItem.name}"`}
           subtitle={`من ${currentBox.code} · اختر الوجهة من خريطة المستودع`}
         />
+      )}
+
+      {/* مودال سجلّ حركة الصندوق وأغراضه */}
+      {showHistory && (
+        <FormModal
+          title={`📜 سجلّ حركة الصندوق ${currentBox.code}`}
+          subtitle={`يشمل سجلّ الصندوق وكلّ أغراضه (${items.length} غرض)`}
+          onClose={() => setShowHistory(false)}
+          maxWidth="max-w-2xl"
+        >
+          {historyLoading ? (
+            <p className="text-center text-sm text-stone-500 py-8">جاري التحميل...</p>
+          ) : historyEntries.length === 0 ? (
+            <div className="text-center py-8 text-stone-400">
+              <div className="text-3xl mb-2">📭</div>
+              <p className="text-sm">لا توجد حركات مُسجَّلة لهذا الصندوق بعد</p>
+              <p className="text-[11px] mt-2">السجلّات الجديدة ستظهر هنا تلقائياً</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
+              {historyEntries.map(e => (
+                <div key={e.id} className="bg-stone-50 border border-stone-200 rounded-lg p-2.5 text-xs">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <span className="font-bold text-brand-navy">{e.action}</span>
+                    <span className="text-[10px] text-stone-500">
+                      {new Date(e.created_at).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}
+                    </span>
+                  </div>
+                  {e.target && <div className="text-stone-700 mt-0.5">📌 {e.target}</div>}
+                  {e.location && <div className="text-[10px] text-stone-500">📍 {e.location}</div>}
+                  <div className="text-[10px] text-stone-500 mt-1">بواسطة: <strong>{e.user_name}</strong></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </FormModal>
       )}
     </>
   );

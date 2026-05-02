@@ -100,11 +100,12 @@ export default function GlobalSearch({ onJump }) {
       <input
         ref={inputRef}
         type="search"
+        data-global-search
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        placeholder="🔍 بحث شامل..."
-        className="w-40 sm:w-56 text-xs px-3 py-1.5 border border-stone-300 rounded-lg focus:outline-none focus:border-brand-blue"
+        placeholder="🔍 بحث شامل... (/)"
+        className="w-40 sm:w-56 text-xs px-3 py-1.5 border border-stone-300 rounded-lg focus:outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20"
       />
 
       {open && query.trim() && (

@@ -25,6 +25,7 @@ import QrScannerModal from '../components/QrScannerModal';
 import GlobalSearch from '../components/GlobalSearch';
 import RecoveryBin from '../components/RecoveryBin';
 import BrandLogo, { BrandStripe } from '../components/BrandLogo';
+import { useGlobalShortcuts } from '../lib/useKeyboard';
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
@@ -46,6 +47,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (warehouseId) loadAllData();
   }, [warehouseId]);
+
+  // اختصارات لوحة المفاتيح: / للبحث · Ctrl+K لماسح QR
+  useGlobalShortcuts({
+    onFocusSearch: () => {
+      const el = document.querySelector('input[type="search"][data-global-search]');
+      if (el) el.focus();
+    },
+    onOpenScanner: () => setShowScanner(true)
+  });
 
   // معالجة روابط QR (?wh=&zone=&box=) عند التحميل أو بعد المسح
   function handleScannedUrl(rawUrl) {

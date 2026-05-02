@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PRESET_COLORS, PRESET_POSITIONS } from '../lib/warehouseOps';
 import PhotoUploader from './PhotoUploader';
 
@@ -518,8 +518,15 @@ export function EditBoxForm({ box, busy, onCancel, onSave }) {
   );
 }
 
-// مكوّن مودال للنماذج — يظهر عائماً مركزياً، لا يضيع عند التمرير
+// مكوّن مودال للنماذج — يظهر عائماً مركزياً، يُغلَق بـEsc أيضاً
 export function FormModal({ title, subtitle, children, onClose, maxWidth = 'max-w-md' }) {
+  // Esc لإغلاق المودال
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose?.(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in"
       onClick={onClose}>
@@ -532,7 +539,7 @@ export function FormModal({ title, subtitle, children, onClose, maxWidth = 'max-
             <h3 className="text-sm font-display font-bold">{title}</h3>
             {subtitle && <p className="text-[11px] text-stone-600 mt-0.5">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-700 text-2xl leading-none px-2">×</button>
+          <button onClick={onClose} title="إغلاق (Esc)" className="text-stone-400 hover:text-stone-700 text-2xl leading-none px-2">×</button>
         </div>
         <div className="p-5 overflow-y-auto">
           {children}

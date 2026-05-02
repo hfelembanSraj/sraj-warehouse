@@ -10,7 +10,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Helper: تسجيل حركة في السجل
-export async function logActivity(action, target, location) {
+// targetType: 'item' | 'box' | 'zone' | 'warehouse' | null
+// targetId: UUID للكائن المعنيّ (إن وُجد) — للبحث السريع لاحقاً
+export async function logActivity(action, target, location, targetType = null, targetId = null) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
@@ -25,7 +27,9 @@ export async function logActivity(action, target, location) {
     user_name: profile?.full_name || 'مستخدم',
     action,
     target,
-    location
+    location,
+    target_type: targetType,
+    target_id: targetId
   });
 }
 
