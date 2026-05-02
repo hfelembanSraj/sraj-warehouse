@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
 import { todayStr, daysSince, isOverdue } from '../lib/helpers';
@@ -6,13 +6,37 @@ import { DEFAULT_RETURN_DAYS, DAMAGE_REASONS } from '../lib/constants';
 
 export default function CheckoutsTab({ data, onRefresh }) {
   const { user, profile, can, warehouseId } = useAuth();
-  const [actionModal, setActionModal] = useState(null); // { type, checkout }
+  const [actionModal, setActionModal] = useState(null);
+  // وضع العرض: list = جدول، calendar = تقويم
+  const [viewMode, setViewMode] = useState('list');
 
   return (
     <>
       <div className="bg-white rounded-xl border border-stone-200 p-5 mb-4">
-        <h2 className="text-sm font-display font-bold mb-1">العُدّة المُخرَجة حالياً</h2>
-        <p className="text-xs text-stone-500 mb-4">المهلة الافتراضية {DEFAULT_RETURN_DAYS} أيام للإرجاع</p>
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+          <div>
+            <h2 className="text-sm font-display font-bold">العُدّة المُخرَجة حالياً</h2>
+            <p className="text-xs text-stone-500">المهلة الافتراضية {DEFAULT_RETURN_DAYS} أيام للإرجاع</p>
+          </div>
+          <div className="bg-stone-100 rounded-lg p-0.5 inline-flex">
+            <button onClick={() => setViewMode('list')}
+              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'list' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+              📋 قائمة
+            </button>
+            <button onClick={() => setViewMode('calendar')}
+              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'calendar' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+              📅 تقويم
+            </button>
+          </div>
+        </div>
+
+        {viewMode === 'calendar' && (
+          <CheckoutsCalendar checkouts={data.checkouts} />
+        )}
+
+        {viewMode === 'list' && (
+        <>
+
 
         {data.checkouts.length === 0 ? (
           <div className="text-center py-12 text-stone-400 text-sm">لا توجد عُدّة مُخرَجة حالياً</div>
@@ -74,6 +98,8 @@ export default function CheckoutsTab({ data, onRefresh }) {
               </tbody>
             </table>
           </div>
+        )}
+        </>
         )}
       </div>
 
@@ -230,6 +256,168 @@ function ActionModal({ type, checkout, warehouseId, userId, userName, onClose, o
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============ تقويم الإخراجات ============
+function CheckoutsCalendar({ checkouts }) {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const weekDays = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+
+  const days = useMemo(() => {
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const startWeekDay = first.getDay();
+    const cells = [];
+    for (let i = 0; i < startWeekDay; i++) cells.push(null);
+    for (let d = 1; d <= last.getDate(); d++) cells.push(new Date(year, month, d));
+    return cells;
+  }, [year, month]);
+
+  function eventsOnDate(date) {
+    if (!date) return { out: [], dueReturn: [] };
+    const dateStr = date.toISOString().slice(0, 10);
+    const out = checkouts.filter(c => c.date_out === dateStr);
+    // الإرجاع المتوقّع = date_out + DEFAULT_RETURN_DAYS
+    const dueReturn = checkouts.filter(c => {
+      if (c.purpose === 'personal') return false;
+      const due = new Date(c.date_out);
+      due.setDate(due.getDate() + DEFAULT_RETURN_DAYS);
+      return due.toISOString().slice(0, 10) === dateStr;
+    });
+    return { out, dueReturn };
+  }
+
+  function prevMonth() {
+    if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1);
+    setSelectedDay(null);
+  }
+  function nextMonth() {
+    if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1);
+    setSelectedDay(null);
+  }
+  function goToday() {
+    setMonth(today.getMonth());
+    setYear(today.getFullYear());
+    setSelectedDay(today.toISOString().slice(0, 10));
+  }
+
+  const isToday = (d) => d && d.toDateString() === today.toDateString();
+  const selectedEvents = selectedDay
+    ? eventsOnDate(new Date(selectedDay))
+    : null;
+
+  return (
+    <div>
+      {/* رأس التقويم */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 text-xs">→ السابق</button>
+          <button onClick={goToday} className="px-3 py-1.5 bg-brand-navy text-white rounded-lg hover:opacity-90 text-xs font-bold">اليوم</button>
+          <button onClick={nextMonth} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 text-xs">التالي ←</button>
+        </div>
+        <h3 className="text-base font-display font-bold text-brand-navy">{monthNames[month]} {year}</h3>
+      </div>
+
+      {/* وسيلة الإيضاح */}
+      <div className="flex items-center gap-3 text-[10px] text-stone-600 mb-2 flex-wrap">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200"></span>إخراج</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-200"></span>إرجاع متوقّع</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200"></span>متأخّر</span>
+      </div>
+
+      {/* شبكة الأيّام */}
+      <div className="border border-stone-200 rounded-lg overflow-hidden">
+        <div className="grid grid-cols-7 bg-stone-100 text-[10px] font-bold text-stone-700">
+          {weekDays.map(d => <div key={d} className="p-2 text-center border-l border-stone-200 last:border-l-0">{d}</div>)}
+        </div>
+        <div className="grid grid-cols-7">
+          {days.map((d, i) => {
+            const events = eventsOnDate(d);
+            const totalEvents = events.out.length + events.dueReturn.length;
+            const isSelected = d && selectedDay === d.toISOString().slice(0, 10);
+            const overdue = events.dueReturn.some(c => {
+              const due = new Date(c.date_out);
+              due.setDate(due.getDate() + DEFAULT_RETURN_DAYS);
+              return due < today;
+            });
+            return (
+              <button
+                key={i}
+                onClick={() => d && setSelectedDay(d.toISOString().slice(0, 10))}
+                disabled={!d}
+                className={`min-h-[64px] p-1 border border-stone-100 text-right transition ${
+                  !d ? 'bg-stone-50/50' :
+                  isSelected ? 'bg-brand-navy/10 ring-2 ring-brand-navy ring-inset' :
+                  isToday(d) ? 'bg-amber-50 hover:bg-amber-100' :
+                  totalEvents > 0 ? 'bg-white hover:bg-stone-50' : 'bg-white hover:bg-stone-50'
+                }`}>
+                {d && (
+                  <>
+                    <div className={`text-[11px] font-bold ${isToday(d) ? 'text-amber-700' : 'text-stone-700'}`}>
+                      {d.getDate()}
+                    </div>
+                    {totalEvents > 0 && (
+                      <div className="space-y-0.5 mt-1">
+                        {events.out.length > 0 && (
+                          <div className="text-[9px] bg-orange-100 text-orange-800 rounded px-1 truncate">
+                            ↑ {events.out.length} إخراج
+                          </div>
+                        )}
+                        {events.dueReturn.length > 0 && (
+                          <div className={`text-[9px] rounded px-1 truncate ${overdue ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
+                            ↓ {events.dueReturn.length} {overdue ? 'متأخّر' : 'إرجاع'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* تفاصيل اليوم المختار */}
+      {selectedDay && selectedEvents && (
+        <div className="mt-3 bg-stone-50 border border-stone-200 rounded-lg p-3">
+          <h4 className="text-xs font-bold mb-2">📅 {new Date(selectedDay).toLocaleDateString('ar-SA', { dateStyle: 'full' })}</h4>
+          {selectedEvents.out.length === 0 && selectedEvents.dueReturn.length === 0 ? (
+            <p className="text-xs text-stone-400">لا أحداث في هذا اليوم</p>
+          ) : (
+            <div className="space-y-2">
+              {selectedEvents.out.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-orange-700 mb-1">↑ إخراج ({selectedEvents.out.length})</p>
+                  {selectedEvents.out.map(c => (
+                    <div key={c.id} className="text-[11px] bg-white border border-orange-200 rounded p-2 mb-1">
+                      <strong>{c.item_name}</strong> ×{c.quantity} · لـ {c.user_name} · من {c.box_code}
+                      {c.purpose === 'initiative' && c.initiative && <div className="text-[10px] text-blue-700 mt-0.5">مبادرة: {c.initiative}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedEvents.dueReturn.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-blue-700 mb-1">↓ إرجاع متوقّع ({selectedEvents.dueReturn.length})</p>
+                  {selectedEvents.dueReturn.map(c => (
+                    <div key={c.id} className="text-[11px] bg-white border border-blue-200 rounded p-2 mb-1">
+                      <strong>{c.item_name}</strong> ×{c.quantity} · من {c.user_name} · أُخرِج في {c.date_out}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
