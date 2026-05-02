@@ -34,11 +34,20 @@ export default function GlobalSearch({ onJump }) {
     setLoading(true);
     const ilike = `%${q}%`;
     try {
-      const [itemsR, boxesR, zonesR, whR] = await Promise.all([
+      const [itemsByName, itemsByTag, boxesR, zonesR, whR] = await Promise.all([
+        // البحث في الاسم
         supabase
           .from('items')
-          .select('id, name, quantity, box_id, photo_url, boxes!inner(code, warehouse_id, shelf_id, deleted_at, shelves(zone_id, shelf_index, zones(letter, name, color)))')
+          .select('id, name, quantity, box_id, photo_url, tags, boxes!inner(code, warehouse_id, shelf_id, deleted_at, shelves(zone_id, shelf_index, zones(letter, name, color)))')
           .ilike('name', ilike)
+          .is('deleted_at', null)
+          .is('boxes.deleted_at', null)
+          .limit(15),
+        // البحث في الوسوم (مطابقة دقيقة)
+        supabase
+          .from('items')
+          .select('id, name, quantity, box_id, photo_url, tags, boxes!inner(code, warehouse_id, shelf_id, deleted_at, shelves(zone_id, shelf_index, zones(letter, name, color)))')
+          .contains('tags', [q])
           .is('deleted_at', null)
           .is('boxes.deleted_at', null)
           .limit(15),
@@ -62,10 +71,21 @@ export default function GlobalSearch({ onJump }) {
 
       const whMap = Object.fromEntries((warehouses || []).map(w => [w.id, w.name]));
 
+      // دمج نتائج الاسم والوسوم وإزالة المكرّر
+      const itemsCombined = [...(itemsByName.data || []), ...(itemsByTag.data || [])];
+      const seenItems = new Set();
+      const itemsR = { data: itemsCombined.filter(it => {
+        if (seenItems.has(it.id)) return false;
+        seenItems.add(it.id);
+        return true;
+      })};
+
       setResults({
         items: (itemsR.data || []).map(it => ({
           ...it,
-          warehouseName: whMap[it.boxes?.warehouse_id] || '—'
+          warehouseName: whMap[it.boxes?.warehouse_id] || '—',
+          // علامة "مطابق بالوسم" إن لم يطابق الاسم
+          matchedByTag: !it.name.toLowerCase().includes(q.toLowerCase()) && (it.tags || []).some(t => t.toLowerCase() === q.toLowerCase())
         })),
         boxes: (boxesR.data || []).map(b => ({
           ...b,

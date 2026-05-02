@@ -687,9 +687,17 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
   const { isFounder, can } = useAuth();
   const [search, setSearch] = useState('');
   const [filterZone, setFilterZone] = useState('all');
+  const [filterTag, setFilterTag] = useState('all');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  // كلّ الوسوم الفريدة في المستودع
+  const allTags = useMemo(() => {
+    const set = new Set();
+    (data.items || []).forEach(it => (it.tags || []).forEach(t => set.add(t)));
+    return Array.from(set).sort();
+  }, [data.items]);
 
   async function handleQuickDelete(item) {
     setBusy(true);
@@ -747,17 +755,18 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
   const filtered = enriched.filter(it => {
     if (search.trim() && !`${it.name} ${it.boxCode}`.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterZone !== 'all' && it.zoneLetter !== filterZone) return false;
+    if (filterTag !== 'all' && !(it.tags || []).includes(filterTag)) return false;
     return true;
   });
 
   return (
     <div>
-      <div className="grid sm:grid-cols-2 gap-2 mb-3">
+      <div className={`grid gap-2 mb-3 ${allTags.length > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <input
           type="search"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="🔍 ابحث في كل أغراض المستودع..."
+          placeholder="🔍 ابحث..."
           className="px-3 py-2 border border-stone-300 rounded-lg text-xs"
         />
         <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
@@ -767,6 +776,13 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
             <option key={z.id} value={z.letter}>{z.letter} — {z.name}</option>
           ))}
         </select>
+        {allTags.length > 0 && (
+          <select value={filterTag} onChange={e => setFilterTag(e.target.value)}
+            className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+            <option value="all">🏷 كل الوسوم</option>
+            {allTags.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">

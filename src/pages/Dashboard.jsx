@@ -1,33 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
 import { USER_ROLES, DEFAULT_RETURN_DAYS } from '../lib/constants';
 import { isOverdue, getInitials } from '../lib/helpers';
 
+// المكوّنات الأساسيّة (تُحمَّل فوراً — أكثر استخداماً)
 import WarehouseMap from '../components/WarehouseMap';
 import ZoneView from '../components/ZoneView';
 import ShelfView from '../components/ShelfView';
 import BoxView from '../components/BoxView';
-import CheckoutsTab from '../components/CheckoutsTab';
-import DamagedTab from '../components/DamagedTab';
-import DonatedTab from '../components/DonatedTab';
-import LogTab from '../components/LogTab';
-import ReportsTab from '../components/ReportsTab';
-import QrTab from '../components/QrTab';
-import UsersTab from '../components/UsersTab';
-import RequestsTab from '../components/RequestsTab';
-import FounderTab from '../components/FounderTab';
 import WarehousesHome from '../components/WarehousesHome';
 import WarehouseSwitcher from '../components/WarehouseSwitcher';
-import WarehouseBuilder from '../components/WarehouseBuilder';
-import QrScannerModal from '../components/QrScannerModal';
 import GlobalSearch from '../components/GlobalSearch';
-import RecoveryBin from '../components/RecoveryBin';
-import InitiativesTab from '../components/InitiativesTab';
 import BrandLogo, { BrandStripe } from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import { useGlobalShortcuts } from '../lib/useKeyboard';
+
+// المكوّنات الثقيلة / غير الأساسيّة — تُحمَّل عند الحاجة (يُقلّل حجم الحزمة الأوّلي)
+const CheckoutsTab = lazy(() => import('../components/CheckoutsTab'));
+const DamagedTab = lazy(() => import('../components/DamagedTab'));
+const DonatedTab = lazy(() => import('../components/DonatedTab'));
+const LogTab = lazy(() => import('../components/LogTab'));
+const ReportsTab = lazy(() => import('../components/ReportsTab'));
+const QrTab = lazy(() => import('../components/QrTab'));
+const UsersTab = lazy(() => import('../components/UsersTab'));
+const RequestsTab = lazy(() => import('../components/RequestsTab'));
+const FounderTab = lazy(() => import('../components/FounderTab'));
+const WarehouseBuilder = lazy(() => import('../components/WarehouseBuilder'));
+const QrScannerModal = lazy(() => import('../components/QrScannerModal'));
+const RecoveryBin = lazy(() => import('../components/RecoveryBin'));
+const InitiativesTab = lazy(() => import('../components/InitiativesTab'));
+
+const TabFallback = () => (
+  <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
+    <div className="w-8 h-8 border-3 border-brand-navy border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+    <p className="text-xs text-stone-500">جاري تحميل التبويب...</p>
+  </div>
+);
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
@@ -405,36 +415,40 @@ export default function Dashboard() {
             />
           )}
           {showMapContent && renderMapDrillDown()}
-          {activeTab === 'checkouts' && <CheckoutsTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'initiatives' && <InitiativesTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'donated' && <DonatedTab data={data} />}
-          {activeTab === 'log' && <LogTab data={data} />}
-          {activeTab === 'reports' && <ReportsTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'qr' && <QrTab warehouseId={warehouseId} data={data} />}
-          {activeTab === 'requests' && isManager && <RequestsTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'users' && isManager && <UsersTab data={data} onRefresh={loadAllData} />}
-          {activeTab === 'recovery' && isFounder && <RecoveryBin onRefresh={loadAllData} />}
-          {activeTab === 'founder' && isFounder && <FounderTab onRefresh={loadAllData} onOpenBuilder={() => setShowBuilder(true)} />}
+          <Suspense fallback={<TabFallback />}>
+            {activeTab === 'checkouts' && <CheckoutsTab data={data} onRefresh={loadAllData} />}
+            {activeTab === 'initiatives' && <InitiativesTab data={data} onRefresh={loadAllData} />}
+            {activeTab === 'damaged' && <DamagedTab data={data} onRefresh={loadAllData} />}
+            {activeTab === 'donated' && <DonatedTab data={data} />}
+            {activeTab === 'log' && <LogTab data={data} />}
+            {activeTab === 'reports' && <ReportsTab data={data} onRefresh={loadAllData} />}
+            {activeTab === 'qr' && <QrTab warehouseId={warehouseId} data={data} />}
+            {activeTab === 'requests' && isManager && <RequestsTab data={data} onRefresh={loadAllData} />}
+            {activeTab === 'users' && isManager && <UsersTab data={data} onRefresh={loadAllData} />}
+            {activeTab === 'recovery' && isFounder && <RecoveryBin onRefresh={loadAllData} />}
+            {activeTab === 'founder' && isFounder && <FounderTab onRefresh={loadAllData} onOpenBuilder={() => setShowBuilder(true)} />}
+          </Suspense>
         </div>
       </main>
 
-      {showBuilder && isFounder && (
-        <WarehouseBuilder
-          onClose={() => setShowBuilder(false)}
-          onChanged={handleBuilderRefresh}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showBuilder && isFounder && (
+          <WarehouseBuilder
+            onClose={() => setShowBuilder(false)}
+            onChanged={handleBuilderRefresh}
+          />
+        )}
 
-      {showScanner && (
-        <QrScannerModal
-          onClose={() => setShowScanner(false)}
-          onResult={(text) => {
-            setShowScanner(false);
-            handleScannedUrl(text);
-          }}
-        />
-      )}
+        {showScanner && (
+          <QrScannerModal
+            onClose={() => setShowScanner(false)}
+            onResult={(text) => {
+              setShowScanner(false);
+              handleScannedUrl(text);
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
