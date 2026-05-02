@@ -262,14 +262,21 @@ export async function bulkMoveBoxes(box_ids, target_shelf_id) {
     });
   }
 
-  // انقل صندوقاً صندوقاً (مع رمز جديد متسلسل)
+  // اجلب warehouse_id للمستودع الهدف (للنقل عبر المستودعات)
+  const { data: targetZone } = await supabase.from('zones')
+    .select('warehouse_id').eq('id', shelf.zone_id).maybeSingle();
+  const targetWhId = targetZone?.warehouse_id;
+
+  // انقل صندوقاً صندوقاً (مع رمز جديد متسلسل + تحديث warehouse_id إن لزم)
   for (const box_id of toMoveIds) {
     const newCode = `${zoneLetter}-${shelfIndex}-${nextBoxNum}`;
-    const { error } = await supabase.from('boxes').update({
+    const updates = {
       shelf_id: target_shelf_id,
       code: newCode,
       box_index: nextBoxNum
-    }).eq('id', box_id);
+    };
+    if (targetWhId) updates.warehouse_id = targetWhId;
+    const { error } = await supabase.from('boxes').update(updates).eq('id', box_id);
     if (error) return { error };
     nextBoxNum++;
   }
@@ -331,6 +338,16 @@ export async function restoreItem(item_id) {
   return supabase.from('items').update({ deleted_at: null }).eq('id', item_id);
 }
 
+// استرجاع جماعي
+export async function bulkRestoreBoxes(box_ids) {
+  if (!box_ids || box_ids.length === 0) return { error: null };
+  return supabase.from('boxes').update({ deleted_at: null }).in('id', box_ids);
+}
+export async function bulkRestoreItems(item_ids) {
+  if (!item_ids || item_ids.length === 0) return { error: null };
+  return supabase.from('items').update({ deleted_at: null }).in('id', item_ids);
+}
+
 // حذف نهائي — لا رجعة
 export async function permanentDeleteBox(box_id) {
   return supabase.from('boxes').delete().eq('id', box_id);
@@ -338,6 +355,45 @@ export async function permanentDeleteBox(box_id) {
 
 export async function permanentDeleteItem(item_id) {
   return supabase.from('items').delete().eq('id', item_id);
+}
+
+// حذف نهائي جماعي
+export async function bulkPermanentDeleteBoxes(box_ids) {
+  if (!box_ids || box_ids.length === 0) return { error: null };
+  return supabase.from('boxes').delete().in('id', box_ids);
+}
+export async function bulkPermanentDeleteItems(item_ids) {
+  if (!item_ids || item_ids.length === 0) return { error: null };
+  return supabase.from('items').delete().in('id', item_ids);
+}
+
+// نقل صندوق إلى مستودع آخر بالكامل (يحتاج رفّاً هدفاً في المستودع الآخر)
+// يُستخدم ل-cross-warehouse moves: ينقل الصندوق + يحدّث warehouse_id
+export async function moveBoxToWarehouse(box_id, target_shelf_id) {
+  // اجلب بيانات الرفّ الهدف للحصول على warehouse_id الصحيح
+  const { data: shelf } = await supabase.from('shelves')
+    .select('shelf_index, zones(letter, warehouse_id)')
+    .eq('id', target_shelf_id).maybeSingle();
+  if (!shelf) return { error: { message: 'الرفّ الهدف غير موجود' } };
+
+  const targetWhId = shelf.zones?.warehouse_id;
+  const zoneLetter = shelf.zones?.letter;
+  const shelfIndex = shelf.shelf_index;
+
+  const { data: existing } = await supabase.from('boxes')
+    .select('box_index')
+    .eq('shelf_id', target_shelf_id).is('deleted_at', null);
+  const nextBoxNum = (existing && existing.length > 0
+    ? Math.max(...existing.map(b => b.box_index || 0))
+    : 0) + 1;
+  const newCode = `${zoneLetter}-${shelfIndex}-${nextBoxNum}`;
+
+  return supabase.from('boxes').update({
+    shelf_id: target_shelf_id,
+    warehouse_id: targetWhId,
+    code: newCode,
+    box_index: nextBoxNum
+  }).eq('id', box_id);
 }
 
 export async function fetchWarehouseLayout(wh_id) {

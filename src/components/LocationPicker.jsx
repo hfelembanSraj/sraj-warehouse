@@ -3,10 +3,13 @@
 //   - mode 'item': يختار المستخدم مساحة → ثمّ صندوقاً موجوداً
 // يحذِّر إذا المساحة "ممتلئة" (لا مواقع شاغرة) للصناديق، أو "بدون صناديق" للأغراض.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FormModal } from './BuilderForms';
 import { shelfDisplayName } from '../lib/helpers';
 import { CardboardBoxMini } from './CardboardBox';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { fetchWarehouseLayout } from '../lib/warehouseOps';
 
 export default function LocationPicker({
   mode,                  // 'box' | 'item'
@@ -14,27 +17,61 @@ export default function LocationPicker({
   activeWarehouse,
   onSelect,
   onCancel,
-  initialZone = null,    // المساحة المُختارة مسبقاً (لتخطّي الخطوة 1)
-  lockZone = false,      // هل المساحة الأوّليّة مقفلة (لا يمكن تغييرها؟)
-  title: customTitle,    // عنوان مخصّص (للنقل)
+  initialZone = null,
+  lockZone = false,
+  title: customTitle,
   subtitle: customSubtitle
 }) {
+  const { warehouses } = useAuth();
+  // المستودع الهدف (قد يختلف عن الحالي عند النقل لمستودع آخر)
+  const [currentWh, setCurrentWh] = useState(activeWarehouse);
+  const [currentData, setCurrentData] = useState(data);
+  const [loadingWh, setLoadingWh] = useState(false);
+  const [showWhPicker, setShowWhPicker] = useState(false);
   const [selectedZone, setSelectedZone] = useState(initialZone);
-  const zones = data.zones || [];
+  const zones = currentData?.zones || [];
 
+  // تحميل بيانات مستودع مختلف
+  async function switchWarehouse(wh) {
+    if (wh.id === currentWh?.id) {
+      setShowWhPicker(false);
+      return;
+    }
+    setLoadingWh(true);
+    setShowWhPicker(false);
+    setSelectedZone(null);  // إعادة تعيين المساحة عند تبديل المستودع
+    try {
+      const [layoutR, boxesR] = await Promise.all([
+        fetchWarehouseLayout(wh.id),
+        supabase.from('boxes').select('*')
+          .eq('warehouse_id', wh.id).is('deleted_at', null).not('shelf_id', 'is', null)
+      ]);
+      setCurrentData({
+        zones: layoutR.data?.zones || [],
+        boxes: boxesR.data || [],
+        items: data?.items || []  // عناصر الواجهة الأصليّة (لا تتغيّر بين المستودعات بقدر اللزوم)
+      });
+      setCurrentWh(wh);
+    } catch (e) {
+      console.error('فشل تحميل بيانات المستودع:', e);
+    }
+    setLoadingWh(false);
+  }
+
+  const isCrossWh = currentWh?.id !== activeWarehouse?.id;
   const title = customTitle || (mode === 'box'
     ? '📦 اختيار مكان للصندوق'
     : '🔧 اختيار مكان للغرض');
 
   const defaultSubtitle = !selectedZone
-    ? 'اختر المساحة من خريطة المستودع'
+    ? `${isCrossWh ? '🔄 نقل لمستودع: ' + currentWh?.name + ' · ' : ''}اختر المساحة من الخريطة`
     : mode === 'box'
       ? `اختر موقعاً شاغراً في مساحة ${selectedZone.letter} — ${selectedZone.name}`
       : `اختر صندوقاً في مساحة ${selectedZone.letter} — ${selectedZone.name}`;
   const subtitle = customSubtitle || defaultSubtitle;
 
   function getZoneStatus(zone) {
-    const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
+    const zoneBoxes = (currentData?.boxes || []).filter(b => b.code.startsWith(zone.letter + '-'));
     const shelves = zone.shelves || [];
     if (mode === 'box') {
       if (shelves.length === 0) {
@@ -57,25 +94,68 @@ export default function LocationPicker({
 
   return (
     <FormModal title={title} subtitle={subtitle} onClose={onCancel} maxWidth="max-w-3xl">
-      {!selectedZone ? (
+      {/* شريط اختيار المستودع — يظهر إن كان هناك أكثر من مستودع وليس مقفلاً على المساحة */}
+      {warehouses.length > 1 && !lockZone && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-stone-600">📦 المستودع:</span>
+              <strong className="text-brand-navy">{currentWh?.name}</strong>
+              {isCrossWh && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">↻ نقل بين المستودعات</span>}
+            </div>
+            <button onClick={() => setShowWhPicker(s => !s)} disabled={loadingWh}
+              className="text-[11px] bg-white border border-stone-300 px-2.5 py-1 rounded hover:bg-stone-100 font-medium">
+              🔄 تبديل المستودع
+            </button>
+          </div>
+          {showWhPicker && (
+            <div className="mt-2 bg-white border-2 border-brand-navy rounded-lg p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+              {warehouses.map(wh => (
+                <button key={wh.id} onClick={() => switchWarehouse(wh)} disabled={loadingWh}
+                  className={`text-right p-2.5 rounded-lg border-2 transition disabled:opacity-50 ${
+                    wh.id === currentWh?.id
+                      ? 'bg-brand-navy/10 border-brand-navy'
+                      : 'bg-white border-stone-200 hover:border-brand-navy hover:bg-stone-50'
+                  }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📦</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold truncate">{wh.name}</div>
+                      {wh.description && <div className="text-[10px] text-stone-500 truncate">{wh.description}</div>}
+                    </div>
+                    {wh.id === currentWh?.id && <span className="text-brand-navy">✓</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {loadingWh ? (
+        <div className="text-center py-12">
+          <div className="w-8 h-8 border-3 border-brand-navy border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs text-stone-500">جاري تحميل بيانات المستودع...</p>
+        </div>
+      ) : !selectedZone ? (
         <ZonePickerStep
           zones={zones}
-          activeWarehouse={activeWarehouse}
+          activeWarehouse={currentWh}
           getZoneStatus={getZoneStatus}
           onPick={setSelectedZone}
         />
       ) : mode === 'box' ? (
         <PositionPickerStep
           zone={selectedZone}
-          data={data}
-          onPick={(shelf, position) => onSelect({ zone: selectedZone, shelf, position })}
+          data={currentData}
+          onPick={(shelf, position) => onSelect({ zone: selectedZone, shelf, position, warehouse: currentWh, isCrossWh })}
           onBack={lockZone ? null : () => setSelectedZone(null)}
         />
       ) : (
         <BoxPickerStep
           zone={selectedZone}
-          data={data}
-          onPick={(box) => onSelect({ zone: selectedZone, box })}
+          data={currentData}
+          onPick={(box) => onSelect({ zone: selectedZone, box, warehouse: currentWh, isCrossWh })}
           onBack={lockZone ? null : () => setSelectedZone(null)}
         />
       )}

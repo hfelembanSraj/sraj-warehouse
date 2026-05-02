@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { shelfDisplayName } from '../lib/helpers';
 import CheckoutModal from './CheckoutModal';
 import AddBoxModal from './AddBoxModal';
@@ -218,6 +219,45 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     setAssigningItem(null);
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تمّ تحديد مكان الغرض');
+    await onRefresh();
+  }
+
+  // إنشاء صندوق جديد فوراً وتحديد الغرض بداخله (لمساحات بدون صناديق)
+  async function handleCreateBoxAndAssign() {
+    if (!assigningItem) return;
+    if (shelves.length === 0) {
+      return flash('هذه المساحة بدون أرفف — أضِف رفّاً أوّلاً من قسم إدارة الأرفف', 'error');
+    }
+    setBusy(true);
+    // أنشئ صندوقاً في أوّل موقع متاح في أوّل رفّ
+    const firstShelf = shelves[0];
+    const { data: newBoxId, error: bErr } = await rpcAddBox(firstShelf.id, {
+      description: `(لـ${assigningItem.name})`,
+      width_cm: 50, height_cm: 65
+    });
+    if (bErr) {
+      setBusy(false);
+      return flash('فشل إنشاء صندوق: ' + bErr.message, 'error');
+    }
+    // ضع الغرض في الصندوق الجديد
+    const { error: aErr } = await assignItemToBox(assigningItem.id, newBoxId);
+    setBusy(false);
+    setAssigningItem(null);
+    if (aErr) return flash('فشل: ' + aErr.message, 'error');
+    flash('✅ أُنشئ صندوق جديد ووُضع فيه الغرض');
+    await onRefresh();
+  }
+
+  // حذف غرض غير محدّد (نقل لسلّة المحذوفات)
+  async function handleDeleteUnassigned(item) {
+    if (!confirm(`حذف "${item.name}"؟ يمكن استرجاعه من سلّة المحذوفات لاحقاً.`)) return;
+    setBusy(true);
+    const { error } = await supabase.from('items')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', item.id);
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ نُقل لسلّة المحذوفات');
     await onRefresh();
   }
 
@@ -596,10 +636,17 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     <div className="text-[10px] text-stone-500">الكميّة: {it.quantity} · بدون صندوق</div>
                   </div>
                   {isFounder && (
-                    <button onClick={() => setAssigningItem(it)}
-                      className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded font-medium whitespace-nowrap">
-                      📍 حدّد المكان
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setAssigningItem(it)}
+                        className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded font-medium whitespace-nowrap">
+                        📍 حدّد المكان
+                      </button>
+                      <button onClick={() => handleDeleteUnassigned(it)}
+                        className="text-[10px] bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 px-2 py-1.5 rounded"
+                        title="حذف الغرض">
+                        🗑
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -968,12 +1015,23 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           maxWidth="max-w-lg"
         >
           {zoneBoxes.length === 0 ? (
-            <p className="text-sm text-center text-stone-500 py-6">
-              لا توجد صناديق في هذه المساحة. أضِف صندوقاً ثمّ ارجع لتحديد المكان.
-            </p>
+            <div className="text-center py-4 space-y-3">
+              <div className="text-3xl">📭</div>
+              <p className="text-sm text-stone-700">لا توجد صناديق في هذه المساحة بعد</p>
+              <p className="text-[11px] text-stone-500">يمكنك إنشاء صندوق جديد فوراً ووضع الغرض فيه</p>
+              <button
+                onClick={handleCreateBoxAndAssign}
+                disabled={busy || shelves.length === 0}
+                className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-lg text-xs font-bold disabled:opacity-50">
+                + 📦 أنشئ صندوقاً جديداً وضع الغرض فيه
+              </button>
+              {shelves.length === 0 && (
+                <p className="text-[10px] text-red-600 mt-2">⚠ لا يمكن إنشاء صندوق — أضِف رفّاً أولاً من قسم "إدارة الأرفف"</p>
+              )}
+            </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-stone-600">اختر الصندوق الذي يُحفَظ فيه هذا الغرض:</p>
+              <p className="text-xs text-stone-600">اختر الصندوق الذي يُحفَظ فيه هذا الغرض، أو أنشئ صندوقاً جديداً:</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
                 {zoneBoxes.map(b => (
                   <button key={b.id}
@@ -984,6 +1042,14 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     {b.description && <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>}
                   </button>
                 ))}
+                <button
+                  onClick={handleCreateBoxAndAssign}
+                  disabled={busy}
+                  className="bg-amber-50 border-2 border-dashed border-amber-400 rounded-lg p-2.5 text-center hover:bg-amber-100 hover:border-amber-600 transition disabled:opacity-50 text-amber-800">
+                  <div className="text-lg leading-none">+</div>
+                  <div className="text-[10px] font-bold mt-1">صندوق جديد</div>
+                  <div className="text-[8px] opacity-70">ضع الغرض هنا</div>
+                </button>
               </div>
             </div>
           )}
