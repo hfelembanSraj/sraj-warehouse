@@ -394,17 +394,28 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
             <div className="absolute top-1 right-1 bg-brand-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none">
               ×{item.quantity}
             </div>
-            {/* مقبض السحب */}
+            {/* مقبض السحب — أيقونة نقاط الإمساك */}
             {canMove && (
               <div
                 draggable={true}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
                 onClick={onClickHandle}
-                className="absolute top-1 left-1 w-7 h-7 bg-white/95 border-2 border-amber-700 rounded shadow-md hover:bg-amber-50 cursor-grab active:cursor-grabbing flex items-center justify-center z-10"
+                className={`absolute top-1 left-1 w-7 h-7 rounded-lg shadow-md cursor-grab active:cursor-grabbing flex items-center justify-center z-10 transition ${
+                  isSelected
+                    ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
+                    : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
+                }`}
                 title="اسحب أو اضغط لنقل الصنف"
               >
-                <span className="text-xs text-amber-800 font-bold leading-none">⊞</span>
+                <svg viewBox="0 0 14 16" className={`w-3.5 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
+                  <circle cx="4" cy="3" r="1.3"/>
+                  <circle cx="10" cy="3" r="1.3"/>
+                  <circle cx="4" cy="8" r="1.3"/>
+                  <circle cx="10" cy="8" r="1.3"/>
+                  <circle cx="4" cy="13" r="1.3"/>
+                  <circle cx="10" cy="13" r="1.3"/>
+                </svg>
               </div>
             )}
             {isSelected && (

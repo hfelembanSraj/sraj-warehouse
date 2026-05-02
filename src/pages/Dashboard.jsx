@@ -253,7 +253,7 @@ export default function Dashboard() {
       return <WarehouseMap data={data} onZoneClick={openZone} onItemClick={goToBoxByCode} onRefresh={loadAllData} />;
     }
     if (!currentShelf) {
-      return <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onItemClick={goToBoxByCode} onRefresh={loadAllData} />;
+      return <ZoneView zone={currentZone} data={data} onBack={backToMap} onShelfClick={openShelf} onItemClick={goToBoxByCode} onZoneSwitch={openZone} onRefresh={loadAllData} />;
     }
     if (!currentBox) {
       return <ShelfView zone={currentZone} shelf={currentShelf} data={data}

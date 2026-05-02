@@ -14,7 +14,7 @@ import {
   moveBoxToPosition
 } from '../lib/warehouseOps';
 
-export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onRefresh }) {
+export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onZoneSwitch, onRefresh }) {
   const { can, isFounder } = useAuth();
   const [highlightedBox, setHighlightedBox] = useState(null);
   const [checkoutItem, setCheckoutItem] = useState(null);
@@ -707,17 +707,28 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                   <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow">↪ إفلات هنا</span>
                                 </div>
                               )}
-                              {/* مقبض السحب — ظاهر دائماً للمؤسّس، يُفعّل السحب عند الإمساك */}
+                              {/* مقبض السحب — أيقونة "نقاط الإمساك" المعتمدة عالمياً */}
                               {showHandle && (
                                 <div
                                   draggable={true}
                                   onDragStart={(e) => handleBoxDragStart(e, box)}
                                   onDragEnd={handleBoxDragEnd}
                                   onClick={(e) => { e.stopPropagation(); handleBoxClickToSelect(box, e); }}
-                                  className="absolute top-1 right-1 w-7 h-7 bg-white/95 border-2 border-amber-700 rounded shadow-md hover:bg-amber-50 cursor-grab active:cursor-grabbing flex items-center justify-center z-20"
+                                  className={`absolute top-1 right-1 w-7 h-7 rounded-lg shadow-md cursor-grab active:cursor-grabbing flex items-center justify-center z-20 transition ${
+                                    isSelected
+                                      ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
+                                      : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
+                                  }`}
                                   title="اسحب أو اضغط لنقل الصندوق"
                                 >
-                                  <span className="text-xs text-amber-800 font-bold leading-none">⊞</span>
+                                  <svg viewBox="0 0 14 16" className={`w-3.5 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
+                                    <circle cx="4" cy="3" r="1.3"/>
+                                    <circle cx="10" cy="3" r="1.3"/>
+                                    <circle cx="4" cy="8" r="1.3"/>
+                                    <circle cx="10" cy="8" r="1.3"/>
+                                    <circle cx="4" cy="13" r="1.3"/>
+                                    <circle cx="10" cy="13" r="1.3"/>
+                                  </svg>
                                 </div>
                               )}
                               {isSelected && (
@@ -980,13 +991,14 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         </FormModal>
       )}
 
-      {/* الخريطة المصغّرة العائمة — تُمكّن نقل الصناديق المختارة بالسحب أو النقر إلى مساحة أخرى */}
+      {/* الخريطة المصغّرة العائمة — للنقل بالسحب أو الانتقال السريع بين المساحات */}
       <WarehouseMiniMap
         zones={data.zones || []}
         currentZoneId={fresh.id}
         hasActiveSelection={hasActiveSelection}
         selectionLabel={`${activeBoxesForMove.length} ${activeBoxesForMove.length === 1 ? 'صندوق' : 'صناديق'}`}
         onDropOnZone={handleDropOnZone}
+        onZoneNavigate={onZoneSwitch}
       />
 
       {/* مُنتقي الموقع الدقيق عند نقل صندوق إلى مساحة أخرى */}

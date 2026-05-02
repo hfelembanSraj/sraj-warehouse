@@ -6,7 +6,8 @@ export default function WarehouseMiniMap({
   zones = [],
   currentZoneId = null,
   hasActiveSelection = false,   // هل هناك اختيار يستحقّ السحب إليه؟
-  onDropOnZone,                  // (zone) => void — يُستدعى عند إفلات/نقر على المساحة
+  onDropOnZone,                  // (zone) => void — يُستدعى عند إفلات/نقر على المساحة (مع وجود اختيار)
+  onZoneNavigate,                // (zone) => void — يُستدعى عند نقر مساحة (بدون اختيار) للانتقال إليها
   selectionLabel = ''            // وصف نصّي للاختيار الحالي (للإرشاد)
 }) {
   const [hoverZoneId, setHoverZoneId] = useState(null);
@@ -42,16 +43,22 @@ export default function WarehouseMiniMap({
             </button>
           </div>
 
-          {hasActiveSelection && (
+          {hasActiveSelection ? (
             <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-200 text-[10px] text-blue-800 text-center">
               ⬇ اسحب أو اضغط مساحة لنقل {selectionLabel || 'الاختيار'}
             </div>
-          )}
+          ) : onZoneNavigate ? (
+            <div className="px-3 py-1.5 bg-stone-50 border-b border-stone-200 text-[10px] text-stone-600 text-center">
+              اضغط أيّ مساحة للانتقال إليها
+            </div>
+          ) : null}
 
           <div className="relative w-full aspect-square bg-gradient-to-br from-stone-50 to-stone-100 p-1.5">
             {zones.map(z => {
-              const isCurrent = z.id === currentZoneId;
-              const isHover   = z.id === hoverZoneId;
+              const isCurrent  = z.id === currentZoneId;
+              const isHover    = z.id === hoverZoneId;
+              // المساحة قابلة للتفاعل إن: كان هناك اختيار (للإفلات) أو كانت navigate متاحة وليست المساحة الحاليّة
+              const interactive = hasActiveSelection || (onZoneNavigate && !isCurrent);
               const style = {
                 top:    z.pos_top    != null ? `${z.pos_top}%`    : undefined,
                 bottom: (z.pos_top == null && z.pos_height != null) ? `${100 - z.pos_height - 6}%` : undefined,
@@ -62,7 +69,7 @@ export default function WarehouseMiniMap({
                 borderColor: z.color,
                 backgroundColor: isHover ? z.color + 'cc' : z.color + (isCurrent ? '40' : '20'),
                 color: isHover ? 'white' : z.color,
-                cursor: hasActiveSelection ? 'pointer' : 'default'
+                cursor: interactive ? 'pointer' : 'default'
               };
               return (
                 <div
@@ -77,13 +84,16 @@ export default function WarehouseMiniMap({
                     onDropOnZone?.(z);
                   }}
                   onClick={() => {
-                    if (!hasActiveSelection) return;
-                    onDropOnZone?.(z);
+                    if (hasActiveSelection) {
+                      onDropOnZone?.(z);
+                    } else if (onZoneNavigate && !isCurrent) {
+                      onZoneNavigate(z);
+                    }
                   }}
                   className={`absolute border-2 rounded transition-all flex items-center justify-center font-bold text-[11px] ${
                     isCurrent ? 'ring-2 ring-offset-1 ring-blue-500' : ''
                   } ${
-                    hasActiveSelection ? 'hover:scale-110 hover:shadow-lg' : ''
+                    interactive ? 'hover:scale-110 hover:shadow-lg' : ''
                   }`}
                   title={`${z.letter} — ${z.name}${isCurrent ? ' (الحالية)' : ''}`}
                 >

@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { FormModal } from './BuilderForms';
 import { shelfDisplayName } from '../lib/helpers';
+import { CardboardBoxMini } from './CardboardBox';
 
 export default function LocationPicker({
   mode,                  // 'box' | 'item'
@@ -222,14 +223,13 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
   );
 }
 
-// ====== الخطوة 2 (للأغراض): اختيار صندوق — عرض بصريّ بالأرفف ======
+// ====== الخطوة 2 (للأغراض): اختيار صندوق — يعرض الرفّ بنفس شكل المساحة الحقيقيّة ======
 function BoxPickerStep({ zone, data, onPick, onBack }) {
   const shelves = (zone.shelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index);
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
 
   function getShelfBoxes(shelfIndex) {
-    return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex))
-      .sort((a, b) => (a.box_index || 0) - (b.box_index || 0));
+    return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex));
   }
 
   if (shelves.length === 0) {
@@ -255,52 +255,67 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
         </button>
       )}
 
-      <div className="text-[11px] text-stone-500 mb-2 text-center">اضغط على أيّ صندوق لاختياره</div>
+      <div className="text-[11px] text-stone-500 mb-2 text-center">
+        اضغط على أيّ صندوق لاختياره · {zoneBoxes.length} {zoneBoxes.length === 1 ? 'صندوق' : 'صناديق'}
+      </div>
 
-      <div className="space-y-3">
-        {shelves.map(sh => {
-          const shelfBoxes = getShelfBoxes(sh.shelf_index);
-          return (
-            <div key={sh.id} className="bg-stone-50 border-2 rounded-xl p-2.5"
-              style={{ borderColor: zone.color + '50' }}>
-              <div className="flex items-center justify-between mb-2 text-xs">
-                <span className="font-display font-bold flex items-center gap-1" style={{ color: zone.color }}>
-                  📚 {shelfDisplayName(sh, shelves)}
-                </span>
-                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full text-stone-700 border border-stone-200">
-                  {shelfBoxes.length} {shelfBoxes.length === 1 ? 'صندوق' : 'صناديق'}
-                </span>
-              </div>
-              {shelfBoxes.length === 0 ? (
-                <p className="text-[10px] text-stone-400 italic text-center py-3">— رفّ فارغ —</p>
-              ) : (
-                <div className="flex gap-1.5 flex-wrap">
-                  {shelfBoxes.map(b => {
-                    const itemCount = data.items.filter(it => it.box_id === b.id).length;
+      {/* الرفّ المرئي الكامل — مطابق لشكل الـZoneView */}
+      <div className="flex justify-center">
+        <div className="w-full max-w-md bg-stone-100 rounded-lg p-4">
+          <div
+            className="relative w-full bg-white border-4 rounded-md p-2 flex flex-col gap-1.5"
+            style={{
+              aspectRatio: `${zone.width_cm}/${zone.height_cm}`,
+              borderColor: zone.color
+            }}
+          >
+            {shelves.map(shelf => {
+              const shelfBoxes = getShelfBoxes(shelf.shelf_index);
+              const maxBoxIdx = shelfBoxes.length > 0
+                ? Math.max(...shelfBoxes.map(b => b.box_index || 0))
+                : 0;
+              const totalSlots = Math.max(shelf.max_boxes || 4, maxBoxIdx);
+              return (
+                <div key={shelf.id}
+                  className="flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative"
+                  style={{ borderColor: zone.color }}
+                >
+                  <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none"
+                    style={{ backgroundColor: zone.color }}>
+                    {shelfDisplayName(shelf, shelves)}
+                  </span>
+                  {Array.from({ length: totalSlots }).map((_, idx) => {
+                    const position = idx + 1;
+                    const box = shelfBoxes.find(b => b.box_index === position);
+                    if (box) {
+                      const items = data.items.filter(it => it.box_id === box.id);
+                      return (
+                        <button key={`box-${position}`}
+                          onClick={() => onPick(box)}
+                          className="flex-1 relative cursor-pointer hover:scale-110 hover:z-10 transition-transform"
+                          title={`اختر ${box.code}`}>
+                          <CardboardBoxMini
+                            code={box.code}
+                            itemCount={items.length}
+                            photoUrl={box.photo_url}
+                          />
+                          <div className="absolute inset-0 ring-2 ring-blue-400 ring-offset-1 rounded opacity-0 hover:opacity-100 transition pointer-events-none"></div>
+                        </button>
+                      );
+                    }
                     return (
-                      <button key={b.id}
-                        onClick={() => onPick(b)}
-                        className="flex-1 min-w-[110px] bg-white border-2 border-stone-200 rounded-lg p-2 text-center hover:border-blue-500 hover:bg-blue-50 hover:shadow-md transition">
-                        <div className="flex items-center justify-center mb-1">
-                          {b.photo_url ? (
-                            <img src={b.photo_url} alt={b.code} className="w-9 h-9 object-cover rounded" />
-                          ) : (
-                            <div className="w-9 h-9 rounded bg-amber-100 flex items-center justify-center text-base">📦</div>
-                          )}
-                        </div>
-                        <div className="text-xs font-mono font-bold" style={{ color: zone.color }}>{b.code}</div>
-                        {b.description && (
-                          <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>
-                        )}
-                        <div className="text-[9px] text-stone-400 mt-0.5">{itemCount} صنف</div>
-                      </button>
+                      <div key={`empty-${position}`}
+                        className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-300 flex items-center justify-center pointer-events-none">
+                        فارغ
+                      </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+          <div className="text-center text-[10px] text-stone-400 mt-2">{zone.width_cm} سم</div>
+        </div>
       </div>
     </>
   );
