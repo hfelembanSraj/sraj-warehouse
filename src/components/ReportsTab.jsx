@@ -3,14 +3,18 @@ import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
 import { isOverdue } from '../lib/helpers';
+import { FormModal } from './BuilderForms';
 
 export default function ReportsTab({ data, onRefresh }) {
   const { activeWarehouse, isFounder, can } = useAuth();
   const [filterText, setFilterText] = useState('');
   const [filterZone, setFilterZone] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all'); // all | available | out | damaged | donated
+  const [filterStatus, setFilterStatus] = useState('all');
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  // الجرد المقارن: المستخدم يُدخِل العدد الفعلي → يُحسَب الفرق مع النظام
+  const [showAudit, setShowAudit] = useState(false);
+  const [auditCounts, setAuditCounts] = useState({});  // {itemKey: actualCount}
 
   // ====== الإحصائيّات الكليّة ======
   const stats = useMemo(() => {
@@ -103,6 +107,108 @@ export default function ReportsTab({ data, onRefresh }) {
     const filename = `Sraj-Report-${activeWarehouse?.name || 'warehouse'}-${new Date().toISOString().slice(0, 10)}.xlsx`;
     XLSX.writeFile(wb, filename);
   }
+
+  // ====== طباعة تقرير PDF ======
+  // تفتح نافذة منبثقة بنسخة طباعيّة من التقرير. المتصفّح يدعم "حفظ كـ PDF" تلقائياً.
+  function printReportPDF() {
+    const today = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
+    const whName = activeWarehouse?.name || 'المستودع';
+    const rowsHtml = filteredItems.map(it => `
+      <tr>
+        <td>${escapeHtml(it.name)}</td>
+        <td style="color:${it.zoneColor};font-weight:bold;text-align:center">${escapeHtml(it.zoneLetter)}</td>
+        <td>${escapeHtml(it.boxCode)}</td>
+        <td style="text-align:center">${it.quantity}</td>
+        <td style="text-align:center;color:#15803d;font-weight:bold">${it.available}</td>
+        <td style="text-align:center;color:#ea580c">${it.checkedOut}</td>
+        <td style="text-align:center;color:#dc2626">${it.damaged}</td>
+        <td style="text-align:center;color:#a16207">${it.donated}</td>
+      </tr>`).join('');
+    const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>تقرير ${whName}</title>
+<style>
+  @page { size: A4; margin: 1.5cm; }
+  body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; color: #1A1A1A; margin: 0; }
+  .stripe { height: 6px; background: linear-gradient(90deg, #E91E8B, #7B2D8E, #2196F3, #00A8B5, #6CB33E, #FFCC00, #F58220); margin-bottom: 1cm; }
+  h1 { color: #1A2B5F; font-size: 20pt; margin: 0 0 4pt 0; }
+  .sub { color: #6B7280; font-size: 10pt; margin-bottom: 1cm; }
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8pt; margin-bottom: 0.8cm; }
+  .stat { border: 1px solid #E5E7EB; border-radius: 6pt; padding: 8pt; text-align: center; }
+  .stat .num { font-size: 18pt; font-weight: bold; color: #1A2B5F; }
+  .stat .lbl { font-size: 9pt; color: #6B7280; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th { background: #1A2B5F; color: white; padding: 8pt 6pt; text-align: right; }
+  td { padding: 6pt; border-bottom: 1px solid #E5E7EB; text-align: right; }
+  tr:nth-child(even) { background: #F9FAFB; }
+  .footer { margin-top: 0.8cm; font-size: 9pt; color: #6B7280; text-align: center; border-top: 1px solid #E5E7EB; padding-top: 6pt; }
+</style></head>
+<body>
+  <div class="stripe"></div>
+  <h1>📊 تقرير المخزون — ${escapeHtml(whName)}</h1>
+  <div class="sub">${today} · ${filteredItems.length} صنف · بواسطة جمعيّة المسؤوليّة الاجتماعيّة بمحافظة جدّة</div>
+
+  <div class="stats">
+    <div class="stat"><div class="num">${stats.totalQty}</div><div class="lbl">إجمالي القطع</div></div>
+    <div class="stat"><div class="num" style="color:#15803d">${stats.totalQty - stats.checkedOutQty}</div><div class="lbl">المتوفّر</div></div>
+    <div class="stat"><div class="num" style="color:#ea580c">${stats.checkedOutQty}</div><div class="lbl">المُخرَج</div></div>
+    <div class="stat"><div class="num" style="color:#dc2626">${stats.damagedQty}</div><div class="lbl">التالف</div></div>
+    <div class="stat"><div class="num" style="color:#a16207">${stats.donatedQty}</div><div class="lbl">المدعوم</div></div>
+    <div class="stat"><div class="num" style="color:#dc2626">${stats.overdueCount}</div><div class="lbl">متأخّر</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>الأداة</th><th>المساحة</th><th>الصندوق</th>
+        <th>الإجمالي</th><th>المتوفّر</th><th>المُخرَج</th><th>التالف</th><th>المدعوم</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+
+  <div class="footer">
+    تمّ توليد التقرير من نظام إدارة المستودعات · ${new Date().toLocaleString('ar-SA')}
+  </div>
+  <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
+</body></html>`;
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) return alert('السماح بالنوافذ المنبثقة مطلوب للطباعة');
+    win.document.write(html);
+    win.document.close();
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ====== الجرد المقارن ======
+  function getAuditKey(it) { return `${it.boxCode}::${it.name}`; }
+
+  function startAudit() {
+    // تهيئة العدّ الفعلي بالكميّة المتاحة (المتوفّر = الإجمالي - المُخرَج)
+    const initial = {};
+    aggregatedItems.forEach(it => { initial[getAuditKey(it)] = ''; });
+    setAuditCounts(initial);
+    setShowAudit(true);
+  }
+
+  const auditDifferences = useMemo(() => {
+    return aggregatedItems.map(it => {
+      const key = getAuditKey(it);
+      const actual = auditCounts[key];
+      const expected = it.available;  // المتوفّر فعلياً (بدون المُخرَج)
+      const diff = (actual === '' || actual == null) ? null : Number(actual) - expected;
+      return { ...it, expected, actual, diff };
+    });
+  }, [aggregatedItems, auditCounts]);
+
+  const auditSummary = useMemo(() => {
+    const counted = auditDifferences.filter(d => d.actual !== '' && d.actual != null);
+    const matching = counted.filter(d => d.diff === 0).length;
+    const missing = counted.filter(d => d.diff < 0).length;
+    const extra = counted.filter(d => d.diff > 0).length;
+    return { total: aggregatedItems.length, counted: counted.length, matching, missing, extra };
+  }, [auditDifferences]);
 
   // ====== تصدير CSV لـ Google Sheets ======
   function exportToCSV() {
@@ -232,13 +338,21 @@ export default function ReportsTab({ data, onRefresh }) {
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h3 className="text-sm font-display font-bold">📊 تقرير المخزون التفصيلي</h3>
           <div className="flex items-center gap-1.5 flex-wrap">
+            <button onClick={printReportPDF}
+              className="text-[11px] bg-gradient-to-l from-brand-navy to-brand-purple text-white px-3 py-1.5 rounded-lg hover:opacity-90 font-bold shadow-sm">
+              🖨 طباعة PDF
+            </button>
+            <button onClick={startAudit}
+              className="text-[11px] bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200 font-medium">
+              🔍 جرد مقارن
+            </button>
             <button onClick={exportToExcel}
               className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">
-              📥 تصدير Excel
+              📥 Excel
             </button>
             <button onClick={exportToCSV}
               className="text-[11px] bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium">
-              📊 تصدير CSV (Google Sheets)
+              📊 CSV
             </button>
             {(isFounder || can('add')) && (
               <>
@@ -349,6 +463,96 @@ export default function ReportsTab({ data, onRefresh }) {
           </table>
         </div>
       </div>
+
+      {/* مودال الجرد المقارن */}
+      {showAudit && (
+        <FormModal
+          title="🔍 الجرد المقارن"
+          subtitle="أدخل العدد الفعلي لكلّ صنف بعد العدّ، وسيُحسَب الفرق مع النظام تلقائياً"
+          onClose={() => setShowAudit(false)}
+          maxWidth="max-w-4xl"
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+            <div className="bg-stone-50 border border-stone-200 rounded-lg p-2 text-center">
+              <div className="text-base font-bold">{auditSummary.total}</div>
+              <div className="text-[10px] text-stone-500">إجمالي الأصناف</div>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
+              <div className="text-base font-bold text-blue-700">{auditSummary.counted}</div>
+              <div className="text-[10px] text-stone-500">مُعَدّ</div>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
+              <div className="text-base font-bold text-green-700">{auditSummary.matching}</div>
+              <div className="text-[10px] text-stone-500">مطابق</div>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-center">
+              <div className="text-base font-bold text-red-700">{auditSummary.missing}</div>
+              <div className="text-[10px] text-stone-500">ناقص</div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
+              <div className="text-base font-bold text-amber-700">{auditSummary.extra}</div>
+              <div className="text-[10px] text-stone-500">زائد</div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-stone-100">
+                <tr>
+                  <th className="text-right p-2">الأداة</th>
+                  <th className="text-center p-2">الصندوق</th>
+                  <th className="text-center p-2">المتوفّر (نظام)</th>
+                  <th className="text-center p-2">العدد الفعلي</th>
+                  <th className="text-center p-2">الفرق</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditDifferences.map(it => {
+                  const key = getAuditKey(it);
+                  const rowColor =
+                    it.diff === null ? '' :
+                    it.diff === 0 ? 'bg-green-50' :
+                    it.diff < 0 ? 'bg-red-50' : 'bg-amber-50';
+                  return (
+                    <tr key={key} className={`border-b border-stone-100 ${rowColor}`}>
+                      <td className="p-2">{it.name}</td>
+                      <td className="p-2 text-center font-mono text-[10px]" style={{ color: it.zoneColor }}>{it.boxCode}</td>
+                      <td className="p-2 text-center font-bold">{it.expected}</td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="number"
+                          min="0"
+                          value={auditCounts[key] ?? ''}
+                          onChange={e => setAuditCounts({ ...auditCounts, [key]: e.target.value })}
+                          className="w-16 px-2 py-1 border border-stone-300 rounded text-center"
+                          placeholder="-"
+                        />
+                      </td>
+                      <td className="p-2 text-center font-bold">
+                        {it.diff === null ? <span className="text-stone-300">—</span> :
+                         it.diff === 0 ? <span className="text-green-700">✓</span> :
+                         it.diff < 0 ? <span className="text-red-700">{it.diff}</span> :
+                         <span className="text-amber-700">+{it.diff}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-between items-center pt-3 border-t border-stone-200 mt-3">
+            <button onClick={() => setAuditCounts({})}
+              className="text-[11px] border border-stone-300 px-3 py-1.5 rounded hover:bg-stone-100">
+              🔄 مسح الإدخالات
+            </button>
+            <button onClick={() => setShowAudit(false)}
+              className="text-[11px] bg-gradient-to-l from-brand-navy to-brand-purple text-white px-4 py-2 rounded-lg hover:opacity-90 font-bold">
+              ✓ تمّ
+            </button>
+          </div>
+        </FormModal>
+      )}
     </>
   );
 }
