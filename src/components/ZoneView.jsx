@@ -13,7 +13,7 @@ import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
   bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes, bulkMoveBoxesToZone, assignItemToBox,
-  moveBoxToPosition
+  moveBoxToPosition, addStackedBox
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onZoneSwitch, onRefresh }) {
@@ -205,6 +205,22 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       ? `✅ صندوق جديد في الموقع ${position} (الرمز: ${expectedCode})`
       : `✅ تمت إضافة صندوق (${expectedCode})`);
     // ميّز الصندوق الجديد لمدّة 3 ثوانٍ
+    if (newId) {
+      setRecentlyAddedBoxId(newId);
+      setTimeout(() => setRecentlyAddedBoxId(null), 3000);
+    }
+    await onRefresh();
+  }
+
+  // إضافة صندوق مُكدَّس فوق صندوق موجود (نفس الموقع، stack_index أعلى)
+  async function handleStackBox(belowBox) {
+    setBusy(true);
+    const { data: newId, error } = await addStackedBox(belowBox.id, {
+      description: '', width_cm: belowBox.width_cm || 50, height_cm: 30
+    });
+    setBusy(false);
+    if (error) return flash('فشل التكديس: ' + error.message, 'error');
+    flash(`✅ صندوق مُكدَّس فوق ${belowBox.code}`);
     if (newId) {
       setRecentlyAddedBoxId(newId);
       setTimeout(() => setRecentlyAddedBoxId(null), 3000);
@@ -512,13 +528,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-stone-200 p-5 mb-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-5 mb-4">
         <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
           <div>
             <h2 className="text-sm font-display font-bold mb-1" style={{ color: fresh.color }}>
               مساحة {fresh.letter} — {fresh.name}
             </h2>
-            <p className="text-xs text-stone-500">
+            <p className="text-xs text-stone-500 dark:text-slate-400">
               {fresh.width_cm}×{fresh.height_cm} سم · {shelves.length} رف
               {!editMode && shelves.length > 0 && ' · اضغط على الرف للدخول إليه'}
               {editMode && ' · 🔧 وضع التعديل مفعّل'}
@@ -777,72 +793,93 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       {/* رسم الـ slots على أساس الموقع — كل slot = موقع 1, 2, 3... */}
                       {Array.from({ length: totalSlots }).map((_, idx) => {
                         const position = idx + 1;
-                        const box = shelfBoxes.find(b => b.box_index === position);
-                        if (box) {
-                          const items = getBoxItems(box.id);
-                          const isOut = isCheckedOut(box.id);
-                          const isHighlighted = highlightedBox === box.code;
-                          const isDragging = draggedBox?.id === box.id;
-                          const isSelected = selectedBoxIds.has(box.id);
-                          const isRecentlyAdded = recentlyAddedBoxId === box.id;
-                          // المقبض الظاهر دائماً للمؤسّس (سواء edit mode أم لا)
-                          const showHandle = isFounder;
-                          // الصندوق هدف إفلات إن كان هناك اختيار من صندوق آخر
-                          const isPositionDropTarget = hasActiveSelection && !activeBoxesForMove.find(b => b.id === box.id);
+                        // كل الصناديق في هذا الموقع — مرتّبة تنازلياً (الأعلى stack_index أوّلاً = يظهر فوق)
+                        const boxesAtPos = shelfBoxes
+                          .filter(b => b.box_index === position)
+                          .sort((a, b) => (b.stack_index || 0) - (a.stack_index || 0));
+                        if (boxesAtPos.length > 0) {
+                          const topBox = boxesAtPos[0]; // الأعلى = آخر صندوق مُكدَّس
                           return (
-                            <div key={`box-${position}`}
-                              onDragOver={(e) => { if (isPositionDropTarget) { e.preventDefault(); e.stopPropagation(); } }}
-                              onDrop={(e) => {
-                                if (isPositionDropTarget) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDropOrClickOnPosition(shelf, position);
-                                }
-                              }}
-                              className={`flex-1 relative ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} ${isPositionDropTarget ? 'ring-2 ring-purple-400 ring-offset-1' : ''} transition`}>
-                              <CardboardBoxMini
-                                code={box.code}
-                                itemCount={items.length}
-                                isHighlighted={isHighlighted}
-                                isOut={isOut}
-                                photoUrl={box.photo_url}
-                              />
-                              {isPositionDropTarget && (
-                                <div className="absolute inset-0 bg-purple-500/25 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none rounded-lg ring-2 ring-purple-500 ring-offset-1 animate-pulse">
-                                  <svg viewBox="0 0 24 24" className="w-7 h-7 text-purple-700 fill-current drop-shadow">
-                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                                  </svg>
-                                </div>
+                            <div key={`stack-${position}`} className="flex-1 flex flex-col gap-0.5 relative">
+                              {/* زرّ التكديس على الأعلى — للمؤسّس فقط */}
+                              {isFounder && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleStackBox(topBox); }}
+                                  disabled={busy}
+                                  className="absolute -top-2 right-1/2 translate-x-1/2 z-30 bg-purple-600 hover:bg-purple-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 hover:opacity-100 transition"
+                                  title={`أضف صندوقاً مُكدَّساً فوق ${topBox.code}`}
+                                >⊕ كدّس</button>
                               )}
-                              {/* مقبض السحب — أيقونة "نقاط الإمساك" المعتمدة عالمياً */}
-                              {showHandle && (
-                                <div
-                                  draggable={true}
-                                  onDragStart={(e) => handleBoxDragStart(e, box)}
-                                  onDragEnd={handleBoxDragEnd}
-                                  onClick={(e) => { e.stopPropagation(); handleBoxClickToSelect(box, e); }}
-                                  className={`absolute top-1 right-1 w-7 h-7 rounded-lg shadow-md cursor-grab active:cursor-grabbing flex items-center justify-center z-20 transition ${
-                                    isSelected
-                                      ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
-                                      : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
-                                  }`}
-                                  title="اسحب أو اضغط لنقل الصندوق"
-                                >
-                                  <svg viewBox="0 0 24 24" className={`w-4 h-4 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
-                                    <path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/>
-                                  </svg>
-                                </div>
-                              )}
-                              {isSelected && (
-                                <span className="absolute bottom-0.5 left-0.5 text-[9px] text-white bg-blue-600 px-1.5 py-0.5 rounded pointer-events-none z-10 font-bold shadow">
-                                  ✓ مختار
-                                </span>
-                              )}
-                              {editMode && isFounder && (
-                                <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
-                                  className="absolute top-1 left-1 bg-white border border-red-300 text-red-600 text-[9px] w-5 h-5 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-20"
-                                  title="حذف الصندوق">×</button>
-                              )}
+                              {boxesAtPos.map((box) => {
+                                const items = getBoxItems(box.id);
+                                const isOut = isCheckedOut(box.id);
+                                const isHighlighted = highlightedBox === box.code;
+                                const isDragging = draggedBox?.id === box.id;
+                                const isSelected = selectedBoxIds.has(box.id);
+                                const isRecentlyAdded = recentlyAddedBoxId === box.id;
+                                const showHandle = isFounder;
+                                const isPositionDropTarget = hasActiveSelection && !activeBoxesForMove.find(b => b.id === box.id);
+                                return (
+                                  <div key={box.id}
+                                    onDragOver={(e) => { if (isPositionDropTarget) { e.preventDefault(); e.stopPropagation(); } }}
+                                    onDrop={(e) => {
+                                      if (isPositionDropTarget) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleDropOrClickOnPosition(shelf, position);
+                                      }
+                                    }}
+                                    className={`flex-1 relative group ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} ${isPositionDropTarget ? 'ring-2 ring-purple-400 ring-offset-1' : ''} transition`}>
+                                    <CardboardBoxMini
+                                      code={box.code}
+                                      itemCount={items.length}
+                                      isHighlighted={isHighlighted}
+                                      isOut={isOut}
+                                      photoUrl={box.photo_url}
+                                    />
+                                    {isPositionDropTarget && (
+                                      <div className="absolute inset-0 bg-purple-500/25 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none rounded-lg ring-2 ring-purple-500 ring-offset-1 animate-pulse">
+                                        <svg viewBox="0 0 24 24" className="w-7 h-7 text-purple-700 fill-current drop-shadow">
+                                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                        </svg>
+                                      </div>
+                                    )}
+                                    {showHandle && (
+                                      <div
+                                        draggable={true}
+                                        onDragStart={(e) => handleBoxDragStart(e, box)}
+                                        onDragEnd={handleBoxDragEnd}
+                                        onClick={(e) => { e.stopPropagation(); handleBoxClickToSelect(box, e); }}
+                                        className={`absolute top-1 right-1 w-6 h-6 rounded-lg shadow-md cursor-grab active:cursor-grabbing flex items-center justify-center z-20 transition ${
+                                          isSelected
+                                            ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
+                                            : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
+                                        }`}
+                                        title="اسحب أو اضغط لنقل الصندوق"
+                                      >
+                                        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
+                                          <path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/>
+                                        </svg>
+                                      </div>
+                                    )}
+                                    {(box.stack_index || 0) > 0 && (
+                                      <span className="absolute top-1 left-1 bg-purple-600 text-white text-[8px] font-bold px-1 rounded pointer-events-none">
+                                        #{(box.stack_index || 0) + 1}
+                                      </span>
+                                    )}
+                                    {isSelected && (
+                                      <span className="absolute bottom-0.5 left-0.5 text-[9px] text-white bg-blue-600 px-1.5 py-0.5 rounded pointer-events-none z-10 font-bold shadow">
+                                        ✓ مختار
+                                      </span>
+                                    )}
+                                    {editMode && isFounder && (
+                                      <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
+                                        className="absolute bottom-1 left-1 bg-white border border-red-300 text-red-600 text-[9px] w-5 h-5 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-20"
+                                        title="حذف الصندوق">×</button>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         }

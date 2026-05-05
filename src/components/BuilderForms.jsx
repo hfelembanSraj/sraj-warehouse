@@ -531,15 +531,15 @@ export function FormModal({ title, subtitle, children, onClose, maxWidth = 'max-
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in"
       onClick={onClose}>
       <div
-        className={`bg-white rounded-2xl shadow-2xl ${maxWidth} w-full max-h-[90vh] overflow-hidden flex flex-col`}
+        className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl ${maxWidth} w-full max-h-[90vh] overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-gradient-to-l from-blue-50 to-stone-50 border-b border-stone-200 px-5 py-3 flex items-center justify-between">
+        <div className="bg-gradient-to-l from-blue-50 to-stone-50 dark:from-slate-800 dark:to-slate-900 border-b border-stone-200 dark:border-slate-700 px-5 py-3 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-display font-bold">{title}</h3>
-            {subtitle && <p className="text-[11px] text-stone-600 mt-0.5">{subtitle}</p>}
+            <h3 className="text-sm font-display font-bold dark:text-slate-100">{title}</h3>
+            {subtitle && <p className="text-[11px] text-stone-600 dark:text-slate-400 mt-0.5">{subtitle}</p>}
           </div>
-          <button onClick={onClose} title="إغلاق (Esc)" className="text-stone-400 hover:text-stone-700 text-2xl leading-none px-2">×</button>
+          <button onClick={onClose} title="إغلاق (Esc)" className="text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 text-2xl leading-none px-2">×</button>
         </div>
         <div className="p-5 overflow-y-auto">
           {children}
@@ -553,9 +553,9 @@ export function FormModal({ title, subtitle, children, onClose, maxWidth = 'max-
 export function ConfirmDelete({ message, busy, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl p-5 max-w-sm w-full">
-        <h4 className="text-sm font-display font-bold mb-2">تأكيد الحذف</h4>
-        <p className="text-xs text-stone-600 mb-4">{message}</p>
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-5 max-w-sm w-full">
+        <h4 className="text-sm font-display font-bold mb-2 dark:text-slate-100">تأكيد الحذف</h4>
+        <p className="text-xs text-stone-600 dark:text-slate-400 mb-4">{message}</p>
         <div className="flex gap-2">
           <button onClick={onConfirm} disabled={busy}
             className="flex-1 bg-red-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50">

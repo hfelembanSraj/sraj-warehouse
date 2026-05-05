@@ -400,6 +400,26 @@ export async function fetchWarehouseLayout(wh_id) {
   return supabase.rpc('get_warehouse_layout', { wh_id });
 }
 
+// إضافة صندوق مُكدَّس فوق صندوق موجود (في نفس موقع الرف)
+export async function addStackedBox(below_box_id, values = {}) {
+  return supabase.rpc('add_stacked_box', {
+    p_below_box_id: below_box_id,
+    b_description: values.description?.trim() || '',
+    b_width_cm: Number(values.width_cm) || 50,
+    b_height_cm: Number(values.height_cm) || 30
+  });
+}
+
+// تحديث موقع غرض خارج المساحات على خريطة المستودع (نسبة 0-100)
+export async function updateOutsideItemPosition(item_id, { pos_top, pos_left, width_pct, height_pct }) {
+  const update = {};
+  if (pos_top !== undefined)    update.pos_top    = pos_top;
+  if (pos_left !== undefined)   update.pos_left   = pos_left;
+  if (width_pct !== undefined)  update.width_pct  = width_pct;
+  if (height_pct !== undefined) update.height_pct = height_pct;
+  return supabase.from('items').update(update).eq('id', item_id);
+}
+
 export async function fetchBoxesForShelf(shelf_id) {
   return supabase.from('boxes').select('*, items(*)').eq('shelf_id', shelf_id).is('deleted_at', null).order('box_index');
 }

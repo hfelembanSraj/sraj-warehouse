@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
 import LocationPicker from './LocationPicker';
 import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
-import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem } from '../lib/warehouseOps';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
 
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
   const { can, isFounder, activeWarehouse, warehouseId } = useAuth();
@@ -167,11 +167,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         <StatCard num={checkedOutCount} label="مُخرَج حالياً" color={checkedOutCount > 0 ? 'orange' : 'default'} onClick={() => setStatModal('checkouts')} />
       </div>
 
-      <div className="bg-white rounded-xl border border-stone-200 p-5">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-5">
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <div>
-            <h2 className="text-sm font-display font-bold">{activeWarehouse?.name || 'المستودع'}</h2>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <h2 className="text-sm font-display font-bold dark:text-slate-100">{activeWarehouse?.name || 'المستودع'}</h2>
+            <p className="text-xs text-stone-500 dark:text-slate-400 mt-0.5">
               {activeWarehouse?.width_m || 4}م × {activeWarehouse?.depth_m || 4}م · {zones.length} مساحة · {totalBoxes} صندوق · {data.items.length} صنف
             </p>
           </div>
@@ -246,32 +246,21 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           ) : (
             <>
               <div className="flex justify-center">
-                <div className="relative w-full max-w-lg aspect-square bg-gradient-to-br from-stone-50 to-stone-100 rounded-2xl border-2 border-dashed border-stone-300 px-3 py-7 shadow-inner">
-                  <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 tracking-widest font-medium">الجدار الخلفي</div>
-
-                  {zones.map(z => (
-                    <ZoneTile
-                      key={z.id}
-                      zone={z}
-                      boxCount={boxCountForZone(z.letter)}
-                      zoneShelves={z.shelves || []}
-                      zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
-                      onClick={() => onZoneClick(z)}
-                      isFounder={isFounder}
-                      busy={busy}
-                      onEdit={() => setEditingZoneId(editingZoneId === z.id ? null : z.id)}
-                      onDelete={() => setConfirming({ zone: z })}
-                    />
-                  ))}
-
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-[10px] text-stone-400 tracking-widest">ممرّ الحركة</span>
-                  </div>
-
-                  <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 font-medium shadow-sm">
-                    🚪 المدخل
-                  </div>
-                </div>
+                <WarehouseMapCanvas
+                  zones={zones}
+                  outsideItems={outsideItems}
+                  data={data}
+                  isFounder={isFounder}
+                  busy={busy}
+                  boxCountForZone={boxCountForZone}
+                  onZoneClick={onZoneClick}
+                  onZoneEdit={(z) => setEditingZoneId(editingZoneId === z.id ? null : z.id)}
+                  onZoneDelete={(z) => setConfirming({ zone: z })}
+                  onItemEdit={(it) => setEditingOutsideItem(it)}
+                  onItemDelete={handleDeleteOutsideItem}
+                  onRefresh={onRefresh}
+                  flash={flash}
+                />
               </div>
 
               {isFounder && editingZoneId && (() => {
@@ -293,41 +282,10 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 );
               })()}
 
-              {/* قسم "أغراض خارج المساحات" — للأشياء الكبيرة كالطاولات الكبيرة */}
               {outsideItems.length > 0 && (
-                <div className="mt-5 bg-amber-50/60 border-2 border-dashed border-amber-300 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <h4 className="text-sm font-display font-bold text-amber-900 flex items-center gap-1.5">
-                      📐 أغراض خارج المساحات ({outsideItems.length})
-                    </h4>
-                    <span className="text-[11px] text-amber-700">
-                      أشياء كبيرة لا تدخل صناديق — تُخزَّن في المستودع مباشرة
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {outsideItems.map(it => (
-                      <div key={it.id} className="bg-white border border-amber-200 rounded-lg p-2.5 flex items-center gap-2.5">
-                        {it.photo_url ? (
-                          <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
-                        ) : (
-                          <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{it.name}</div>
-                          <div className="text-[10px] text-stone-500">الكميّة: {it.quantity}</div>
-                        </div>
-                        {(isFounder || can('edit')) && (
-                          <button onClick={() => setEditingOutsideItem(it)}
-                            className="text-[10px] bg-stone-50 border border-stone-300 px-2 py-1.5 rounded hover:bg-stone-100">✏️</button>
-                        )}
-                        {(isFounder || can('delete')) && (
-                          <button onClick={() => handleDeleteOutsideItem(it)}
-                            className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded hover:bg-red-100">🗑</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <p className="text-center text-[10px] text-stone-500 dark:text-slate-400 mt-3">
+                  💡 <strong>{outsideItems.length}</strong> {outsideItems.length === 1 ? 'غرض' : 'أغراض'} خارج المساحات معروضة على الخريطة — اسحبها لتغيير موقعها
+                </p>
               )}
             </>
           )
@@ -481,17 +439,17 @@ function NewItemForm({ busy, onCancel, onSave }) {
 
 function StatCard({ num, label, color = 'default', onClick }) {
   const colors = {
-    default: 'text-stone-900',
-    orange: 'text-orange-600',
-    red: 'text-red-600'
+    default: 'text-stone-900 dark:text-slate-100',
+    orange: 'text-orange-600 dark:text-orange-400',
+    red: 'text-red-600 dark:text-red-400'
   };
-  const baseClass = `bg-white rounded-xl border border-stone-200 p-3 text-center transition ${
+  const baseClass = `bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-3 text-center transition ${
     onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 hover:-translate-y-0.5' : ''
   }`;
   const inner = (
     <>
       <div className={`text-2xl font-display font-bold ${colors[color]}`}>{num}</div>
-      <div className="text-[11px] text-stone-500 mt-0.5">
+      <div className="text-[11px] text-stone-500 dark:text-slate-400 mt-0.5">
         {label}
         {onClick && <span className="text-blue-500 mr-1 text-[9px]">(اضغط للعرض)</span>}
       </div>
@@ -499,6 +457,215 @@ function StatCard({ num, label, color = 'default', onClick }) {
   );
   if (onClick) return <button onClick={onClick} className={baseClass + ' w-full'}>{inner}</button>;
   return <div className={baseClass}>{inner}</div>;
+}
+
+// ====== لوحة خريطة المستودع: مساحات + أغراض خارج المساحات (قابلة للسحب) ======
+function WarehouseMapCanvas({
+  zones, outsideItems, data, isFounder, busy,
+  boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
+  onItemEdit, onItemDelete, onRefresh, flash
+}) {
+  const containerRef = useRef(null);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full max-w-lg aspect-square bg-gradient-to-br from-stone-50 to-stone-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl border-2 border-dashed border-stone-300 dark:border-slate-700 px-3 py-7 shadow-inner"
+    >
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-slate-500 tracking-widest font-medium">
+        الجدار الخلفي
+      </div>
+
+      {zones.map(z => (
+        <ZoneTile
+          key={z.id}
+          zone={z}
+          boxCount={boxCountForZone(z.letter)}
+          zoneShelves={z.shelves || []}
+          zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
+          onClick={() => onZoneClick(z)}
+          isFounder={isFounder}
+          busy={busy}
+          onEdit={() => onZoneEdit(z)}
+          onDelete={() => onZoneDelete(z)}
+        />
+      ))}
+
+      {/* الأغراض خارج المساحات — مربّعات قابلة للسحب على الخريطة */}
+      {outsideItems.map(it => (
+        <OutsideItemSquare
+          key={it.id}
+          item={it}
+          containerRef={containerRef}
+          isFounder={isFounder}
+          onEdit={() => onItemEdit(it)}
+          onDelete={() => onItemDelete(it)}
+          onRefresh={onRefresh}
+          flash={flash}
+        />
+      ))}
+
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span className="text-[10px] text-stone-400 dark:text-slate-500 tracking-widest">ممرّ الحركة</span>
+      </div>
+
+      <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-stone-300 dark:border-slate-700 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 dark:text-slate-300 font-medium shadow-sm">
+        🚪 المدخل
+      </div>
+    </div>
+  );
+}
+
+// ====== مربّع غرض خارج المساحات (قابل للسحب لتغيير الموقع) ======
+function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, onRefresh, flash }) {
+  // الموقع الفعلي على الخريطة — مع قيم افتراضيّة لو لم تُحفَظ بعد
+  const [pos, setPos] = useState({
+    top:    item.pos_top    ?? 40,
+    left:   item.pos_left   ?? 40,
+    width:  item.width_pct  ?? 10,
+    height: item.height_pct ?? 10
+  });
+  const [dragging, setDragging] = useState(false);
+  const dragStateRef = useRef(null);
+
+  // عند تغيّر بيانات الغرض من الخارج، حدّث الحالة المحليّة
+  useEffect(() => {
+    if (!dragging) {
+      setPos({
+        top:    item.pos_top    ?? 40,
+        left:   item.pos_left   ?? 40,
+        width:  item.width_pct  ?? 10,
+        height: item.height_pct ?? 10
+      });
+    }
+  }, [item.pos_top, item.pos_left, item.width_pct, item.height_pct, dragging]);
+
+  function onMouseDown(e) {
+    if (!isFounder) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragStateRef.current = {
+      rect,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: pos.left,
+      startTop: pos.top
+    };
+    setDragging(true);
+  }
+
+  function onTouchStart(e) {
+    if (!isFounder) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragStateRef.current = {
+      rect,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startLeft: pos.left,
+      startTop: pos.top
+    };
+    setDragging(true);
+  }
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    function handleMove(clientX, clientY) {
+      const s = dragStateRef.current;
+      if (!s) return;
+      const dx = clientX - s.startX;
+      const dy = clientY - s.startY;
+      const newLeft = Math.max(0, Math.min(100 - pos.width,  s.startLeft + (dx / s.rect.width)  * 100));
+      const newTop  = Math.max(0, Math.min(100 - pos.height, s.startTop  + (dy / s.rect.height) * 100));
+      setPos(p => ({ ...p, left: newLeft, top: newTop }));
+    }
+
+    function onMove(e) { handleMove(e.clientX, e.clientY); }
+    function onTouchMove(e) {
+      if (e.touches[0]) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+
+    async function onUp() {
+      setDragging(false);
+      const s = dragStateRef.current;
+      dragStateRef.current = null;
+      if (!s) return;
+      // احفظ الموقع الجديد في القاعدة
+      try {
+        await updateOutsideItemPosition(item.id, {
+          pos_top:  pos.top,
+          pos_left: pos.left
+        });
+        onRefresh?.();
+      } catch (err) {
+        flash?.('فشل حفظ الموقع: ' + err.message, 'error');
+      }
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, [dragging, pos.top, pos.left, pos.width, pos.height, item.id, onRefresh, flash]);
+
+  const style = {
+    position: 'absolute',
+    top:    `${pos.top}%`,
+    left:   `${pos.left}%`,
+    width:  `${pos.width}%`,
+    height: `${pos.height}%`,
+    cursor: isFounder ? (dragging ? 'grabbing' : 'grab') : 'default',
+    zIndex: dragging ? 30 : 15
+  };
+
+  return (
+    <div
+      style={style}
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      className={`group rounded-md border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 shadow-md hover:shadow-lg transition select-none overflow-hidden ${
+        dragging ? 'ring-2 ring-amber-600 ring-offset-1 scale-105' : ''
+      }`}
+      title={`${item.name} (الكميّة: ${item.quantity}) — اسحب لتغيير الموقع`}
+    >
+      {item.photo_url ? (
+        <img src={item.photo_url} alt={item.name} draggable={false}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 pointer-events-none">
+          <span className="text-[9px] font-bold text-amber-900 dark:text-amber-100 text-center px-1 leading-tight line-clamp-3">
+            {item.name}
+          </span>
+        </div>
+      )}
+      {/* شارة الكميّة في الزاوية */}
+      <div className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[8px] font-bold px-1 py-0.5 rounded pointer-events-none">
+        ×{item.quantity}
+      </div>
+      {/* أزرار التعديل/الحذف — تظهر عند المرور */}
+      {isFounder && (
+        <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
+          <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="w-5 h-5 rounded bg-white text-stone-700 text-[10px] hover:bg-stone-100 shadow flex items-center justify-center"
+            title="تعديل">✏️</button>
+          <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="w-5 h-5 rounded bg-red-500 text-white text-[10px] hover:bg-red-600 shadow flex items-center justify-center"
+            title="حذف">🗑</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // قائمة كل الصناديق — تُعرض في مودال

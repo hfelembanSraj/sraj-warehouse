@@ -16,6 +16,7 @@ import GlobalSearch from '../components/GlobalSearch';
 import BrandLogo, { BrandStripe } from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import { useGlobalShortcuts } from '../lib/useKeyboard';
+import { useTheme } from '../lib/useTheme';
 
 // المكوّنات الثقيلة / غير الأساسيّة — تُحمَّل عند الحاجة (يُقلّل حجم الحزمة الأوّلي)
 const CheckoutsTab = lazy(() => import('../components/CheckoutsTab'));
@@ -41,6 +42,7 @@ const TabFallback = () => (
 
 export default function Dashboard() {
   const { user, profile, signOut, can, warehouseId, activeWarehouse, isFounder, isSysadmin, refreshWarehouses, setWarehouseId } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const initialTab = isFounder ? 'home' : 'map';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -312,12 +314,12 @@ export default function Dashboard() {
   const showMapContent  = (activeTab === 'home' && isFounder && enteredWarehouse) || (activeTab === 'map');
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-stone-50 dark:bg-slate-950 transition-colors">
       {/* شريط ألوان الجمعيّة العلوي */}
       <BrandStripe height={4} animated className="sticky top-0 z-30 no-print" />
 
       {/* Top Bar */}
-      <header className="bg-white border-b border-stone-200 sticky top-1 z-20 no-print shadow-sm">
+      <header className="bg-white dark:bg-slate-900 border-b border-stone-200 dark:border-slate-800 sticky top-1 z-20 no-print shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-xl shadow-md p-1 flex items-center justify-center">
@@ -336,6 +338,13 @@ export default function Dashboard() {
             <GlobalSearch onJump={handleSearchJump} />
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 transition text-lg"
+              title={theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <NotificationsBell />
             {isFounder && profile?.stealth_mode && (
               <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-medium bg-stone-900 text-white px-2 py-1 rounded-full" title="وضع التخفّي مفعّل — أعمالك لا تُسجَّل">
@@ -372,14 +381,14 @@ export default function Dashboard() {
         )}
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl border border-stone-200 p-1 mb-4 overflow-x-auto no-print shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-1 mb-4 overflow-x-auto no-print shadow-sm">
           <div className="flex gap-1 min-w-max">
             {tabs.map(t => (
               <button key={t.key} onClick={() => handleTabChange(t.key)}
                 className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap transition flex items-center gap-1.5 ${
                   activeTab === t.key
                     ? 'bg-gradient-to-l from-brand-navy to-brand-purple text-white font-bold shadow'
-                    : 'text-stone-600 hover:bg-stone-100'
+                    : 'text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800'
                 }`}>
                 {t.label}
                 {t.badge > 0 && (
