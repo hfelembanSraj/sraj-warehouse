@@ -528,13 +528,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-5 mb-4">
+      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-5 mb-4">
         <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
           <div>
             <h2 className="text-sm font-display font-bold mb-1" style={{ color: fresh.color }}>
               مساحة {fresh.letter} — {fresh.name}
             </h2>
-            <p className="text-xs text-stone-500 dark:text-slate-400">
+            <p className="text-xs text-stone-500 dark:text-stone-400">
               {fresh.width_cm}×{fresh.height_cm} سم · {shelves.length} رف
               {!editMode && shelves.length > 0 && ' · اضغط على الرف للدخول إليه'}
               {editMode && ' · 🔧 وضع التعديل مفعّل'}
@@ -806,7 +806,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleStackBox(topBox); }}
                                   disabled={busy}
-                                  className="absolute -top-2 right-1/2 translate-x-1/2 z-30 bg-purple-600 hover:bg-purple-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 hover:opacity-100 transition"
+                                  className="absolute -top-2.5 right-1/2 translate-x-1/2 z-30 bg-purple-600 hover:bg-purple-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow-md hover:shadow-lg transition border-2 border-white"
                                   title={`أضف صندوقاً مُكدَّساً فوق ${topBox.code}`}
                                 >⊕ كدّس</button>
                               )}

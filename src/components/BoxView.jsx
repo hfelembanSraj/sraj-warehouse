@@ -196,7 +196,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-5 mb-4">
+      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-5 mb-4">
         <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
           <div className="flex items-center gap-3">
             {currentBox.photo_url ? (

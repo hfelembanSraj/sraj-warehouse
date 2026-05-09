@@ -6,6 +6,62 @@ import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
 
+// حساب موقع جديد لمساحة لتُزاح بعيداً عن غرض يتداخل معها
+// يُعيد null إن لم يكن هناك تداخل، أو dimensions جديدة (pos_left, pos_top, pos_width, pos_height)
+function pushZoneAwayFromItem(zone, itemRect) {
+  const usingRight = zone.pos_left == null && zone.pos_right != null;
+  const zLeft = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
+  const zTop  = zone.pos_top ?? 0;
+  const zW    = zone.pos_width  ?? 18;
+  const zH    = zone.pos_height ?? 42;
+  const zRight  = zLeft + zW;
+  const zBottom = zTop + zH;
+  const iLeft   = itemRect.left;
+  const iTop    = itemRect.top;
+  const iRight  = iLeft + itemRect.width;
+  const iBottom = iTop + itemRect.height;
+
+  // لا تداخل
+  if (iRight <= zLeft || zRight <= iLeft || iBottom <= zTop || zBottom <= iTop) return null;
+
+  const fromLeftEdge   = iRight  - zLeft;     // كم دخل الغرض من جهة يسار المساحة
+  const fromRightEdge  = zRight  - iLeft;     // من اليمين
+  const fromTopEdge    = iBottom - zTop;      // من الأعلى
+  const fromBottomEdge = zBottom - iTop;      // من الأسفل
+
+  const minPush = Math.min(fromLeftEdge, fromRightEdge, fromTopEdge, fromBottomEdge);
+  const PADDING = 1;
+  const MIN_SIZE = 6;
+
+  let newLeft = zLeft, newTop = zTop, newW = zW, newH = zH;
+
+  if (minPush === fromLeftEdge) {
+    // الغرض على يسار المساحة → ادفع المساحة لليمين بتقليل العرض من جهة اليسار
+    const shift = fromLeftEdge + PADDING;
+    newLeft = zLeft + shift;
+    newW = Math.max(MIN_SIZE, zW - shift);
+  } else if (minPush === fromRightEdge) {
+    // الغرض على يمين المساحة → قلّص العرض من اليمين
+    newW = Math.max(MIN_SIZE, zW - fromRightEdge - PADDING);
+  } else if (minPush === fromTopEdge) {
+    // الغرض فوق المساحة → قلّص الارتفاع من الأعلى
+    const shift = fromTopEdge + PADDING;
+    newTop = zTop + shift;
+    newH = Math.max(MIN_SIZE, zH - shift);
+  } else {
+    // الغرض تحت المساحة → قلّص الارتفاع من الأسفل
+    newH = Math.max(MIN_SIZE, zH - fromBottomEdge - PADDING);
+  }
+
+  return {
+    pos_left: newLeft,
+    pos_right: usingRight ? null : null, // نُعطّل pos_right ونعتمد دائماً على pos_left
+    pos_top: newTop,
+    pos_width: newW,
+    pos_height: newH
+  };
+}
+
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
   const { can, isFounder, activeWarehouse, warehouseId } = useAuth();
   const [showAddZone, setShowAddZone] = useState(false);
@@ -167,11 +223,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         <StatCard num={checkedOutCount} label="مُخرَج حالياً" color={checkedOutCount > 0 ? 'orange' : 'default'} onClick={() => setStatModal('checkouts')} />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-5">
+      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-5">
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <div>
-            <h2 className="text-sm font-display font-bold dark:text-slate-100">{activeWarehouse?.name || 'المستودع'}</h2>
-            <p className="text-xs text-stone-500 dark:text-slate-400 mt-0.5">
+            <h2 className="text-sm font-display font-bold dark:text-stone-100">{activeWarehouse?.name || 'المستودع'}</h2>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
               {activeWarehouse?.width_m || 4}م × {activeWarehouse?.depth_m || 4}م · {zones.length} مساحة · {totalBoxes} صندوق · {data.items.length} صنف
             </p>
           </div>
@@ -283,7 +339,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
               })()}
 
               {outsideItems.length > 0 && (
-                <p className="text-center text-[10px] text-stone-500 dark:text-slate-400 mt-3">
+                <p className="text-center text-[10px] text-stone-500 dark:text-stone-400 mt-3">
                   💡 <strong>{outsideItems.length}</strong> {outsideItems.length === 1 ? 'غرض' : 'أغراض'} خارج المساحات معروضة على الخريطة — اسحبها لتغيير موقعها
                 </p>
               )}
@@ -439,17 +495,17 @@ function NewItemForm({ busy, onCancel, onSave }) {
 
 function StatCard({ num, label, color = 'default', onClick }) {
   const colors = {
-    default: 'text-stone-900 dark:text-slate-100',
+    default: 'text-stone-900 dark:text-stone-100',
     orange: 'text-orange-600 dark:text-orange-400',
     red: 'text-red-600 dark:text-red-400'
   };
-  const baseClass = `bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-3 text-center transition ${
+  const baseClass = `bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-3 text-center transition ${
     onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 hover:-translate-y-0.5' : ''
   }`;
   const inner = (
     <>
       <div className={`text-2xl font-display font-bold ${colors[color]}`}>{num}</div>
-      <div className="text-[11px] text-stone-500 dark:text-slate-400 mt-0.5">
+      <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
         {label}
         {onClick && <span className="text-blue-500 mr-1 text-[9px]">(اضغط للعرض)</span>}
       </div>
@@ -467,12 +523,43 @@ function WarehouseMapCanvas({
 }) {
   const containerRef = useRef(null);
 
+  // عند إفلات غرض على الخريطة:
+  //   1. احفظ موقعه الجديد
+  //   2. تحقّق من تداخله مع أيّ مساحة → ادفع المساحة وقلّص حجمها لإفساح المكان
+  async function handleItemDropped(item, newPos) {
+    try {
+      await updateOutsideItemPosition(item.id, {
+        pos_top: newPos.top,
+        pos_left: newPos.left
+      });
+    } catch (err) {
+      flash?.('فشل حفظ الموقع: ' + err.message, 'error');
+      return;
+    }
+    const itemRect = {
+      top:    newPos.top,
+      left:   newPos.left,
+      width:  item.width_pct  ?? 10,
+      height: item.height_pct ?? 10
+    };
+    let pushedAny = false;
+    for (const zone of zones) {
+      const newDims = pushZoneAwayFromItem(zone, itemRect);
+      if (newDims) {
+        const { error } = await rpcUpdateZone(zone, newDims);
+        if (!error) pushedAny = true;
+      }
+    }
+    if (pushedAny) flash?.('↔ تزحزحت المساحات لإفساح المكان');
+    onRefresh?.();
+  }
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-lg aspect-square bg-gradient-to-br from-stone-50 to-stone-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl border-2 border-dashed border-stone-300 dark:border-slate-700 px-3 py-7 shadow-inner"
+      className="relative w-full max-w-lg aspect-square bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-3 py-7 shadow-inner"
     >
-      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-slate-500 tracking-widest font-medium">
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium">
         الجدار الخلفي
       </div>
 
@@ -500,16 +587,16 @@ function WarehouseMapCanvas({
           isFounder={isFounder}
           onEdit={() => onItemEdit(it)}
           onDelete={() => onItemDelete(it)}
-          onRefresh={onRefresh}
+          onDropped={handleItemDropped}
           flash={flash}
         />
       ))}
 
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className="text-[10px] text-stone-400 dark:text-slate-500 tracking-widest">ممرّ الحركة</span>
+        <span className="text-[10px] text-stone-400 dark:text-stone-500 tracking-widest">ممرّ الحركة</span>
       </div>
 
-      <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-stone-300 dark:border-slate-700 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 dark:text-slate-300 font-medium shadow-sm">
+      <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 dark:text-stone-300 font-medium shadow-sm">
         🚪 المدخل
       </div>
     </div>
@@ -517,7 +604,7 @@ function WarehouseMapCanvas({
 }
 
 // ====== مربّع غرض خارج المساحات (قابل للسحب لتغيير الموقع) ======
-function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, onRefresh, flash }) {
+function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, onDropped, flash }) {
   // الموقع الفعلي على الخريطة — مع قيم افتراضيّة لو لم تُحفَظ بعد
   const [pos, setPos] = useState({
     top:    item.pos_top    ?? 40,
@@ -595,16 +682,8 @@ function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, on
       const s = dragStateRef.current;
       dragStateRef.current = null;
       if (!s) return;
-      // احفظ الموقع الجديد في القاعدة
-      try {
-        await updateOutsideItemPosition(item.id, {
-          pos_top:  pos.top,
-          pos_left: pos.left
-        });
-        onRefresh?.();
-      } catch (err) {
-        flash?.('فشل حفظ الموقع: ' + err.message, 'error');
-      }
+      // أبلغ الأب: يتولّى الحفظ + دفع المساحات المتداخلة
+      onDropped?.(item, { top: pos.top, left: pos.left });
     }
 
     window.addEventListener('mousemove', onMove);
@@ -617,7 +696,7 @@ function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, on
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onUp);
     };
-  }, [dragging, pos.top, pos.left, pos.width, pos.height, item.id, onRefresh, flash]);
+  }, [dragging, pos.top, pos.left, pos.width, pos.height, item, onDropped]);
 
   const style = {
     position: 'absolute',
@@ -764,7 +843,7 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, 
     width:  zone.pos_width  != null ? `${zone.pos_width}%`  : undefined,
     height: zone.pos_height != null ? `${zone.pos_height}%` : undefined,
     borderColor: zone.color,
-    backgroundImage: `linear-gradient(135deg, ${zone.color}18 0%, white 60%)`,
+    backgroundImage: `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
     boxShadow: `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
   };
   // عدد الأرفف المعروضة (حدّ أقصى 6) — مرتّبة بـ shelf_index تصاعدياً
@@ -782,7 +861,8 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, 
           {/* الحرف والاسم في طبقة علويّة */}
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none z-10">
             <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>
-            <div className="text-[10px] text-stone-800 mt-1 leading-tight text-center font-semibold bg-white/85 backdrop-blur rounded-full px-2 py-0.5 shadow-sm">
+            <div className="mt-1 leading-tight text-center font-semibold backdrop-blur rounded-full px-2 py-0.5 shadow-sm text-[10px]"
+              style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
               {zone.name}
             </div>
           </div>
@@ -828,7 +908,12 @@ function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, 
         </div>
 
         {/* شريط معلومات الأسفل */}
-        <div className="text-[10px] text-stone-700 text-center py-1 bg-white/90 backdrop-blur border-t border-stone-200 font-semibold">
+        <div className="text-[10px] text-center py-1 backdrop-blur border-t font-semibold"
+          style={{
+            backgroundColor: 'var(--tile-pill-bg)',
+            color: 'var(--tile-pill-text)',
+            borderColor: zone.color + '40'
+          }}>
           {boxCount} {boxCount === 1 ? 'صندوق' : 'صناديق'}
         </div>
       </button>

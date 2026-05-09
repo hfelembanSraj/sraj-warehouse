@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ألوان قابلة للتبديل بين الوضعين الفاتح والداكن — تُستخدم في الستايلات السطريّة */
+:root {
+  --tile-bg: white;
+  --tile-shelf-bg: #fafaf9;
+  --tile-pill-bg: rgba(255, 255, 255, 0.85);
+  --tile-pill-text: #1c1917;
+}
+html.dark {
+  --tile-bg: #292524;
+  --tile-shelf-bg: #1c1917;
+  --tile-pill-bg: rgba(28, 25, 23, 0.85);
+  --tile-pill-text: #e7e5e4;
+}
+
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -16,8 +30,8 @@ body {
 }
 
 html.dark body {
-  background: #0f1419;
-  color: #e2e8f0;
+  background: #1c1917;
+  color: #e7e5e4;
 }
 
 /* Scrollbar */

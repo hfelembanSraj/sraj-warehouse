@@ -314,12 +314,12 @@ export default function Dashboard() {
   const showMapContent  = (activeTab === 'home' && isFounder && enteredWarehouse) || (activeTab === 'map');
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-slate-950 transition-colors">
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 transition-colors">
       {/* شريط ألوان الجمعيّة العلوي */}
       <BrandStripe height={4} animated className="sticky top-0 z-30 no-print" />
 
       {/* Top Bar */}
-      <header className="bg-white dark:bg-slate-900 border-b border-stone-200 dark:border-slate-800 sticky top-1 z-20 no-print shadow-sm">
+      <header className="bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 sticky top-1 z-20 no-print shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-xl shadow-md p-1 flex items-center justify-center">
@@ -381,14 +381,14 @@ export default function Dashboard() {
         )}
 
         {/* Tabs */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800 p-1 mb-4 overflow-x-auto no-print shadow-sm">
+        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-1 mb-4 overflow-x-auto no-print shadow-sm">
           <div className="flex gap-1 min-w-max">
             {tabs.map(t => (
               <button key={t.key} onClick={() => handleTabChange(t.key)}
                 className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap transition flex items-center gap-1.5 ${
                   activeTab === t.key
                     ? 'bg-gradient-to-l from-brand-navy to-brand-purple text-white font-bold shadow'
-                    : 'text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800'
+                    : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800'
                 }`}>
                 {t.label}
                 {t.badge > 0 && (
