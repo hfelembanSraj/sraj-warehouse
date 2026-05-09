@@ -17,65 +17,80 @@ function naturalZoneRect(zone) {
   };
 }
 
-// إن كان هناك تداخل بين مستطيل وغرض → قلّص المستطيل ليُفسح المكان للغرض
-// يُقلَّص في كلا المحورين الأفقي والعمودي إن كان التداخل في زاوية
-// (الغرض في زاوية المساحة → المساحة تنحف من الجانب وتنخفض من الأعلى/الأسفل معاً)
-function shrinkRectAwayFromItem(rect, itemRect) {
-  const rRight  = rect.left + rect.width;
-  const rBottom = rect.top  + rect.height;
-  const iRight  = itemRect.left + itemRect.width;
-  const iBottom = itemRect.top  + itemRect.height;
+// تقليص مستطيل المساحة بناءً على غرض متداخل، مع **الحفاظ على جدران المساحة**
+// (الجوانب الملاصقة لجدار المستودع تبقى ثابتة — لا يُسمح للمساحة بالانفصال عن الجدار)
+//
+// - مساحة بـ pos_right (يمين-جدار): الجدار = اليمين. الجانب الحرّ = اليسار. تنحف من اليسار فقط.
+// - مساحة بـ pos_left  (يسار-جدار): الجدار = اليسار. الجانب الحرّ = اليمين. تنحف من اليمين.
+// - مساحة قريبة من الأعلى (pos_top صغير): جدار خلفي = الأعلى. الجانب الحرّ = الأسفل.
+// - مساحة قريبة من الأسفل: جدار أمامي = الأسفل. الجانب الحرّ = الأعلى.
+//
+// لو كان الغرض على جدار المساحة (الجهة المثبَّتة)، لا تقلّص في ذلك المحور.
+function shrinkRectAwayFromItem(zone, itemRect) {
+  const natLeft   = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
+  const natTop    = zone.pos_top    ?? 0;
+  const natW      = zone.pos_width  ?? 18;
+  const natH      = zone.pos_height ?? 42;
+  const natRight  = natLeft + natW;
+  const natBottom = natTop + natH;
+  const iLeft   = itemRect.left;
+  const iTop    = itemRect.top;
+  const iRight  = iLeft + itemRect.width;
+  const iBottom = iTop + itemRect.height;
 
-  // لا تداخل أصلاً
-  if (iRight <= rect.left || rRight <= itemRect.left || iBottom <= rect.top || rBottom <= itemRect.top) {
-    return rect;
+  // لا تداخل
+  if (iRight <= natLeft || natRight <= iLeft || iBottom <= natTop || natBottom <= iTop) {
+    return { left: natLeft, top: natTop, width: natW, height: natH };
   }
 
-  const PADDING = 1.5;
+  const PADDING = 1;
   const MIN_SIZE = 5;
 
-  // مركز كلٍّ من المساحة والغرض
-  const zCenterX = rect.left + rect.width  / 2;
-  const zCenterY = rect.top  + rect.height / 2;
-  const iCenterX = itemRect.left + itemRect.width  / 2;
-  const iCenterY = itemRect.top  + itemRect.height / 2;
+  // تحديد جدار المساحة في كلّ محور
+  const rightAnchored = zone.pos_right != null;        // اليمين هو الجدار → الجانب الحرّ = اليسار
+  // اختيار الجدار العمودي بناءً على القرب: أيّهما أقرب لحدود المستودع
+  const distTop = natTop;
+  const distBottom = 100 - natBottom;
+  const topAnchored = distTop <= distBottom;            // الأعلى هو الجدار → الجانب الحرّ = الأسفل
 
-  let newLeft = rect.left;
-  let newTop  = rect.top;
-  let newW    = rect.width;
-  let newH    = rect.height;
+  let newLeft   = natLeft;
+  let newRight  = natRight;
+  let newTop    = natTop;
+  let newBottom = natBottom;
 
-  // === محور أفقي ===
-  // الغرض على يمين مركز المساحة → قلّص من الجهة اليمنى
-  if (iCenterX > zCenterX) {
-    if (itemRect.left < rRight) {
-      newW = Math.max(MIN_SIZE, itemRect.left - rect.left - PADDING);
+  // === أفقي: قلّص فقط من الجانب الحرّ ===
+  if (rightAnchored) {
+    // الجانب الحرّ = اليسار. حرّك الحدّ الأيسر يميناً ليُفسح للغرض.
+    // فقط لو كان الغرض في الجزء الأيسر من المساحة (وإلاّ لن يساعد التقليص في تجنّب الغرض).
+    if (iRight > natLeft && iLeft < natLeft + natW * 0.6) {
+      newLeft = Math.min(natRight - MIN_SIZE, iRight + PADDING);
     }
   } else {
-    // الغرض على يسار مركز المساحة → قلّص من اليسار (وادفع المساحة لليمين)
-    if (iRight > rect.left) {
-      const shift = iRight + PADDING - rect.left;
-      newLeft = rect.left + shift;
-      newW = Math.max(MIN_SIZE, rect.width - shift);
+    // الجانب الحرّ = اليمين
+    if (iLeft < natRight && iRight > natLeft + natW * 0.4) {
+      newRight = Math.max(natLeft + MIN_SIZE, iLeft - PADDING);
     }
   }
 
-  // === محور عمودي ===
-  if (iCenterY > zCenterY) {
-    // الغرض تحت مركز المساحة → قلّص من الأسفل
-    if (itemRect.top < rBottom) {
-      newH = Math.max(MIN_SIZE, itemRect.top - rect.top - PADDING);
+  // === عمودي: قلّص فقط من الجانب الحرّ ===
+  if (topAnchored) {
+    // الجانب الحرّ = الأسفل. حرّك الحدّ السفلي للأعلى.
+    if (iBottom > natTop && iTop < natTop + natH * 0.6) {
+      newBottom = Math.max(natTop + MIN_SIZE, iTop - PADDING);
     }
   } else {
-    // الغرض فوق مركز المساحة → قلّص من الأعلى
-    if (iBottom > rect.top) {
-      const shift = iBottom + PADDING - rect.top;
-      newTop = rect.top + shift;
-      newH = Math.max(MIN_SIZE, rect.height - shift);
+    // الجانب الحرّ = الأعلى
+    if (iTop < natBottom && iBottom > natTop + natH * 0.4) {
+      newTop = Math.min(natBottom - MIN_SIZE, iBottom + PADDING);
     }
   }
 
-  return { left: newLeft, top: newTop, width: newW, height: newH };
+  return {
+    left:   newLeft,
+    top:    newTop,
+    width:  newRight - newLeft,
+    height: newBottom - newTop
+  };
 }
 
 // حساب المستطيل المرئيّ لمساحة بناءً على كل الأغراض الخارجيّة المتداخلة معها
@@ -90,7 +105,19 @@ function computeVisualZoneRect(zone, outsideItems) {
       width:  item.width_pct  ?? 10,
       height: item.height_pct ?? 10
     };
-    rect = shrinkRectAwayFromItem(rect, itemRect);
+    // نمرّر zone (بـ pos_left/pos_right الأصليّة) ليعرف الجدار المثبّت
+    // ولكن نُحدّث rect بعد كلّ غرض ليتراكم تأثير الأغراض المتعدّدة
+    const shrunk = shrinkRectAwayFromItem(zone, itemRect);
+    // خذ التقاطع بين rect الحالي والـshrunk الجديد (لتتراكم التقليصات)
+    const left   = Math.max(rect.left, shrunk.left);
+    const top    = Math.max(rect.top,  shrunk.top);
+    const right  = Math.min(rect.left + rect.width,  shrunk.left + shrunk.width);
+    const bottom = Math.min(rect.top  + rect.height, shrunk.top  + shrunk.height);
+    rect = {
+      left, top,
+      width:  Math.max(5, right - left),
+      height: Math.max(5, bottom - top)
+    };
   }
   return rect;
 }
@@ -627,27 +654,22 @@ function WarehouseMapCanvas({
         الجدار الخلفي
       </div>
 
-      {(() => {
-        // 1. احسب الـrect الأوّلي لكل مساحة (تقلّص بسبب أغراض خارجيّة)
-        const initialRects = zones.map(z => computeVisualZoneRect(z, outsideItems));
-        // 2. زامن المساحات الجارة (نفس الصفّ/العمود)
-        const syncedRects = syncSiblingZones(zones, initialRects);
-        return zones.map((z, i) => (
-          <ZoneTile
-            key={z.id}
-            zone={z}
-            displayRect={syncedRects[i]}
-            boxCount={boxCountForZone(z.letter)}
-            zoneShelves={z.shelves || []}
-            zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
-            onClick={() => onZoneClick(z)}
-            isFounder={isFounder}
-            busy={busy}
-            onEdit={() => onZoneEdit(z)}
-            onDelete={() => onZoneDelete(z)}
-          />
-        ));
-      })()}
+      {/* كلّ مساحة تُحسَب مستقلّةً بناءً على الأغراض المتداخلة معها فقط (بدون مزامنة جارة) */}
+      {zones.map(z => (
+        <ZoneTile
+          key={z.id}
+          zone={z}
+          displayRect={computeVisualZoneRect(z, outsideItems)}
+          boxCount={boxCountForZone(z.letter)}
+          zoneShelves={z.shelves || []}
+          zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
+          onClick={() => onZoneClick(z)}
+          isFounder={isFounder}
+          busy={busy}
+          onEdit={() => onZoneEdit(z)}
+          onDelete={() => onZoneDelete(z)}
+        />
+      ))}
 
       {/* الأغراض خارج المساحات — مربّعات قابلة للسحب على الخريطة */}
       {outsideItems.map(it => (
