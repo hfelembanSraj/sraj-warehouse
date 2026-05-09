@@ -17,40 +17,65 @@ function naturalZoneRect(zone) {
   };
 }
 
-// إن كان هناك تداخل بين مستطيل وغرض → أعِد مستطيلاً مُقلَّصاً للجهة الأقصر
-// (دفع/تقليص نحو الجهة الأقرب). إن لم يكن هناك تداخل → أعد المستطيل كما هو.
+// إن كان هناك تداخل بين مستطيل وغرض → قلّص المستطيل ليُفسح المكان للغرض
+// يُقلَّص في كلا المحورين الأفقي والعمودي إن كان التداخل في زاوية
+// (الغرض في زاوية المساحة → المساحة تنحف من الجانب وتنخفض من الأعلى/الأسفل معاً)
 function shrinkRectAwayFromItem(rect, itemRect) {
   const rRight  = rect.left + rect.width;
   const rBottom = rect.top  + rect.height;
   const iRight  = itemRect.left + itemRect.width;
   const iBottom = itemRect.top  + itemRect.height;
 
-  // لا تداخل
+  // لا تداخل أصلاً
   if (iRight <= rect.left || rRight <= itemRect.left || iBottom <= rect.top || rBottom <= itemRect.top) {
     return rect;
   }
 
-  const fromLeftEdge   = iRight  - rect.left;
-  const fromRightEdge  = rRight  - itemRect.left;
-  const fromTopEdge    = iBottom - rect.top;
-  const fromBottomEdge = rBottom - itemRect.top;
+  const PADDING = 1.5;
+  const MIN_SIZE = 5;
 
-  const minPush = Math.min(fromLeftEdge, fromRightEdge, fromTopEdge, fromBottomEdge);
-  const PADDING = 0.5;
-  const MIN_SIZE = 4;
+  // مركز كلٍّ من المساحة والغرض
+  const zCenterX = rect.left + rect.width  / 2;
+  const zCenterY = rect.top  + rect.height / 2;
+  const iCenterX = itemRect.left + itemRect.width  / 2;
+  const iCenterY = itemRect.top  + itemRect.height / 2;
 
-  if (minPush === fromLeftEdge) {
-    const shift = fromLeftEdge + PADDING;
-    return { left: rect.left + shift, top: rect.top, width: Math.max(MIN_SIZE, rect.width - shift), height: rect.height };
+  let newLeft = rect.left;
+  let newTop  = rect.top;
+  let newW    = rect.width;
+  let newH    = rect.height;
+
+  // === محور أفقي ===
+  // الغرض على يمين مركز المساحة → قلّص من الجهة اليمنى
+  if (iCenterX > zCenterX) {
+    if (itemRect.left < rRight) {
+      newW = Math.max(MIN_SIZE, itemRect.left - rect.left - PADDING);
+    }
+  } else {
+    // الغرض على يسار مركز المساحة → قلّص من اليسار (وادفع المساحة لليمين)
+    if (iRight > rect.left) {
+      const shift = iRight + PADDING - rect.left;
+      newLeft = rect.left + shift;
+      newW = Math.max(MIN_SIZE, rect.width - shift);
+    }
   }
-  if (minPush === fromRightEdge) {
-    return { left: rect.left, top: rect.top, width: Math.max(MIN_SIZE, rect.width - fromRightEdge - PADDING), height: rect.height };
+
+  // === محور عمودي ===
+  if (iCenterY > zCenterY) {
+    // الغرض تحت مركز المساحة → قلّص من الأسفل
+    if (itemRect.top < rBottom) {
+      newH = Math.max(MIN_SIZE, itemRect.top - rect.top - PADDING);
+    }
+  } else {
+    // الغرض فوق مركز المساحة → قلّص من الأعلى
+    if (iBottom > rect.top) {
+      const shift = iBottom + PADDING - rect.top;
+      newTop = rect.top + shift;
+      newH = Math.max(MIN_SIZE, rect.height - shift);
+    }
   }
-  if (minPush === fromTopEdge) {
-    const shift = fromTopEdge + PADDING;
-    return { left: rect.left, top: rect.top + shift, width: rect.width, height: Math.max(MIN_SIZE, rect.height - shift) };
-  }
-  return { left: rect.left, top: rect.top, width: rect.width, height: Math.max(MIN_SIZE, rect.height - fromBottomEdge - PADDING) };
+
+  return { left: newLeft, top: newTop, width: newW, height: newH };
 }
 
 // حساب المستطيل المرئيّ لمساحة بناءً على كل الأغراض الخارجيّة المتداخلة معها
