@@ -70,6 +70,53 @@ function computeVisualZoneRect(zone, outsideItems) {
   return rect;
 }
 
+// مزامنة المساحات الجارة: لو تقلّصت واحدة في صفّ/عمود، الأخريات في نفس الصفّ/العمود تأخذ نفس البعد
+// لتبقى الخريطة منظّمة بصريّاً
+function syncSiblingZones(zones, rects) {
+  const TOL = 5;            // نسبة تساهل لاعتبار مساحتين في نفس الصفّ/العمود
+  const result = rects.map(r => ({ ...r }));
+
+  function naturalLeftOf(z) {
+    return z.pos_left ?? (100 - (z.pos_right ?? 0) - (z.pos_width ?? 18));
+  }
+
+  // مزامنة الارتفاع داخل كلّ صفّ (مساحات بنفس pos_top الطبيعي)
+  const rowGroups = [];
+  for (let i = 0; i < zones.length; i++) {
+    const top = zones[i].pos_top ?? 0;
+    let g = rowGroups.find(g => Math.abs(g.top - top) < TOL);
+    if (!g) { g = { top, indices: [], minH: Infinity }; rowGroups.push(g); }
+    g.indices.push(i);
+    if (rects[i].height < g.minH) g.minH = rects[i].height;
+  }
+  for (const g of rowGroups) {
+    if (g.indices.length < 2) continue;
+    for (const i of g.indices) {
+      result[i].height = g.minH;
+      result[i].top = zones[i].pos_top ?? result[i].top;
+    }
+  }
+
+  // مزامنة العرض داخل كلّ عمود (مساحات بنفس الحافّة اليسرى الطبيعيّة)
+  const colGroups = [];
+  for (let i = 0; i < zones.length; i++) {
+    const left = naturalLeftOf(zones[i]);
+    let g = colGroups.find(g => Math.abs(g.left - left) < TOL);
+    if (!g) { g = { left, indices: [], minW: Infinity }; colGroups.push(g); }
+    g.indices.push(i);
+    if (result[i].width < g.minW) g.minW = result[i].width;
+  }
+  for (const g of colGroups) {
+    if (g.indices.length < 2) continue;
+    for (const i of g.indices) {
+      result[i].width = g.minW;
+      result[i].left = naturalLeftOf(zones[i]);
+    }
+  }
+
+  return result;
+}
+
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
   const { can, isFounder, activeWarehouse, warehouseId } = useAuth();
   const [showAddZone, setShowAddZone] = useState(false);
@@ -555,21 +602,27 @@ function WarehouseMapCanvas({
         الجدار الخلفي
       </div>
 
-      {zones.map(z => (
-        <ZoneTile
-          key={z.id}
-          zone={z}
-          displayRect={computeVisualZoneRect(z, outsideItems)}
-          boxCount={boxCountForZone(z.letter)}
-          zoneShelves={z.shelves || []}
-          zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
-          onClick={() => onZoneClick(z)}
-          isFounder={isFounder}
-          busy={busy}
-          onEdit={() => onZoneEdit(z)}
-          onDelete={() => onZoneDelete(z)}
-        />
-      ))}
+      {(() => {
+        // 1. احسب الـrect الأوّلي لكل مساحة (تقلّص بسبب أغراض خارجيّة)
+        const initialRects = zones.map(z => computeVisualZoneRect(z, outsideItems));
+        // 2. زامن المساحات الجارة (نفس الصفّ/العمود)
+        const syncedRects = syncSiblingZones(zones, initialRects);
+        return zones.map((z, i) => (
+          <ZoneTile
+            key={z.id}
+            zone={z}
+            displayRect={syncedRects[i]}
+            boxCount={boxCountForZone(z.letter)}
+            zoneShelves={z.shelves || []}
+            zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
+            onClick={() => onZoneClick(z)}
+            isFounder={isFounder}
+            busy={busy}
+            onEdit={() => onZoneEdit(z)}
+            onDelete={() => onZoneDelete(z)}
+          />
+        ));
+      })()}
 
       {/* الأغراض خارج المساحات — مربّعات قابلة للسحب على الخريطة */}
       {outsideItems.map(it => (
