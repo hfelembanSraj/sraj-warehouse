@@ -6,60 +6,68 @@ import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
 
-// حساب موقع جديد لمساحة لتُزاح بعيداً عن غرض يتداخل معها
-// يُعيد null إن لم يكن هناك تداخل، أو dimensions جديدة (pos_left, pos_top, pos_width, pos_height)
-function pushZoneAwayFromItem(zone, itemRect) {
-  const usingRight = zone.pos_left == null && zone.pos_right != null;
-  const zLeft = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
-  const zTop  = zone.pos_top ?? 0;
-  const zW    = zone.pos_width  ?? 18;
-  const zH    = zone.pos_height ?? 42;
-  const zRight  = zLeft + zW;
-  const zBottom = zTop + zH;
-  const iLeft   = itemRect.left;
-  const iTop    = itemRect.top;
-  const iRight  = iLeft + itemRect.width;
-  const iBottom = iTop + itemRect.height;
+// المستطيل الطبيعي للمساحة (من قاعدة البيانات) كنسب مئويّة
+function naturalZoneRect(zone) {
+  const left = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
+  return {
+    left,
+    top:    zone.pos_top    ?? 0,
+    width:  zone.pos_width  ?? 18,
+    height: zone.pos_height ?? 42
+  };
+}
+
+// إن كان هناك تداخل بين مستطيل وغرض → أعِد مستطيلاً مُقلَّصاً للجهة الأقصر
+// (دفع/تقليص نحو الجهة الأقرب). إن لم يكن هناك تداخل → أعد المستطيل كما هو.
+function shrinkRectAwayFromItem(rect, itemRect) {
+  const rRight  = rect.left + rect.width;
+  const rBottom = rect.top  + rect.height;
+  const iRight  = itemRect.left + itemRect.width;
+  const iBottom = itemRect.top  + itemRect.height;
 
   // لا تداخل
-  if (iRight <= zLeft || zRight <= iLeft || iBottom <= zTop || zBottom <= iTop) return null;
-
-  const fromLeftEdge   = iRight  - zLeft;     // كم دخل الغرض من جهة يسار المساحة
-  const fromRightEdge  = zRight  - iLeft;     // من اليمين
-  const fromTopEdge    = iBottom - zTop;      // من الأعلى
-  const fromBottomEdge = zBottom - iTop;      // من الأسفل
-
-  const minPush = Math.min(fromLeftEdge, fromRightEdge, fromTopEdge, fromBottomEdge);
-  const PADDING = 1;
-  const MIN_SIZE = 6;
-
-  let newLeft = zLeft, newTop = zTop, newW = zW, newH = zH;
-
-  if (minPush === fromLeftEdge) {
-    // الغرض على يسار المساحة → ادفع المساحة لليمين بتقليل العرض من جهة اليسار
-    const shift = fromLeftEdge + PADDING;
-    newLeft = zLeft + shift;
-    newW = Math.max(MIN_SIZE, zW - shift);
-  } else if (minPush === fromRightEdge) {
-    // الغرض على يمين المساحة → قلّص العرض من اليمين
-    newW = Math.max(MIN_SIZE, zW - fromRightEdge - PADDING);
-  } else if (minPush === fromTopEdge) {
-    // الغرض فوق المساحة → قلّص الارتفاع من الأعلى
-    const shift = fromTopEdge + PADDING;
-    newTop = zTop + shift;
-    newH = Math.max(MIN_SIZE, zH - shift);
-  } else {
-    // الغرض تحت المساحة → قلّص الارتفاع من الأسفل
-    newH = Math.max(MIN_SIZE, zH - fromBottomEdge - PADDING);
+  if (iRight <= rect.left || rRight <= itemRect.left || iBottom <= rect.top || rBottom <= itemRect.top) {
+    return rect;
   }
 
-  return {
-    pos_left: newLeft,
-    pos_right: usingRight ? null : null, // نُعطّل pos_right ونعتمد دائماً على pos_left
-    pos_top: newTop,
-    pos_width: newW,
-    pos_height: newH
-  };
+  const fromLeftEdge   = iRight  - rect.left;
+  const fromRightEdge  = rRight  - itemRect.left;
+  const fromTopEdge    = iBottom - rect.top;
+  const fromBottomEdge = rBottom - itemRect.top;
+
+  const minPush = Math.min(fromLeftEdge, fromRightEdge, fromTopEdge, fromBottomEdge);
+  const PADDING = 0.5;
+  const MIN_SIZE = 4;
+
+  if (minPush === fromLeftEdge) {
+    const shift = fromLeftEdge + PADDING;
+    return { left: rect.left + shift, top: rect.top, width: Math.max(MIN_SIZE, rect.width - shift), height: rect.height };
+  }
+  if (minPush === fromRightEdge) {
+    return { left: rect.left, top: rect.top, width: Math.max(MIN_SIZE, rect.width - fromRightEdge - PADDING), height: rect.height };
+  }
+  if (minPush === fromTopEdge) {
+    const shift = fromTopEdge + PADDING;
+    return { left: rect.left, top: rect.top + shift, width: rect.width, height: Math.max(MIN_SIZE, rect.height - shift) };
+  }
+  return { left: rect.left, top: rect.top, width: rect.width, height: Math.max(MIN_SIZE, rect.height - fromBottomEdge - PADDING) };
+}
+
+// حساب المستطيل المرئيّ لمساحة بناءً على كل الأغراض الخارجيّة المتداخلة معها
+// المستطيل في DB يبقى كما هو — التقليص بصريّ فقط، فيرجع للحجم الأصلي عندما يُسحب الغرض بعيداً
+function computeVisualZoneRect(zone, outsideItems) {
+  let rect = naturalZoneRect(zone);
+  for (const item of outsideItems) {
+    if (item.pos_top == null || item.pos_left == null) continue;
+    const itemRect = {
+      left:   item.pos_left,
+      top:    item.pos_top,
+      width:  item.width_pct  ?? 10,
+      height: item.height_pct ?? 10
+    };
+    rect = shrinkRectAwayFromItem(rect, itemRect);
+  }
+  return rect;
 }
 
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
@@ -523,35 +531,19 @@ function WarehouseMapCanvas({
 }) {
   const containerRef = useRef(null);
 
-  // عند إفلات غرض على الخريطة:
-  //   1. احفظ موقعه الجديد
-  //   2. تحقّق من تداخله مع أيّ مساحة → ادفع المساحة وقلّص حجمها لإفساح المكان
+  // عند إفلات غرض على الخريطة: احفظ موقعه فقط
+  // المساحات تتقلّص بصريّاً تلقائياً بناءً على موقع الغرض (الحساب في الـrender)
+  // وتعود لحجمها الأصلي عند سحب الغرض بعيداً — لا تُمسّ قاعدة البيانات
   async function handleItemDropped(item, newPos) {
     try {
       await updateOutsideItemPosition(item.id, {
         pos_top: newPos.top,
         pos_left: newPos.left
       });
+      onRefresh?.();
     } catch (err) {
       flash?.('فشل حفظ الموقع: ' + err.message, 'error');
-      return;
     }
-    const itemRect = {
-      top:    newPos.top,
-      left:   newPos.left,
-      width:  item.width_pct  ?? 10,
-      height: item.height_pct ?? 10
-    };
-    let pushedAny = false;
-    for (const zone of zones) {
-      const newDims = pushZoneAwayFromItem(zone, itemRect);
-      if (newDims) {
-        const { error } = await rpcUpdateZone(zone, newDims);
-        if (!error) pushedAny = true;
-      }
-    }
-    if (pushedAny) flash?.('↔ تزحزحت المساحات لإفساح المكان');
-    onRefresh?.();
   }
 
   return (
@@ -567,6 +559,7 @@ function WarehouseMapCanvas({
         <ZoneTile
           key={z.id}
           zone={z}
+          displayRect={computeVisualZoneRect(z, outsideItems)}
           boxCount={boxCountForZone(z.letter)}
           zoneShelves={z.shelves || []}
           zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
@@ -834,8 +827,18 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [] }) {
-  const style = {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [] }) {
+  // إن وُجد displayRect (مستطيل بعد التقليص بسبب الأغراض) استخدمه، وإلا استعمل أبعاد الـDB
+  const style = displayRect ? {
+    top:    `${displayRect.top}%`,
+    left:   `${displayRect.left}%`,
+    width:  `${displayRect.width}%`,
+    height: `${displayRect.height}%`,
+    borderColor: zone.color,
+    backgroundImage: `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+    boxShadow: `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`,
+    transition: 'top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease'
+  } : {
     top:    zone.pos_top    != null ? `${zone.pos_top}%`    : undefined,
     bottom: (zone.pos_top == null && zone.pos_height != null) ? `${100 - zone.pos_height - 6}%` : undefined,
     left:   zone.pos_left   != null ? `${zone.pos_left}%`   : undefined,

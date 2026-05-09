@@ -801,14 +801,18 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           const topBox = boxesAtPos[0]; // الأعلى = آخر صندوق مُكدَّس
                           return (
                             <div key={`stack-${position}`} className="flex-1 flex flex-col gap-0.5 relative">
-                              {/* زرّ التكديس على الأعلى — للمؤسّس فقط */}
-                              {isFounder && (
+                              {/* زرّ التكديس — يظهر فقط في وضع التعديل */}
+                              {isFounder && editMode && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleStackBox(topBox); }}
                                   disabled={busy}
-                                  className="absolute -top-2.5 right-1/2 translate-x-1/2 z-30 bg-purple-600 hover:bg-purple-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow-md hover:shadow-lg transition border-2 border-white"
+                                  className="absolute -top-2 right-1/2 translate-x-1/2 z-30 w-6 h-6 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-md flex items-center justify-center transition hover:scale-110"
                                   title={`أضف صندوقاً مُكدَّساً فوق ${topBox.code}`}
-                                >⊕ كدّس</button>
+                                >
+                                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                  </svg>
+                                </button>
                               )}
                               {boxesAtPos.map((box) => {
                                 const items = getBoxItems(box.id);
