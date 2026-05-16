@@ -6,6 +6,9 @@ import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
 
+// المساحات تشغل أعلى 70% من الشقة — الأغراض تُوضَع في الـ30% السفليّة الحرّة
+const FREE_AREA_TOP = 70;
+
 // المستطيل الطبيعي للمساحة (من قاعدة البيانات) كنسب مئويّة
 function naturalZoneRect(zone) {
   const left = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
@@ -643,12 +646,12 @@ function WarehouseMapCanvas({
         الجدار الخلفي
       </div>
 
-      {/* كلّ مساحة تُحسَب مستقلّةً بناءً على الأغراض المتداخلة معها فقط (بدون مزامنة جارة) */}
+      {/* مساحات التخزين ثابتة تماماً (أعلى 70% من الشقة) — لا تقلّص إطلاقاً */}
       {zones.map(z => (
         <ZoneTile
           key={z.id}
           zone={z}
-          displayRect={computeVisualZoneRect(z, outsideItems)}
+          displayRect={naturalZoneRect(z)}
           boxCount={boxCountForZone(z.letter)}
           zoneShelves={z.shelves || []}
           zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
@@ -659,6 +662,14 @@ function WarehouseMapCanvas({
           onDelete={() => onZoneDelete(z)}
         />
       ))}
+
+      {/* الفاصل بين منطقة المساحات (أعلى 70%) والمنطقة الحرّة للأغراض (أسفل 30%) */}
+      <div className="absolute left-0 right-0 border-t-2 border-dashed border-amber-400/60 pointer-events-none"
+        style={{ top: `${FREE_AREA_TOP}%` }}>
+        <span className="absolute right-3 -top-2.5 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[9px] font-bold px-2 py-0.5 rounded-full">
+          ↓ منطقة الأغراض الحرّة
+        </span>
+      </div>
 
       {/* الأغراض خارج المساحات — مربّعات قابلة للسحب وتغيير الحجم على الخريطة */}
       {outsideItems.map(it => (
@@ -729,12 +740,17 @@ function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, on
       const dyPct = ((cy - s.startY) / s.rect.height) * 100;
       if (mode === 'move') {
         const newLeft = Math.max(0, Math.min(100 - s.startW, s.startLeft + dxPct));
-        const newTop  = Math.max(0, Math.min(100 - s.startH, s.startTop  + dyPct));
+        // الغرض لا يخرج من المنطقة الحرّة (أسفل 70%) — لا يدخل منطقة المساحات
+        const minTop = FREE_AREA_TOP;
+        const maxTop = Math.max(minTop, 100 - s.startH);
+        const newTop = Math.max(minTop, Math.min(maxTop, s.startTop + dyPct));
         setPos(p => ({ ...p, left: newLeft, top: newTop }));
       } else {
         // المقبض في الزاوية السفليّة-اليسرى: السحب لليسار يكبّر العرض، لأسفل يكبّر الطول
         const newW = Math.max(5, Math.min(70, s.startW - dxPct));
-        const newH = Math.max(5, Math.min(70, s.startH + dyPct));
+        // الطول محدود بحيث لا يتجاوز الغرض المنطقة الحرّة (نحو 30% كحدّ أقصى)
+        const maxH = 100 - Math.max(FREE_AREA_TOP, s.startTop);
+        const newH = Math.max(5, Math.min(maxH, s.startH + dyPct));
         // الحفاظ على الحدّ الأيمن ثابتاً عند تغيير العرض (التوسّع لليسار)
         const rightEdge = s.startLeft + s.startW;
         const newLeft = Math.max(0, rightEdge - newW);
