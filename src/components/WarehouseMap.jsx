@@ -43,7 +43,7 @@ function shrinkRectAwayFromItem(zone, itemRect) {
   }
 
   const PADDING = 1;
-  const MIN_SIZE = 8;
+  const MIN_SIZE = 16;   // لا تُصغّر المساحة لشريط رفيع — حدّ أدنى محترم
 
   // أيّ جدار عموديّ أقرب: الخلفي (أعلى) أم المدخل (أسفل)؟
   const topAnchored = natTop <= (100 - natBottom);
@@ -246,6 +246,9 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   async function handleSubmitOutsideItem(values) {
     if (!values.name?.trim()) return flash('اسم الغرض مطلوب', 'error');
     setBusy(true);
+    // ضع الغرض الجديد في المنطقة الحرّة السفليّة (الزوايا السفليّة متروكة للأغراض)
+    // إزاحة بسيطة عشوائيّة حتى لا تتراكم الأغراض الجديدة فوق بعضها
+    const jitter = Math.floor(Math.random() * 16);
     const { error } = await supabase.from('items').insert({
       warehouse_id: warehouseId,
       box_id: null,
@@ -253,7 +256,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       name: values.name.trim(),
       quantity: Number(values.quantity) || 1,
       status: 'ok',
-      photo_url: values.photo_url || null
+      photo_url: values.photo_url || null,
+      pos_top: 80,
+      pos_left: 40 + jitter,
+      width_pct: 12,
+      height_pct: 12
     });
     setBusy(false);
     if (!error) await logActivity('إضافة', `${values.name.trim()} × ${values.quantity}`, '(خارج المساحات)');
