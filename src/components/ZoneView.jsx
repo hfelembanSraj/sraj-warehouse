@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, logActivity } from '../lib/supabase';
 import { shelfDisplayName } from '../lib/helpers';
 import CheckoutModal from './CheckoutModal';
 import AddBoxModal from './AddBoxModal';
@@ -9,11 +9,12 @@ import { CardboardBoxMini } from './CardboardBox';
 import PhotoUploader from './PhotoUploader';
 import WarehouseMiniMap from './WarehouseMiniMap';
 import LocationPicker from './LocationPicker';
+import FreeItemSquare from './FreeItemSquare';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
   bulkMoveBoxes, bulkDeleteBoxes, bulkUpdateBoxes, bulkMoveBoxesToZone, assignItemToBox,
-  moveBoxToPosition, addStackedBox
+  moveBoxToPosition, addStackedBox, updateOutsideItemPosition
 } from '../lib/warehouseOps';
 
 export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick, onZoneSwitch, onRefresh }) {
@@ -95,8 +96,18 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       allItems.push({ ...it, boxCode: box.code });
     });
   });
-  // الأغراض غير المحدّدة في هذه المساحة (box_id = null, zone_id = هذه المساحة)
-  const unassignedItems = data.items.filter(it => it.box_id == null && it.zone_id === fresh.id);
+  // أغراض هذه المساحة بدون صندوق:
+  //   - بـ pos_top مضبوط → غرض كبير حرّ على الرفّ (يُعرَض كمربّع قابل للسحب)
+  //   - بدون pos_top → "غير محدّد المكان" (يُعرَض في القائمة)
+  const zoneNoBox = data.items.filter(it => it.box_id == null && it.zone_id === fresh.id);
+  const zoneFreeItems = zoneNoBox.filter(it => it.pos_top != null);
+  const unassignedItems = zoneNoBox.filter(it => it.pos_top == null);
+  // إطار الرفّ المرئي — مرجع لحساب نسب السحب
+  const rackRef = useRef(null);
+  // نموذج إضافة غرض كبير على الرفّ
+  const [showAddBigItem, setShowAddBigItem] = useState(false);
+  // مودال تعديل غرض كبير حرّ
+  const [editingFreeItem, setEditingFreeItem] = useState(null);
   // مودال تحديد مكان غرض غير محدّد
   const [assigningItem, setAssigningItem] = useState(null);
   // مُنتقي بصريّ لنقل صندوق إلى مساحة أخرى — يحفظ {box, targetZone}
@@ -225,6 +236,69 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       setRecentlyAddedBoxId(newId);
       setTimeout(() => setRecentlyAddedBoxId(null), 3000);
     }
+    await onRefresh();
+  }
+
+  // ====== أغراض كبيرة حرّة على الرفّ (لا تدخل صندوقاً) ======
+  async function handleAddBigItem(values) {
+    if (!values.name?.trim()) return flash('اسم الغرض مطلوب', 'error');
+    setBusy(true);
+    const jitter = Math.floor(Math.random() * 14);
+    const { data: newItem, error } = await supabase.from('items').insert({
+      zone_id: fresh.id,
+      box_id: null,
+      name: values.name.trim(),
+      quantity: Number(values.quantity) || 1,
+      status: 'ok',
+      photo_url: values.photo_url || null,
+      pos_top: 35 + jitter,
+      pos_left: 38 + jitter,
+      width_pct: 16,
+      height_pct: 16
+    }).select().single();
+    setBusy(false);
+    setShowAddBigItem(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    if (newItem) await logActivity('إضافة', `${values.name.trim()} × ${values.quantity}`, `مساحة ${fresh.letter} (غرض كبير)`, 'item', newItem.id);
+    flash(`✅ أُضيف "${values.name}" على رفّ المساحة`);
+    await onRefresh();
+  }
+
+  async function handleFreeItemMoved(it, p) {
+    const { error } = await updateOutsideItemPosition(it.id, { pos_top: p.top, pos_left: p.left });
+    if (error) return flash('فشل حفظ الموقع: ' + error.message, 'error');
+    await onRefresh();
+  }
+
+  async function handleFreeItemResized(it, sz) {
+    const { error } = await updateOutsideItemPosition(it.id, { width_pct: sz.width, height_pct: sz.height });
+    if (error) return flash('فشل حفظ الحجم: ' + error.message, 'error');
+    await onRefresh();
+  }
+
+  async function handleSaveFreeItemEdit(patch) {
+    if (!editingFreeItem) return;
+    setBusy(true);
+    const { error } = await supabase.from('items').update({
+      name: patch.name?.trim(),
+      quantity: Number(patch.quantity) || 1,
+      photo_url: patch.photo_url || null
+    }).eq('id', editingFreeItem.id);
+    setBusy(false);
+    setEditingFreeItem(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ تمّ التعديل');
+    await onRefresh();
+  }
+
+  async function handleDeleteFreeItem(it) {
+    if (!confirm(`حذف "${it.name}"؟ يمكن استرجاعه من سلّة المحذوفات.`)) return;
+    setBusy(true);
+    const { error } = await supabase.from('items')
+      .update({ deleted_at: new Date().toISOString() }).eq('id', it.id);
+    setBusy(false);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash('✅ نُقل لسلّة المحذوفات');
     await onRefresh();
   }
 
@@ -541,6 +615,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
+            {(isFounder || can('add')) && (
+              <button onClick={() => setShowAddBigItem(true)} disabled={busy}
+                className="text-[11px] bg-amber-100 border border-amber-300 text-amber-900 px-2.5 py-1.5 rounded hover:bg-amber-200 font-medium"
+                title="غرض كبير لا يدخل صندوقاً (ثلاجة، طاولة كبيرة...) يوضَع على الرفّ مباشرة">
+                + 📦 غرض كبير على الرفّ
+              </button>
+            )}
             {isFounder && (
               <>
                 {zoneBoxes.length > 0 && (
@@ -740,6 +821,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         <div className="flex justify-center mb-3">
           <div className="w-full max-w-md bg-stone-100 rounded-lg p-4">
             <div
+              ref={rackRef}
               className={`relative w-full border-4 rounded-md p-2 flex flex-col gap-1.5 ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white'}`}
               style={{
                 aspectRatio: editMode ? `${fresh.width_cm}/${fresh.height_cm + 80}` : `${fresh.width_cm}/${fresh.height_cm}`,
@@ -969,6 +1051,20 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   + رف جديد
                 </button>
               )}
+
+              {/* الأغراض الكبيرة الحرّة فوق الرفّ — مربّعات قابلة للسحب والتحجيم */}
+              {zoneFreeItems.map(it => (
+                <FreeItemSquare
+                  key={it.id}
+                  item={it}
+                  containerRef={rackRef}
+                  isFounder={isFounder}
+                  onEdit={() => setEditingFreeItem(it)}
+                  onDelete={() => handleDeleteFreeItem(it)}
+                  onDropped={handleFreeItemMoved}
+                  onResized={handleFreeItemResized}
+                />
+              ))}
             </div>
             <div className="text-center text-[10px] text-stone-400 mt-2">العرض: {fresh.width_cm} سم</div>
           </div>
@@ -1183,6 +1279,40 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               </div>
             </div>
           )}
+        </FormModal>
+      )}
+
+      {/* نموذج إضافة غرض كبير على الرفّ */}
+      {showAddBigItem && (
+        <FormModal
+          title="📦 غرض كبير على الرفّ"
+          subtitle={`في مساحة ${fresh.letter} — لا يدخل صندوقاً (ثلاجة، طاولة كبيرة...). تستطيع تحريكه وتكبيره فوق الرفّ`}
+          onClose={() => setShowAddBigItem(false)}
+          maxWidth="max-w-md"
+        >
+          <ZoneItemEditForm
+            item={{ name: '', quantity: 1, photo_url: null }}
+            busy={busy}
+            onCancel={() => setShowAddBigItem(false)}
+            onSave={handleAddBigItem}
+          />
+        </FormModal>
+      )}
+
+      {/* تعديل غرض كبير حرّ */}
+      {editingFreeItem && (
+        <FormModal
+          title={`✏️ تعديل "${editingFreeItem.name}"`}
+          subtitle="غرض كبير على رفّ المساحة"
+          onClose={() => setEditingFreeItem(null)}
+          maxWidth="max-w-md"
+        >
+          <ZoneItemEditForm
+            item={editingFreeItem}
+            busy={busy}
+            onCancel={() => setEditingFreeItem(null)}
+            onSave={handleSaveFreeItemEdit}
+          />
         </FormModal>
       )}
 
