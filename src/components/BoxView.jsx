@@ -67,7 +67,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
     if (error) return flash('فشل: ' + error.message, 'error');
     flash('✅ تم حذف الصندوق');
     await onRefresh();
-    onBackToShelf();
+    onBackToZone();
   }
 
   async function handleUpdateItem(item, patch) {
@@ -182,15 +182,13 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
     <>
       <StatusToast msg={msg} />
 
-      {/* شريط التنقّل */}
+      {/* شريط التنقّل — الرجوع مباشرةً للمساحة (لا تمرّ بشاشة الرفّ) */}
       <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
-        <button onClick={onBackToShelf} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100">→ الرجوع للرف</button>
+        <button onClick={onBackToZone} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100">→ الرجوع للمساحة</button>
         <div className="text-stone-500 flex items-center gap-1">
           <button onClick={onBackToMap} className="hover:underline">المستودع</button>
           <span className="text-stone-300">‹</span>
           <button onClick={onBackToZone} className="hover:underline" style={{ color: zone.color }}>مساحة {zone.letter}</button>
-          <span className="text-stone-300">‹</span>
-          <button onClick={onBackToShelf} className="hover:underline">{shelfDisplayName(shelf, zone?.shelves || [])}</button>
           <span className="text-stone-300">‹</span>
           <span className="font-medium text-amber-700">صندوق {currentBox.code}</span>
         </div>

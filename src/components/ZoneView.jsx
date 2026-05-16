@@ -244,13 +244,24 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   async function handleAddItemAtSlot(values) {
     if (!addItemAtSlot) return;
     if (!values.name?.trim()) return flash('اسم الغرض مطلوب', 'error');
-    const { shelf, position } = addItemAtSlot;
+    const { shelf, position, stack } = addItemAtSlot;
+    // عند التكديس: ضع الغرض فوق آخر عنصر في الموقع (stack_index الأعلى + 1)
+    let stackIndex = 0;
+    if (stack) {
+      const occupants = [
+        ...data.boxes.filter(b => b.shelf_id === shelf.id && b.box_index === position),
+        ...shelfItems.filter(it => it.shelf_id === shelf.id && it.box_index === position)
+      ];
+      stackIndex = occupants.length
+        ? Math.max(...occupants.map(o => o.stack_index || 0)) + 1
+        : 0;
+    }
     setBusy(true);
     const { data: newItem, error } = await supabase.from('items').insert({
       zone_id: fresh.id,
       shelf_id: shelf.id,
       box_index: position,
-      stack_index: 0,
+      stack_index: stackIndex,
       box_id: null,
       name: values.name.trim(),
       quantity: Number(values.quantity) || 1,
@@ -600,7 +611,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
             </h2>
             <p className="text-xs text-stone-500 dark:text-stone-400">
               {fresh.width_cm}×{fresh.height_cm} سم · {shelves.length} رف
-              {!editMode && shelves.length > 0 && ' · اضغط على الرف للدخول إليه'}
+              {!editMode && shelves.length > 0 && ' · اضغط أيّ صندوق لفتحه مباشرة'}
               {editMode && ' · 🔧 وضع التعديل مفعّل'}
             </p>
           </div>
@@ -830,29 +841,20 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     <div
                       key={shelf.id}
                       onClick={(e) => {
-                        if (dragModeActive) { e.stopPropagation(); handleDropOnShelf(shelf); return; }
-                        // تجاهل النقر إن كان من زرّ داخلي (الزرّ الداخلي يعالج نفسه عبر stopPropagation)
-                        if (!editMode) onShelfClick(shelf);
+                        if (dragModeActive) { e.stopPropagation(); handleDropOnShelf(shelf); }
+                        // لا انتقال لشاشة الرفّ — الصناديق/المواقع تعالج نقراتها بنفسها
                       }}
                       onDragOver={(e) => { if (hasActiveSelection) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
                       onDragLeave={() => setDragOverShelfId(null)}
                       onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
-                      role={editMode ? undefined : 'button'}
                       className={`flex-1 border-2 rounded p-1 flex gap-1 relative text-right transition ${
                         fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50'
-                      } ${
-                        (editMode || dragModeActive) ? '' : 'hover:bg-blue-50 hover:border-brand-blue cursor-pointer'
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
                     >
                       <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow-md pointer-events-none z-30" style={{ backgroundColor: fresh.color }}>
                         {shelfDisplayName(shelf, shelves)}
                       </span>
-                      {!editMode && (
-                        <span className="absolute -top-2.5 left-2 bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-md font-medium shadow-md pointer-events-none z-30">
-                          ادخل ←
-                        </span>
-                      )}
 
                       {/* رسم الـ slots على أساس الموقع — كل slot = موقع 1, 2, 3... */}
                       {Array.from({ length: totalSlots }).map((_, idx) => {
@@ -869,13 +871,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           const topBox = boxesAtPos[0]; // قد يكون undefined لو الموقع فيه غرض فقط
                           return (
                             <div key={`stack-${position}`} className="flex-1 flex flex-col gap-0.5 relative">
-                              {/* زرّ تكديس الصندوق — يظهر فقط في وضع التعديل وعند وجود صندوق */}
-                              {isFounder && editMode && topBox && (
+                              {/* زرّ التكديس — وضع التعديل · يكدّس صندوقاً أو غرضاً فوق ما في الموقع */}
+                              {isFounder && editMode && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleStackBox(topBox); }}
+                                  onClick={(e) => { e.stopPropagation(); setSlotChoice({ shelf, position, stack: true }); }}
                                   disabled={busy}
                                   className="absolute -top-2 right-1/2 translate-x-1/2 z-30 w-6 h-6 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-md flex items-center justify-center transition hover:scale-110"
-                                  title={`أضف صندوقاً مُكدَّساً فوق ${topBox.code}`}
+                                  title="كدّس صندوقاً أو غرضاً فوق هذا الموقع"
                                 >
                                   <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
                                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -1279,17 +1281,30 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         </FormModal>
       )}
 
-      {/* اختيار: صندوق أم غرض كبير — عند النقر على موقع فارغ */}
+      {/* اختيار: صندوق أم غرض كبير — عند النقر على موقع فارغ أو زرّ التكديس */}
       {slotChoice && (
         <FormModal
-          title="ماذا تضيف هنا؟"
-          subtitle={`الموقع ${slotChoice.position} في ${shelfDisplayName(slotChoice.shelf, shelves)} — مساحة ${fresh.letter}`}
+          title={slotChoice.stack ? 'ماذا تكدّس فوق هذا الموقع؟' : 'ماذا تضيف هنا؟'}
+          subtitle={`${slotChoice.stack ? 'سيوضَع فوق ما هو موجود · ' : ''}الموقع ${slotChoice.position} في ${shelfDisplayName(slotChoice.shelf, shelves)} — مساحة ${fresh.letter}`}
           onClose={() => setSlotChoice(null)}
           maxWidth="max-w-md"
         >
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => { const s = slotChoice; setSlotChoice(null); handleQuickAddBox(s.shelf, s.position); }}
+              onClick={() => {
+                const s = slotChoice;
+                setSlotChoice(null);
+                if (s.stack) {
+                  // كدّس صندوقاً فوق أعلى صندوق في الموقع (إن وُجد) وإلّا أنشئ صندوقاً في الموقع
+                  const topB = data.boxes
+                    .filter(b => b.shelf_id === s.shelf.id && b.box_index === s.position)
+                    .sort((a, b) => (b.stack_index || 0) - (a.stack_index || 0))[0];
+                  if (topB) handleStackBox(topB);
+                  else handleQuickAddBox(s.shelf, s.position);
+                } else {
+                  handleQuickAddBox(s.shelf, s.position);
+                }
+              }}
               disabled={busy}
               className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-stone-200 hover:border-brand-navy hover:bg-blue-50 transition disabled:opacity-50">
               <span className="text-4xl">📦</span>
