@@ -622,10 +622,22 @@ function WarehouseMapCanvas({
     }
   }
 
+  async function handleItemResized(item, newSize) {
+    try {
+      await updateOutsideItemPosition(item.id, {
+        width_pct:  newSize.width,
+        height_pct: newSize.height
+      });
+      onRefresh?.();
+    } catch (err) {
+      flash?.('فشل حفظ الحجم: ' + err.message, 'error');
+    }
+  }
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-lg aspect-square bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-3 py-7 shadow-inner"
+      className="relative w-full max-w-4xl aspect-[4/3] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium">
         الجدار الخلفي
@@ -648,7 +660,7 @@ function WarehouseMapCanvas({
         />
       ))}
 
-      {/* الأغراض خارج المساحات — مربّعات قابلة للسحب على الخريطة */}
+      {/* الأغراض خارج المساحات — مربّعات قابلة للسحب وتغيير الحجم على الخريطة */}
       {outsideItems.map(it => (
         <OutsideItemSquare
           key={it.id}
@@ -658,6 +670,7 @@ function WarehouseMapCanvas({
           onEdit={() => onItemEdit(it)}
           onDelete={() => onItemDelete(it)}
           onDropped={handleItemDropped}
+          onResized={handleItemResized}
           flash={flash}
         />
       ))}
@@ -673,100 +686,83 @@ function WarehouseMapCanvas({
   );
 }
 
-// ====== مربّع غرض خارج المساحات (قابل للسحب لتغيير الموقع) ======
-function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, onDropped, flash }) {
-  // الموقع الفعلي على الخريطة — مع قيم افتراضيّة لو لم تُحفَظ بعد
+// ====== مربّع غرض خارج المساحات (سحب لتغيير الموقع + مقبض لتغيير الحجم) ======
+function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, onDropped, onResized, flash }) {
   const [pos, setPos] = useState({
     top:    item.pos_top    ?? 40,
     left:   item.pos_left   ?? 40,
-    width:  item.width_pct  ?? 10,
-    height: item.height_pct ?? 10
+    width:  item.width_pct  ?? 12,
+    height: item.height_pct ?? 12
   });
-  const [dragging, setDragging] = useState(false);
-  const dragStateRef = useRef(null);
+  const [mode, setMode] = useState(null);   // 'move' | 'resize' | null
+  const stRef = useRef(null);
 
-  // عند تغيّر بيانات الغرض من الخارج، حدّث الحالة المحليّة
   useEffect(() => {
-    if (!dragging) {
+    if (!mode) {
       setPos({
         top:    item.pos_top    ?? 40,
         left:   item.pos_left   ?? 40,
-        width:  item.width_pct  ?? 10,
-        height: item.height_pct ?? 10
+        width:  item.width_pct  ?? 12,
+        height: item.height_pct ?? 12
       });
     }
-  }, [item.pos_top, item.pos_left, item.width_pct, item.height_pct, dragging]);
+  }, [item.pos_top, item.pos_left, item.width_pct, item.height_pct, mode]);
 
-  function onMouseDown(e) {
+  function begin(kind, clientX, clientY) {
     if (!isFounder) return;
-    e.preventDefault();
-    e.stopPropagation();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    dragStateRef.current = {
-      rect,
-      startX: e.clientX,
-      startY: e.clientY,
-      startLeft: pos.left,
-      startTop: pos.top
+    stRef.current = {
+      rect, startX: clientX, startY: clientY,
+      startLeft: pos.left, startTop: pos.top,
+      startW: pos.width, startH: pos.height
     };
-    setDragging(true);
-  }
-
-  function onTouchStart(e) {
-    if (!isFounder) return;
-    const touch = e.touches[0];
-    if (!touch) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    dragStateRef.current = {
-      rect,
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startLeft: pos.left,
-      startTop: pos.top
-    };
-    setDragging(true);
+    setMode(kind);
   }
 
   useEffect(() => {
-    if (!dragging) return;
-
-    function handleMove(clientX, clientY) {
-      const s = dragStateRef.current;
+    if (!mode) return;
+    function handleMove(cx, cy) {
+      const s = stRef.current;
       if (!s) return;
-      const dx = clientX - s.startX;
-      const dy = clientY - s.startY;
-      const newLeft = Math.max(0, Math.min(100 - pos.width,  s.startLeft + (dx / s.rect.width)  * 100));
-      const newTop  = Math.max(0, Math.min(100 - pos.height, s.startTop  + (dy / s.rect.height) * 100));
-      setPos(p => ({ ...p, left: newLeft, top: newTop }));
+      const dxPct = ((cx - s.startX) / s.rect.width)  * 100;
+      const dyPct = ((cy - s.startY) / s.rect.height) * 100;
+      if (mode === 'move') {
+        const newLeft = Math.max(0, Math.min(100 - s.startW, s.startLeft + dxPct));
+        const newTop  = Math.max(0, Math.min(100 - s.startH, s.startTop  + dyPct));
+        setPos(p => ({ ...p, left: newLeft, top: newTop }));
+      } else {
+        // المقبض في الزاوية السفليّة-اليسرى: السحب لليسار يكبّر العرض، لأسفل يكبّر الطول
+        const newW = Math.max(5, Math.min(70, s.startW - dxPct));
+        const newH = Math.max(5, Math.min(70, s.startH + dyPct));
+        // الحفاظ على الحدّ الأيمن ثابتاً عند تغيير العرض (التوسّع لليسار)
+        const rightEdge = s.startLeft + s.startW;
+        const newLeft = Math.max(0, rightEdge - newW);
+        setPos(p => ({ ...p, width: newW, height: newH, left: newLeft }));
+      }
     }
-
     function onMove(e) { handleMove(e.clientX, e.clientY); }
-    function onTouchMove(e) {
-      if (e.touches[0]) handleMove(e.touches[0].clientX, e.touches[0].clientY);
-    }
-
-    async function onUp() {
-      setDragging(false);
-      const s = dragStateRef.current;
-      dragStateRef.current = null;
+    function onTM(e)   { if (e.touches[0]) handleMove(e.touches[0].clientX, e.touches[0].clientY); }
+    function onUp() {
+      const m = mode;
+      setMode(null);
+      const s = stRef.current;
+      stRef.current = null;
       if (!s) return;
-      // أبلغ الأب: يتولّى الحفظ + دفع المساحات المتداخلة
-      onDropped?.(item, { top: pos.top, left: pos.left });
+      if (m === 'move')        onDropped?.(item, { top: pos.top, left: pos.left });
+      else if (m === 'resize') onResized?.(item, { width: pos.width, height: pos.height });
     }
-
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchmove', onTM, { passive: false });
     window.addEventListener('touchend', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchmove', onTM);
       window.removeEventListener('touchend', onUp);
     };
-  }, [dragging, pos.top, pos.left, pos.width, pos.height, item, onDropped]);
+  }, [mode, pos.top, pos.left, pos.width, pos.height, item, onDropped, onResized]);
 
   const style = {
     position: 'absolute',
@@ -774,43 +770,56 @@ function OutsideItemSquare({ item, containerRef, isFounder, onEdit, onDelete, on
     left:   `${pos.left}%`,
     width:  `${pos.width}%`,
     height: `${pos.height}%`,
-    cursor: isFounder ? (dragging ? 'grabbing' : 'grab') : 'default',
-    zIndex: dragging ? 30 : 15
+    cursor: isFounder ? (mode === 'move' ? 'grabbing' : 'grab') : 'default',
+    zIndex: mode ? 30 : 15
   };
 
   return (
     <div
       style={style}
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
+      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); }}
+      onTouchStart={(e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); }}
       className={`group rounded-md border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 shadow-md hover:shadow-lg transition select-none overflow-hidden ${
-        dragging ? 'ring-2 ring-amber-600 ring-offset-1 scale-105' : ''
+        mode ? 'ring-2 ring-amber-600 ring-offset-1' : ''
       }`}
-      title={`${item.name} (الكميّة: ${item.quantity}) — اسحب لتغيير الموقع`}
+      title={`${item.name} (الكميّة: ${item.quantity}) — اسحب للتحريك · المقبض ◢ لتغيير الحجم`}
     >
       {item.photo_url ? (
         <img src={item.photo_url} alt={item.name} draggable={false}
           className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 pointer-events-none">
-          <span className="text-[9px] font-bold text-amber-900 dark:text-amber-100 text-center px-1 leading-tight line-clamp-3">
+          <span className="text-[10px] font-bold text-amber-900 dark:text-amber-100 text-center px-1 leading-tight line-clamp-3">
             {item.name}
           </span>
         </div>
       )}
-      {/* شارة الكميّة في الزاوية */}
-      <div className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[8px] font-bold px-1 py-0.5 rounded pointer-events-none">
+      <div className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[9px] font-bold px-1 py-0.5 rounded pointer-events-none">
         ×{item.quantity}
       </div>
-      {/* أزرار التعديل/الحذف — تظهر عند المرور */}
+
       {isFounder && (
-        <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
+        <div className="absolute top-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
           <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className="w-5 h-5 rounded bg-white text-stone-700 text-[10px] hover:bg-stone-100 shadow flex items-center justify-center"
             title="تعديل">✏️</button>
           <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="w-5 h-5 rounded bg-red-500 text-white text-[10px] hover:bg-red-600 shadow flex items-center justify-center"
             title="حذف">🗑</button>
+        </div>
+      )}
+
+      {/* مقبض تغيير الحجم — الزاوية السفليّة اليسرى */}
+      {isFounder && (
+        <div
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('resize', e.clientX, e.clientY); }}
+          onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; if (t) begin('resize', t.clientX, t.clientY); }}
+          className="absolute bottom-0 left-0 w-5 h-5 flex items-end justify-start cursor-nesw-resize z-10"
+          title="اسحب لتغيير حجم الغرض"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-amber-700 drop-shadow">
+            <path d="M22 22H2v-2h2v-2H2v-2h4v-2H2v-2h6V8H2V6h8V2h2v18h2v-6h2v6h2v-4h2v4h2v2z" transform="scale(-1,1) translate(-24,0)"/>
+          </svg>
         </div>
       )}
     </div>
