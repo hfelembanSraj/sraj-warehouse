@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import Dashboard from './pages/Dashboard';
 
 function ProtectedRoute({ children }) {
@@ -25,6 +26,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/*" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     </Routes>
   );

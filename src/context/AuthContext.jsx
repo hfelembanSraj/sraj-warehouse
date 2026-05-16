@@ -147,6 +147,18 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
   }
 
+  // إرسال رابط استرجاع كلمة المرور إلى البريد المسجَّل
+  async function resetPassword(email) {
+    return supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+  }
+
+  // تعيين كلمة مرور جديدة (بعد فتح رابط الاسترجاع)
+  async function updatePassword(newPassword) {
+    return supabase.auth.updateUser({ password: newPassword });
+  }
+
   function can(permission) {
     if (profile?.is_founder) return true;
     if (profile?.role === 'sysadmin') return true;
@@ -162,7 +174,8 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, profile, permissions, warehouseId, warehouses, activeWarehouse, loading,
       isFounder, isSysadmin,
-      signIn, signUp, signOut, can, refreshProfile, refreshWarehouses, setWarehouseId
+      signIn, signUp, signOut, can, refreshProfile, refreshWarehouses, setWarehouseId,
+      resetPassword, updatePassword
     }}>
       {children}
     </AuthContext.Provider>

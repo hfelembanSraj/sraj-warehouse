@@ -637,7 +637,7 @@ function WarehouseMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-[3/2] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-5 py-9 shadow-inner"
+      className="relative w-full max-w-xl aspect-[4/5] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium">
         الجدار الخلفي
