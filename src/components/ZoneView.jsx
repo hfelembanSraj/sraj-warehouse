@@ -823,8 +823,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 const isRecentlyAdded = recentlyAddedBoxId === box.id;
                                 const showHandle = isFounder;
                                 const isPositionDropTarget = hasActiveSelection && !activeBoxesForMove.find(b => b.id === box.id);
+                                const canOpenBox = !editMode && !hasActiveSelection;
                                 return (
                                   <div key={box.id}
+                                    onClick={(e) => {
+                                      // ضغط الصندوق (خارج وضع التعديل/الاختيار) يفتحه مباشرة — يتجاوز عرض الرفّ
+                                      if (!canOpenBox) return;
+                                      e.stopPropagation();
+                                      onItemClick?.(box.code);
+                                    }}
                                     onDragOver={(e) => { if (isPositionDropTarget) { e.preventDefault(); e.stopPropagation(); } }}
                                     onDrop={(e) => {
                                       if (isPositionDropTarget) {
@@ -833,7 +840,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                         handleDropOrClickOnPosition(shelf, position);
                                       }
                                     }}
-                                    className={`flex-1 relative group ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} ${isPositionDropTarget ? 'ring-2 ring-purple-400 ring-offset-1' : ''} transition`}>
+                                    title={canOpenBox ? `افتح صندوق ${box.code}` : undefined}
+                                    className={`flex-1 relative group ${canOpenBox ? 'cursor-pointer' : ''} ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${isRecentlyAdded ? 'ring-4 ring-green-500 ring-offset-1 animate-pulse' : ''} ${isPositionDropTarget ? 'ring-2 ring-purple-400 ring-offset-1' : ''} transition`}>
                                     <CardboardBoxMini
                                       code={box.code}
                                       itemCount={items.length}
