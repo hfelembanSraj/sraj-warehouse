@@ -8,25 +8,35 @@ export default function SignupPage() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
   const [warehouses, setWarehouses] = useState([]);
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', warehouseId: '' });
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', warehouseIds: [] });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     supabase.from('warehouses').select('id, name').then(({ data }) => {
-      if (data) {
-        setWarehouses(data);
-        if (data.length > 0) setForm(f => ({ ...f, warehouseId: data[0].id }));
-      }
+      if (data) setWarehouses(data);
     });
   }, []);
+
+  function toggleWarehouse(id) {
+    setForm(f => ({
+      ...f,
+      warehouseIds: f.warehouseIds.includes(id)
+        ? f.warehouseIds.filter(x => x !== id)
+        : [...f.warehouseIds, id]
+    }));
+  }
 
   async function handleSignup(e) {
     e.preventDefault();
     setError('');
+    if (form.warehouseIds.length === 0) {
+      setError('اختر مستودعاً واحداً على الأقل');
+      return;
+    }
     setLoading(true);
-    const { error } = await signUp(form.email, form.password, form.fullName, form.warehouseId);
+    const { error } = await signUp(form.email, form.password, form.fullName, form.warehouseIds);
     setLoading(false);
     if (error) {
       setError(error.message || 'حدث خطأ أثناء التسجيل');
@@ -42,7 +52,7 @@ export default function SignupPage() {
         <div className="bg-white rounded-2xl shadow-xl border border-stone-200 p-8 max-w-md w-full text-center">
           <div className="w-14 h-14 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-3 text-2xl">✓</div>
           <h2 className="text-lg font-display font-bold mb-2">تم إرسال طلبك بنجاح</h2>
-          <p className="text-sm text-stone-600 mb-4">ستتلقّى إشعاراً عند موافقة مدير المستودع على طلبك.</p>
+          <p className="text-sm text-stone-600 mb-4">ستتلقّى إشعاراً عند موافقة مدير كلّ مستودع على طلبك.</p>
           <p className="text-xs text-stone-400">جاري التحويل لصفحة الدخول...</p>
         </div>
       </div>
@@ -86,11 +96,31 @@ export default function SignupPage() {
                     className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition" />
                 </div>
                 <div>
-                  <label className="block text-xs text-stone-700 font-medium mb-1.5">المستودع المطلوب</label>
-                  <select required value={form.warehouseId} onChange={(e) => setForm({...form, warehouseId: e.target.value})}
-                    className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none bg-white transition">
-                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
+                  <label className="block text-xs text-stone-700 font-medium mb-1.5">
+                    المستودعات المطلوبة
+                    <span className="text-stone-400 font-normal"> (يمكنك اختيار أكثر من مستودع)</span>
+                  </label>
+                  <div className="border border-stone-300 rounded-lg divide-y divide-stone-100 max-h-44 overflow-y-auto">
+                    {warehouses.length === 0 ? (
+                      <p className="text-xs text-stone-400 text-center py-4">جاري تحميل المستودعات...</p>
+                    ) : warehouses.map(w => {
+                      const checked = form.warehouseIds.includes(w.id);
+                      return (
+                        <label key={w.id}
+                          className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer text-sm transition ${checked ? 'bg-brand-navy/5' : 'hover:bg-stone-50'}`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleWarehouse(w.id)}
+                            className="w-4 h-4 accent-brand-navy shrink-0" />
+                          <span className="flex-1">{w.name}</span>
+                          {checked && <span className="text-brand-navy text-xs font-bold">✓</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-stone-500 mt-1.5">
+                    {form.warehouseIds.length > 0
+                      ? `سيُرسَل طلب انضمام لـ ${form.warehouseIds.length} مستودع — يوافق عليه مدير كلّ مستودع`
+                      : 'اختر مستودعاً واحداً على الأقل'}
+                  </p>
                 </div>
                 <button type="submit" disabled={loading}
                   className="w-full bg-gradient-to-l from-brand-navy to-brand-purple text-white py-3 rounded-lg text-sm font-bold hover:shadow-lg transition disabled:opacity-50 mt-2 shadow-md">

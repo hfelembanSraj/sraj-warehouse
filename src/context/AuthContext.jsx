@@ -123,7 +123,9 @@ export function AuthProvider({ children }) {
     return { data, error };
   }
 
-  async function signUp(email, password, fullName, warehouseId) {
+  // warehouseIds: مصفوفة معرّفات المستودعات المطلوب الانضمام إليها
+  // يُنشأ طلب انضمام مستقلّ لكلّ مستودع (يوافق عليه مدير كلّ مستودع)
+  async function signUp(email, password, fullName, warehouseIds) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -131,13 +133,15 @@ export function AuthProvider({ children }) {
     });
     if (error) return { error };
 
-    if (data.user) {
-      await supabase.from('join_requests').insert({
+    if (data.user && warehouseIds?.length) {
+      const rows = warehouseIds.map(wid => ({
         user_id: data.user.id,
-        warehouse_id: warehouseId,
+        warehouse_id: wid,
         full_name: fullName,
         email
-      });
+      }));
+      const { error: jrErr } = await supabase.from('join_requests').insert(rows);
+      if (jrErr) return { error: jrErr };
     }
     return { data };
   }
