@@ -2,8 +2,90 @@
 
 > **Purpose:** complete context dump for the next Claude session. Read this first, end-to-end, before any new work.
 
-**Last updated:** 2026-05-02 (after batches 1–9 of major enhancements)
+**Last updated:** 2026-05-17 (Session 2 — see addendum below)
 **Project status:** Production. Live at `https://sraj-warehouse.vercel.app`. Founder logged in and using.
+
+---
+
+## ⚡ SESSION 2 ADDENDUM (2026-05-17) — READ THIS FIRST
+
+Everything below sections were written after Session 1. The rest of this
+document is still broadly accurate for architecture; this block lists what
+**changed in Session 2** and overrides any conflicting older text.
+
+### Infrastructure fixes
+- **CI workflows Node 20 → 22** (all 4 yml). Older `@supabase/supabase-js`
+  needs native WebSocket → Node 22. Backup + overdue workflows green again.
+- **`vercel.json`** now has `git.deploymentEnabled.backups = false` — stops
+  Vercel error emails from trying to deploy the JSON-only `backups` branch.
+- MCP access available this session: Supabase project `tfrzyiyoromlgmcissvu`
+  (ours; the other project `cash-advance` is unrelated — don't touch) and
+  Vercel team `team_yjSVfkDNYdlWJjwbF1itNeHR`, project
+  `prj_uoHMF49IQMc8xJAQSYhQDPoDhyTE`.
+
+### New SQL migrations (APPLIED to prod)
+- **migration_16_stacking_and_placement.sql**: `boxes.stack_index`;
+  `items.pos_top/pos_left/width_pct/height_pct`; `add_stacked_box()` RPC.
+- **migration_17_shelf_slot_items.sql**: `items.shelf_id`, `items.box_index`,
+  `items.stack_index` + partial index `items_shelf_slot_idx`.
+- Items model now has a 5th bucket — **large item on a shelf slot**:
+  `box_id NULL, shelf_id NOT NULL, box_index = slot` (zone_id also set so the
+  Dashboard "unassigned" query fetches it). Renders box-sized in the rack.
+
+### Dark mode
+- `tailwind.config.js` `darkMode:'class'`; new `src/lib/useTheme.js`
+  (localStorage `sraj.theme`). ☀️/🌙 toggle in Dashboard header.
+- `dark:` variants use the **stone** palette (warm), applied to Dashboard,
+  FormModal/ConfirmDelete, WarehouseMap, ZoneView/BoxView panels,
+  WarehousesHome. Secondary tabs not fully themed yet (low priority).
+
+### Password recovery
+- AuthContext: `resetPassword(email)` (`resetPasswordForEmail`,
+  redirect `/reset-password`) + `updatePassword(pw)`.
+- LoginPage has a "نسيت كلمة المرور؟" forgot-mode panel.
+- New **`src/pages/ResetPasswordPage.jsx`** + public route `/reset-password`
+  (listed before the protected catch-all in App.jsx).
+- Supabase Auth → URL Configuration already set: Site URL = vercel domain,
+  Redirect URLs includes `https://sraj-warehouse.vercel.app/**`.
+
+### Warehouse map (WarehouseMap.jsx) — heavily reworked
+- Outside-zone items render as **draggable + resizable squares ON the map**
+  (no more list). Shared component **`src/components/FreeItemSquare.jsx`**
+  (move = body drag, resize = ◢ grip; saves pos/size via
+  `updateOutsideItemPosition`).
+- **Main warehouse is 6×6 m.** Zones repositioned to a 2×2 grid occupying
+  exactly the **top 70%**; the bottom **30% is a fixed free band for items**
+  (dashed divider + label). Items are clamped to that band (`FREE_AREA_TOP`).
+- **Dynamic zone-shrink was REMOVED.** Zones are now static
+  (`displayRect = naturalZoneRect`). `shrinkRectAwayFromItem` /
+  `computeVisualZoneRect` / `syncSiblingZones` are dead code (left in place).
+  Do NOT reintroduce shrink — the founder rejected it repeatedly.
+
+### Zones (ZoneView.jsx) — large items + stacking + no ShelfView
+- Empty rack slot click → **chooser modal: 📦 صندوق / 🧊 غرض كبير**.
+  "غرض كبير" inserts an item at `{shelf_id, box_index, zone_id}` — same
+  size/position as a box, amber-styled tile in the slot.
+- Edit-mode purple **`+` stack button** on every occupied slot → same
+  chooser in *stack* mode → stacks a box (`add_stacked_box`) or an item
+  (next `stack_index`) on top. box→box, box→item, item→item all work.
+- **ShelfView is fully bypassed.** Clicking a box in the rack → BoxView
+  directly (`onItemClick(box.code)` → Dashboard `goToBoxByCode`). BoxView
+  back/breadcrumb/delete return to the **zone** (`onBackToZone`), never the
+  shelf. Clicking the shelf frame does nothing now. `ShelfView.jsx` still
+  exists/lazy-loaded but is unreachable — safe to ignore.
+- Box tile colors: brown = normal, **red = a unit from it is checked out**
+  (not an error), green = search-highlighted.
+
+### UsersTab.jsx
+- New **📜 النشاط** button per user → modal with that user's last 200
+  `activity_log` entries, action-type filter chips + color coding.
+
+### Known dead code / cleanup backlog (non-urgent)
+- WarehouseMap: `shrinkRectAwayFromItem`, `computeVisualZoneRect`,
+  `syncSiblingZones`, `naturalZoneRect` (last one still used) — unused
+  shrink helpers.
+- Large items don't show a real location in ReportsTab/AllItemsList yet
+  (no box code) — they're skipped in aggregation. Acceptable for now.
 
 ---
 
