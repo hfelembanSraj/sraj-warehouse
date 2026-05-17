@@ -965,7 +965,6 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 </div>
                                 );
                               })}
-                              ))}
                               {boxesAtPos.map((box) => {
                                 const items = getBoxItems(box.id);
                                 const isOut = isCheckedOut(box.id);
