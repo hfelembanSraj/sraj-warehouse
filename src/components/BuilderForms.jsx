@@ -536,7 +536,7 @@ export function FormModal({ title, subtitle, children, onClose, maxWidth = 'max-
       >
         <div className="bg-gradient-to-l from-blue-50 to-stone-50 dark:from-stone-800 dark:to-stone-900 border-b border-stone-200 dark:border-stone-700 px-5 py-3 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-display font-bold dark:text-stone-100">{title}</h3>
+            <h3 className="text-sm font-display font-bold dark:text-stone-300">{title}</h3>
             {subtitle && <p className="text-[11px] text-stone-600 dark:text-stone-400 mt-0.5">{subtitle}</p>}
           </div>
           <button onClick={onClose} title="إغلاق (Esc)" className="text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-200 text-2xl leading-none px-2">×</button>
@@ -554,7 +554,7 @@ export function ConfirmDelete({ message, busy, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-stone-900 rounded-xl p-5 max-w-sm w-full">
-        <h4 className="text-sm font-display font-bold mb-2 dark:text-stone-100">تأكيد الحذف</h4>
+        <h4 className="text-sm font-display font-bold mb-2 dark:text-stone-300">تأكيد الحذف</h4>
         <p className="text-xs text-stone-600 dark:text-stone-400 mb-4">{message}</p>
         <div className="flex gap-2">
           <button onClick={onConfirm} disabled={busy}

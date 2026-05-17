@@ -194,7 +194,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-5">
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <div>
-            <h2 className="text-sm font-display font-bold dark:text-stone-100">{activeWarehouse?.name || 'المستودع'}</h2>
+            <h2 className="text-sm font-display font-bold dark:text-stone-300">{activeWarehouse?.name || 'المستودع'}</h2>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
               {activeWarehouse?.width_m || 4}م × {activeWarehouse?.depth_m || 4}م · {zones.length} مساحة · {totalBoxes} صندوق · {data.items.length} صنف
             </p>
@@ -231,11 +231,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         {/* مبدّل وضع العرض */}
         <div className="bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5 inline-flex mb-4">
           <button onClick={() => setViewMode('map')}
-            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'map' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-100' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'}`}>
+            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'map' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-300' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'}`}>
             🗺 الخريطة
           </button>
           <button onClick={() => setViewMode('items')}
-            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'items' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-100' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'}`}>
+            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'items' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-300' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'}`}>
             📋 كل الأغراض ({data.items.length})
           </button>
         </div>
@@ -463,7 +463,7 @@ function NewItemForm({ busy, onCancel, onSave }) {
 
 function StatCard({ num, label, color = 'default', onClick }) {
   const colors = {
-    default: 'text-stone-900 dark:text-stone-100',
+    default: 'text-stone-900 dark:text-stone-300',
     orange: 'text-orange-600 dark:text-orange-400',
     red: 'text-red-600 dark:text-red-400'
   };
@@ -490,6 +490,8 @@ function WarehouseMapCanvas({
   onItemEdit, onItemDelete, onRefresh, flash
 }) {
   const containerRef = useRef(null);
+  // مستطيلات المساحات كعوائق — الغرض الحرّ ممنوع أن يتداخل معها إطلاقاً
+  const zoneObstacles = useMemo(() => zones.map(z => naturalZoneRect(z)), [zones]);
 
   // عند إفلات غرض على الخريطة: احفظ موقعه فقط — المساحات ثابتة لا تتأثّر
   async function handleItemDropped(item, newPos) {
@@ -549,6 +551,7 @@ function WarehouseMapCanvas({
           item={it}
           containerRef={containerRef}
           isFounder={isFounder}
+          obstacles={zoneObstacles}
           onEdit={() => onItemEdit(it)}
           onDelete={() => onItemDelete(it)}
           onDropped={handleItemDropped}

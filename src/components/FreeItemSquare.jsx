@@ -1,12 +1,36 @@
 // مربّع غرض حرّ — قابل للسحب لتغيير الموقع + مقبض لتغيير الحجم
 // يُستخدم في خريطة المستودع (أغراض خارج المساحات) وداخل المساحات (أغراض كبيرة على الرفّ)
 // minTopPct: أصغر قيمة top مسموحة (لتقييد الغرض في منطقة معيّنة) — افتراضي 0 (حرّ كامل)
+// obstacles: مستطيلات ممنوع التداخل معها (مساحات التخزين) — [{left,top,width,height} %]
 import { useState, useEffect, useRef } from 'react';
+
+function rectsOverlap(a, b) {
+  return a.left < b.left + b.width &&
+         a.left + a.width > b.left &&
+         a.top  < b.top + b.height &&
+         a.top  + a.height > b.top;
+}
+function hits(rect, obstacles) {
+  return obstacles.some(o => rectsOverlap(rect, o));
+}
+// يدفع المستطيل لأسفل حتى يخرج من كل العوائق (الفراغ الحرّ تحت/حول المساحات)
+function resolveBelow(rect, obstacles) {
+  if (!hits(rect, obstacles)) return rect;
+  let top = rect.top;
+  for (let i = 0; i < 64; i++) {
+    const test = { ...rect, top };
+    const hit = obstacles.find(o => rectsOverlap(test, o));
+    if (!hit) return test;
+    top = hit.top + hit.height + 0.5;            // اقفز أسفل العائق الذي اصطدم به
+    if (top + rect.height > 100) break;
+  }
+  return { ...rect, top: Math.max(0, 100 - rect.height) };  // احتياط: القاع
+}
 
 export default function FreeItemSquare({
   item, containerRef, isFounder,
   onEdit, onDelete, onDropped, onResized,
-  minTopPct = 0
+  minTopPct = 0, obstacles = []
 }) {
   const [pos, setPos] = useState({
     top:    item.pos_top    ?? Math.max(minTopPct, 40),
@@ -16,6 +40,7 @@ export default function FreeItemSquare({
   });
   const [mode, setMode] = useState(null);   // 'move' | 'resize' | null
   const stRef = useRef(null);
+  const healedRef = useRef(false);
 
   useEffect(() => {
     if (!mode) {
@@ -27,6 +52,19 @@ export default function FreeItemSquare({
       });
     }
   }, [item.pos_top, item.pos_left, item.width_pct, item.height_pct, mode, minTopPct]);
+
+  // تصحيح ذاتي: إن كان الموقع المحفوظ متداخلاً مع مساحة تخزين، انقله للفراغ
+  // الحرّ تحتها واحفظ ذلك مرّة واحدة (يُصلح الأغراض الموضوعة خطأً فوق المساحات)
+  useEffect(() => {
+    if (mode || obstacles.length === 0) return;
+    const cur = { left: pos.left, top: pos.top, width: pos.width, height: pos.height };
+    if (!hits(cur, obstacles)) { healedRef.current = false; return; }
+    if (healedRef.current) return;
+    healedRef.current = true;
+    const fixed = resolveBelow(cur, obstacles);
+    setPos(p => ({ ...p, top: fixed.top, left: fixed.left }));
+    onDropped?.(item, { top: fixed.top, left: fixed.left });
+  }, [mode, obstacles, pos.left, pos.top, pos.width, pos.height, item, onDropped]);
 
   function begin(kind, clientX, clientY) {
     if (!isFounder) return;
@@ -51,7 +89,16 @@ export default function FreeItemSquare({
         const newLeft = Math.max(0, Math.min(100 - s.startW, s.startLeft + dxPct));
         const maxTop = Math.max(minTopPct, 100 - s.startH);
         const newTop = Math.max(minTopPct, Math.min(maxTop, s.startTop + dyPct));
-        setPos(p => ({ ...p, left: newLeft, top: newTop }));
+        setPos(p => {
+          const desired = { left: newLeft, top: newTop, width: s.startW, height: s.startH };
+          if (!hits(desired, obstacles)) return { ...p, left: newLeft, top: newTop };
+          // محاصَر بمساحة تخزين — انزلق على حافّتها (أفقياً ثم عمودياً)
+          const tryX = { left: newLeft, top: p.top, width: s.startW, height: s.startH };
+          if (!hits(tryX, obstacles)) return { ...p, left: newLeft };
+          const tryY = { left: p.left, top: newTop, width: s.startW, height: s.startH };
+          if (!hits(tryY, obstacles)) return { ...p, top: newTop };
+          return p;  // لا يدخل المساحة إطلاقاً
+        });
       } else {
         // المقبض في الزاوية السفليّة-اليسرى: السحب لليسار يكبّر العرض، لأسفل يكبّر الطول
         const newW = Math.max(5, Math.min(70, s.startW - dxPct));
@@ -59,7 +106,11 @@ export default function FreeItemSquare({
         const newH = Math.max(5, Math.min(maxH, s.startH + dyPct));
         const rightEdge = s.startLeft + s.startW;
         const newLeft = Math.max(0, rightEdge - newW);
-        setPos(p => ({ ...p, width: newW, height: newH, left: newLeft }));
+        setPos(p => {
+          const desired = { left: newLeft, top: p.top, width: newW, height: newH };
+          if (hits(desired, obstacles)) return p;  // لا تكبّر الغرض داخل مساحة
+          return { ...p, width: newW, height: newH, left: newLeft };
+        });
       }
     }
     function onMove(e) { handleMove(e.clientX, e.clientY); }

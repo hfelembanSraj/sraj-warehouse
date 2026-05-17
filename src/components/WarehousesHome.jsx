@@ -169,7 +169,7 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
 
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div>
-          <h2 className="text-base font-display font-bold dark:text-stone-100">🏢 جميع المستودعات ({warehouses.length})</h2>
+          <h2 className="text-base font-display font-bold dark:text-stone-300">🏢 جميع المستودعات ({warehouses.length})</h2>
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">اضغط على مستودع للدخول وإدارته</p>
         </div>
         <div className="flex items-center gap-2">

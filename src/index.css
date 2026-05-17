@@ -13,7 +13,7 @@ html.dark {
   --tile-bg: #292524;
   --tile-shelf-bg: #1c1917;
   --tile-pill-bg: rgba(28, 25, 23, 0.85);
-  --tile-pill-text: #e7e5e4;
+  --tile-pill-text: #bdb9b1;
 }
 
 * {
@@ -31,7 +31,7 @@ body {
 
 html.dark body {
   background: #1c1917;
-  color: #e7e5e4;
+  color: #bdb9b1;
 }
 
 /* Scrollbar */
