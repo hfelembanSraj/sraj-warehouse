@@ -8,8 +8,8 @@ import FreeItemSquare from './FreeItemSquare';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
 
-// المساحات تشغل أعلى 70% من الشقة — الأغراض تُوضَع في الـ30% السفليّة الحرّة
-const FREE_AREA_TOP = 70;
+// المساحات ثابتة لا تتحرّك أبداً؛ الأغراض الحرّة تُوضَع في أيّ مكان على
+// الأرضيّة (حتى أمام المساحات) — لا قيد على موقعها
 
 // المستطيل الطبيعي للمساحة (من قاعدة البيانات) كنسب مئويّة
 function naturalZoneRect(zone) {
@@ -202,13 +202,13 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           <div className="flex items-center gap-2 flex-wrap">
             {isFounder && viewMode === 'map' && (
               <button onClick={() => setShowAddZone(s => !s)}
-                className="bg-amber-100 border border-amber-300 text-amber-900 text-xs px-3 py-2 rounded-lg hover:bg-amber-200">
+                className="bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 text-xs px-3 py-2 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/60">
                 + 👑 مساحة جديدة
               </button>
             )}
             {isFounder && viewMode === 'map' && (
               <button onClick={() => setPickerMode('box')}
-                className="bg-green-100 border border-green-300 text-green-900 text-xs px-3 py-2 rounded-lg hover:bg-green-200">
+                className="bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700/60 text-green-900 dark:text-green-200 text-xs px-3 py-2 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/60">
                 + 📦 صندوق جديد
               </button>
             )}
@@ -220,7 +220,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
             )}
             {can('add') && (
               <button onClick={() => setShowAddOutside(true)}
-                className="bg-stone-100 border border-stone-300 text-stone-800 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 font-medium"
+                className="bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700 font-medium"
                 title="غرض كبير لا يدخل صندوقاً (مثل طاولة كبيرة)">
                 + 📐 خارج المساحات
               </button>
@@ -229,13 +229,13 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         </div>
 
         {/* مبدّل وضع العرض */}
-        <div className="bg-stone-100 rounded-lg p-0.5 inline-flex mb-4">
+        <div className="bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5 inline-flex mb-4">
           <button onClick={() => setViewMode('map')}
-            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'map' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'map' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-100' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'}`}>
             🗺 الخريطة
           </button>
           <button onClick={() => setViewMode('items')}
-            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'items' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+            className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'items' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-100' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'}`}>
             📋 كل الأغراض ({data.items.length})
           </button>
         </div>
@@ -491,9 +491,7 @@ function WarehouseMapCanvas({
 }) {
   const containerRef = useRef(null);
 
-  // عند إفلات غرض على الخريطة: احفظ موقعه فقط
-  // المساحات تتقلّص بصريّاً تلقائياً بناءً على موقع الغرض (الحساب في الـrender)
-  // وتعود لحجمها الأصلي عند سحب الغرض بعيداً — لا تُمسّ قاعدة البيانات
+  // عند إفلات غرض على الخريطة: احفظ موقعه فقط — المساحات ثابتة لا تتأثّر
   async function handleItemDropped(item, newPos) {
     try {
       await updateOutsideItemPosition(item.id, {
@@ -527,7 +525,7 @@ function WarehouseMapCanvas({
         الجدار الخلفي
       </div>
 
-      {/* مساحات التخزين ثابتة تماماً (أعلى 70% من الشقة) — لا تقلّص إطلاقاً */}
+      {/* مساحات التخزين ثابتة تماماً — لا تتحرّك ولا تتقلّص إطلاقاً */}
       {zones.map(z => (
         <ZoneTile
           key={z.id}
@@ -544,22 +542,13 @@ function WarehouseMapCanvas({
         />
       ))}
 
-      {/* الفاصل بين منطقة المساحات (أعلى 70%) والمنطقة الحرّة للأغراض (أسفل 30%) */}
-      <div className="absolute left-0 right-0 border-t-2 border-dashed border-amber-400/60 pointer-events-none"
-        style={{ top: `${FREE_AREA_TOP}%` }}>
-        <span className="absolute right-3 -top-2.5 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[9px] font-bold px-2 py-0.5 rounded-full">
-          ↓ منطقة الأغراض الحرّة
-        </span>
-      </div>
-
-      {/* الأغراض خارج المساحات — مربّعات قابلة للسحب وتغيير الحجم على الخريطة */}
+      {/* الأغراض خارج المساحات — مربّعات قابلة للسحب وتغيير الحجم في أيّ مكان */}
       {outsideItems.map(it => (
         <FreeItemSquare
           key={it.id}
           item={it}
           containerRef={containerRef}
           isFounder={isFounder}
-          minTopPct={FREE_AREA_TOP}
           onEdit={() => onItemEdit(it)}
           onDelete={() => onItemDelete(it)}
           onDropped={handleItemDropped}
@@ -602,7 +591,7 @@ function BoxesListView({ data, onJump, onClose }) {
           placeholder="🔍 ابحث برقم أو وصف..."
           className="px-3 py-2 border border-stone-300 rounded-lg text-xs" />
         <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
-          className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+          className="px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs bg-white dark:bg-stone-800 dark:text-stone-200">
           <option value="all">كل المساحات</option>
           {(data.zones || []).map(z => (
             <option key={z.id} value={z.letter}>{z.letter} — {z.name}</option>
@@ -617,7 +606,7 @@ function BoxesListView({ data, onJump, onClose }) {
           {filtered.map(b => (
             <button key={b.id}
               onClick={() => { onClose(); onJump?.(b.code); }}
-              className="bg-white border-2 border-stone-200 rounded-lg p-3 text-right hover:border-blue-500 hover:bg-blue-50 transition">
+              className="bg-white dark:bg-stone-900 border-2 border-stone-200 dark:border-stone-800 rounded-lg p-3 text-right hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-stone-800 transition">
               <div className="flex items-center gap-2 mb-1">
                 {b.photo_url ? (
                   <img src={b.photo_url} alt={b.code} className="w-8 h-8 object-cover rounded" />
@@ -644,7 +633,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   return (
     <div className="space-y-2 max-h-[60vh] overflow-y-auto">
       {checkouts.map(c => (
-        <div key={c.id} className="bg-white border border-stone-200 rounded-lg p-3 flex items-center gap-3">
+        <div key={c.id} className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-lg p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded bg-orange-100 text-orange-700 flex items-center justify-center text-lg">📤</div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium truncate">{c.item_name} <span className="text-[10px] text-stone-500">×{c.quantity}</span></div>
@@ -762,11 +751,11 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
       {isFounder && (
         <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
           <button onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
-            className="text-[10px] bg-white border border-stone-300 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 flex items-center justify-center"
+            className="text-[10px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
             title="تعديل"
           >✏️</button>
           <button onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
-            className="text-[10px] bg-white border border-red-300 w-6 h-6 rounded-md shadow-md text-red-600 hover:bg-red-50 flex items-center justify-center"
+            className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
             title="حذف"
           >🗑</button>
         </div>
@@ -864,7 +853,7 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
           className="px-3 py-2 border border-stone-300 rounded-lg text-xs"
         />
         <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
-          className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+          className="px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs bg-white dark:bg-stone-800 dark:text-stone-200">
           <option value="all">كل المساحات</option>
           {(data.zones || []).map(z => (
             <option key={z.id} value={z.letter}>{z.letter} — {z.name}</option>
@@ -872,7 +861,7 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
         </select>
         {allTags.length > 0 && (
           <select value={filterTag} onChange={e => setFilterTag(e.target.value)}
-            className="px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+            className="px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs bg-white dark:bg-stone-800 dark:text-stone-200">
             <option value="all">🏷 كل الوسوم</option>
             {allTags.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -900,17 +889,17 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
           {filtered.map(it => (
             <div
               key={it.id}
-              className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md transition"
+              className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md transition"
             >
               <button
                 onClick={() => it.navCode && onItemClick && onItemClick(it.navCode)}
                 disabled={!it.navCode}
-                className={`flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 rounded-lg transition min-w-0 ${it.navCode ? 'hover:bg-stone-50 cursor-pointer' : 'cursor-default'}`}
+                className={`flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 rounded-lg transition min-w-0 ${it.navCode ? 'hover:bg-stone-50 dark:hover:bg-stone-800 cursor-pointer' : 'cursor-default'}`}
               >
                 {it.photo_url ? (
                   <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden">
+                  <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 dark:from-amber-950/40 dark:to-stone-800 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-[9px] font-bold text-stone-700 dark:text-stone-300 text-center p-1 flex-shrink-0 leading-tight overflow-hidden">
                     <span className="line-clamp-2">{it.name}</span>
                   </div>
                 )}
@@ -927,7 +916,7 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
                 <button
                   onClick={() => setEditingItem(it)}
                   disabled={busy}
-                  className="text-[10px] bg-stone-50 border border-stone-300 text-stone-700 px-2 py-1.5 rounded hover:bg-stone-100 flex-shrink-0"
+                  className="text-[10px] bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 px-2 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-700 flex-shrink-0"
                   title="تعديل هذا الصنف"
                 >
                   ✏️
