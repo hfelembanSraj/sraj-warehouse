@@ -27,6 +27,7 @@ export default function LocationPicker({
   const [currentWh, setCurrentWh] = useState(activeWarehouse);
   const [currentData, setCurrentData] = useState(data);
   const [loadingWh, setLoadingWh] = useState(false);
+  const [switchError, setSwitchError] = useState(null);
   const [showWhPicker, setShowWhPicker] = useState(false);
   const [selectedZone, setSelectedZone] = useState(initialZone);
   const zones = currentData?.zones || [];
@@ -38,6 +39,7 @@ export default function LocationPicker({
       return;
     }
     setLoadingWh(true);
+    setSwitchError(null);
     setShowWhPicker(false);
     setSelectedZone(null);  // إعادة تعيين المساحة عند تبديل المستودع
     try {
@@ -46,6 +48,10 @@ export default function LocationPicker({
         supabase.from('boxes').select('*')
           .eq('warehouse_id', wh.id).is('deleted_at', null).not('shelf_id', 'is', null)
       ]);
+      // استعلامات Supabase لا ترمي استثناءً — الخطأ يأتي في النتيجة
+      if (layoutR.error || boxesR.error) {
+        throw new Error((layoutR.error || boxesR.error).message);
+      }
       setCurrentData({
         zones: layoutR.data?.zones || [],
         boxes: boxesR.data || [],
@@ -54,6 +60,7 @@ export default function LocationPicker({
       setCurrentWh(wh);
     } catch (e) {
       console.error('فشل تحميل بيانات المستودع:', e);
+      setSwitchError(`تعذّر تحميل بيانات "${wh.name}". تحقّق من الاتصال وحاول مجدّداً.`);
     }
     setLoadingWh(false);
   }
@@ -133,6 +140,14 @@ export default function LocationPicker({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {switchError && !loadingWh && (
+        <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between gap-2">
+          <span>⚠️ {switchError}</span>
+          <button onClick={() => setSwitchError(null)}
+            className="text-[10px] underline shrink-0">إغلاق</button>
         </div>
       )}
 

@@ -183,9 +183,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
   async function handleAddBox(values) {
     setBusy(true);
-    const { error } = await rpcAddBox(addBoxOnShelf.id, values);
+    const { error, photoError } = await rpcAddBox(addBoxOnShelf.id, values);
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
+    if (photoError) { flash('تمّ إنشاء الصندوق لكن تعذّر حفظ الصورة — أعد رفعها من تعديل الصندوق', 'error'); setAddBoxOnShelf(null); await onRefresh(); return; }
     flash('✅ تمت إضافة صندوق');
     setAddBoxOnShelf(null);
     await onRefresh();

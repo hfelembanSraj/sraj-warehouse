@@ -122,7 +122,14 @@ export async function rpcAddBox(s_id, values) {
     });
   }
   if (!result.error && result.data && values.photo_url) {
-    await supabase.from('boxes').update({ photo_url: values.photo_url }).eq('id', result.data);
+    const { error: photoErr } = await supabase
+      .from('boxes').update({ photo_url: values.photo_url }).eq('id', result.data);
+    if (photoErr) {
+      // الصندوق أُنشئ بنجاح لكن تعذّر حفظ الصورة — لا نُفشل العمليّة،
+      // بل نُبلّغ المُستدعي ليُظهر تنبيهاً ناعماً بدل ابتلاع الخطأ صامتاً
+      console.error('تعذّر حفظ صورة الصندوق:', photoErr);
+      result.photoError = photoErr;
+    }
   }
   return result;
 }

@@ -52,6 +52,75 @@ export function suggestLocation(zoneLetter, existingBoxes, zones = []) {
   return { code: `${zoneLetter}-1-1`, shelfId: null };
 }
 
+// يستنتج موقع الغرض عبر الحالات الأربع لنموذج البيانات:
+//   box_id        → داخل صندوق (رمز الصندوق، قابل للملاحة)
+//   shelf_id      → غرض كبير يشغل موقع صندوق على رفّ (رمز محسوب)
+//   zone_id       → غير محدّد المكان داخل مساحة
+//   warehouse_id  → خارج كل المساحات
+// يرجع { boxCode, navCode, zoneLetter, zoneName, zoneColor, kind, sortKey }
+//   navCode = الرمز القابل للنقر/الملاحة (للصناديق فقط، غير ذلك null)
+// يرجع null إذا كان الغرض مرتبطاً بصندوق محذوف/مفقود (يُتجاهَل كما كان سابقاً)
+export function resolveItemLocation(item, { boxes = [], zones = [] } = {}) {
+  if (item.box_id) {
+    const box = boxes.find(b => b.id === item.box_id);
+    if (!box) return null;
+    const zoneLetter = (box.code || '').split('-')[0];
+    const zone = zones.find(z => z.letter === zoneLetter);
+    return {
+      boxCode: box.code,
+      navCode: box.code,
+      zoneLetter,
+      zoneName: zone?.name || '—',
+      zoneColor: zone?.color || '#888',
+      kind: 'box',
+      sortKey: [zoneLetter || 'ZZZ', parseInt((box.code || '').split('-')[1] || '0', 10), box.box_index ?? 0]
+    };
+  }
+  if (item.shelf_id) {
+    for (const z of zones) {
+      const sh = (z.shelves || []).find(s => s.id === item.shelf_id);
+      if (sh) {
+        const code = `${z.letter}-${sh.shelf_index}-${item.box_index ?? '?'}`;
+        return {
+          boxCode: `${code} · غرض كبير`,
+          navCode: null,
+          zoneLetter: z.letter,
+          zoneName: z.name || '—',
+          zoneColor: z.color || '#888',
+          kind: 'shelf',
+          sortKey: [z.letter || 'ZZZ', sh.shelf_index ?? 0, item.box_index ?? 0]
+        };
+      }
+    }
+  }
+  if (item.zone_id) {
+    const z = zones.find(zz => zz.id === item.zone_id);
+    if (z) {
+      return {
+        boxCode: `${z.letter} · غير محدّد`,
+        navCode: null,
+        zoneLetter: z.letter,
+        zoneName: z.name || '—',
+        zoneColor: z.color || '#888',
+        kind: 'zone',
+        sortKey: [z.letter || 'ZZZ', 998, 0]
+      };
+    }
+  }
+  if (item.warehouse_id) {
+    return {
+      boxCode: 'خارج المساحات',
+      navCode: null,
+      zoneLetter: '—',
+      zoneName: 'خارج المساحات',
+      zoneColor: '#9CA3AF',
+      kind: 'outside',
+      sortKey: ['ZZZ', 999, 0]
+    };
+  }
+  return null;
+}
+
 export function formatArabicDate(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);

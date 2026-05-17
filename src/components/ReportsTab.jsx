@@ -1,9 +1,15 @@
 import { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
-import { isOverdue } from '../lib/helpers';
+import { isOverdue, resolveItemLocation } from '../lib/helpers';
 import { FormModal } from './BuilderForms';
+
+// مكتبة xlsx ثقيلة (~440 ك.ب) — تُحمَّل عند أوّل تصدير/استيراد فقط، لا مع التبويب
+let _xlsxPromise;
+function loadXLSX() {
+  if (!_xlsxPromise) _xlsxPromise = import('xlsx').then(m => m.default ?? m);
+  return _xlsxPromise;
+}
 
 export default function ReportsTab({ data, onRefresh }) {
   const { activeWarehouse, isFounder, can } = useAuth();
@@ -37,29 +43,44 @@ export default function ReportsTab({ data, onRefresh }) {
   }, [data]);
 
   // ====== جدول الأصناف المُجمَّع ======
+  // يشمل كل الأغراض: داخل صندوق + غرض كبير على رفّ + غير محدّد + خارج المساحات
   const aggregatedItems = useMemo(() => {
-    const byBox = {};
+    const byLoc = {};
     for (const it of data.items) {
-      const box = data.boxes.find(b => b.id === it.box_id);
-      if (!box) continue;
-      const zoneLetter = box.code.split('-')[0];
-      const zone = (data.zones || []).find(z => z.letter === zoneLetter);
-      const checkedOutQty = data.checkouts
-        .filter(c => c.box_id === box.id && c.item_name === it.name)
-        .reduce((s, c) => s + (c.quantity || 0), 0);
-      const damagedQty = data.damaged
-        .filter(d => d.box_code === box.code && d.item_name === it.name)
-        .reduce((s, d) => s + (d.quantity || 0), 0);
-      const donatedQty = data.donated
-        .filter(d => d.box_code === box.code && d.item_name === it.name)
-        .reduce((s, d) => s + (d.quantity || 0), 0);
-      byBox[`${box.code}::${it.name}`] = {
+      const loc = resolveItemLocation(it, { boxes: data.boxes, zones: data.zones || [] });
+      if (!loc) continue; // مرتبط بصندوق محذوف — يُتجاهَل
+      let checkedOutQty, damagedQty, donatedQty;
+      if (loc.kind === 'box') {
+        // الصناديق: نطابق كما كان (المُخرَج بمعرّف الصندوق، التالف/المدعوم برمزه)
+        const box = data.boxes.find(b => b.id === it.box_id);
+        checkedOutQty = data.checkouts
+          .filter(c => c.box_id === box.id && c.item_name === it.name)
+          .reduce((s, c) => s + (c.quantity || 0), 0);
+        damagedQty = data.damaged
+          .filter(d => d.box_code === box.code && d.item_name === it.name)
+          .reduce((s, d) => s + (d.quantity || 0), 0);
+        donatedQty = data.donated
+          .filter(d => d.box_code === box.code && d.item_name === it.name)
+          .reduce((s, d) => s + (d.quantity || 0), 0);
+      } else {
+        // الأغراض بلا صندوق: المُخرَج بمعرّف الصنف (دقيق)، التالف/المدعوم بالاسم
+        checkedOutQty = data.checkouts
+          .filter(c => c.item_id === it.id)
+          .reduce((s, c) => s + (c.quantity || 0), 0);
+        damagedQty = data.damaged
+          .filter(d => !d.box_code && d.item_name === it.name)
+          .reduce((s, d) => s + (d.quantity || 0), 0);
+        donatedQty = data.donated
+          .filter(d => !d.box_code && d.item_name === it.name)
+          .reduce((s, d) => s + (d.quantity || 0), 0);
+      }
+      byLoc[`${loc.boxCode}::${it.name}`] = {
         id: it.id,
         name: it.name,
-        boxCode: box.code,
-        zoneLetter,
-        zoneName: zone?.name || '—',
-        zoneColor: zone?.color || '#888',
+        boxCode: loc.boxCode,
+        zoneLetter: loc.zoneLetter,
+        zoneName: loc.zoneName,
+        zoneColor: loc.zoneColor,
         photo: it.photo_url,
         quantity: it.quantity || 0,
         available: Math.max(0, (it.quantity || 0) - checkedOutQty),
@@ -69,7 +90,7 @@ export default function ReportsTab({ data, onRefresh }) {
         status: it.status || 'ok'
       };
     }
-    return Object.values(byBox);
+    return Object.values(byLoc);
   }, [data]);
 
   // ====== الفرز/الفلترة ======
@@ -86,7 +107,8 @@ export default function ReportsTab({ data, onRefresh }) {
   }, [aggregatedItems, filterText, filterZone, filterStatus]);
 
   // ====== تصدير Excel ======
-  function exportToExcel() {
+  async function exportToExcel() {
+    const XLSX = await loadXLSX();
     const rows = filteredItems.map(it => ({
       'الأداة': it.name,
       'المساحة': it.zoneLetter,
@@ -229,7 +251,8 @@ export default function ReportsTab({ data, onRefresh }) {
   }
 
   // ====== تنزيل قالب استيراد ======
-  function downloadTemplate() {
+  async function downloadTemplate() {
+    const XLSX = await loadXLSX();
     const sample = [
       { 'اسم الأداة': 'حبال تجاذب', 'الكميّة': 4, 'المساحة': 'A', 'الوصف': 'حبال للفعاليات' },
       { 'اسم الأداة': 'كاميرا تصوير', 'الكميّة': 1, 'المساحة': 'B', 'الوصف': '' }
@@ -247,6 +270,7 @@ export default function ReportsTab({ data, onRefresh }) {
     setImporting(true);
     setImportResult(null);
     try {
+      const XLSX = await loadXLSX();
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];

@@ -6,6 +6,7 @@ import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import FreeItemSquare from './FreeItemSquare';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
+import { resolveItemLocation } from '../lib/helpers';
 
 // المساحات تشغل أعلى 70% من الشقة — الأغراض تُوضَع في الـ30% السفليّة الحرّة
 const FREE_AREA_TOP = 70;
@@ -19,128 +20,6 @@ function naturalZoneRect(zone) {
     width:  zone.pos_width  ?? 18,
     height: zone.pos_height ?? 42
   };
-}
-
-// تقليص مساحة بسبب غرض متداخل — **العرض والحدّ الأفقي ثابتان تماماً**
-// المساحة لا تتغيّر إلاّ في الارتفاع (تنخفض من الجانب العمودي الحرّ):
-//   - مساحة قريبة من الجدار الخلفي (pos_top صغير) → تنحسر من الأسفل
-//   - مساحة قريبة من المدخل (pos_top كبير) → تنحسر من الأعلى
-// العرض = عرض المساحة الأصليّ دائماً، والحدّ الأيسر = الأصليّ دائماً (التصاق تامّ بالجدار)
-function shrinkRectAwayFromItem(zone, itemRect) {
-  const natLeft   = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
-  const natTop    = zone.pos_top    ?? 0;
-  const natW      = zone.pos_width  ?? 18;
-  const natH      = zone.pos_height ?? 42;
-  const natRight  = natLeft + natW;
-  const natBottom = natTop + natH;
-  const iLeft   = itemRect.left;
-  const iTop    = itemRect.top;
-  const iRight  = iLeft + itemRect.width;
-  const iBottom = iTop + itemRect.height;
-
-  // العرض والحدّ الأيسر ثابتان دائماً
-  const fixed = { left: natLeft, top: natTop, width: natW, height: natH };
-
-  // لا تداخل (لا أفقي ولا عمودي) → لا تغيير
-  if (iRight <= natLeft || natRight <= iLeft || iBottom <= natTop || natBottom <= iTop) {
-    return fixed;
-  }
-
-  const PADDING = 1;
-  const MIN_SIZE = 16;   // لا تُصغّر المساحة لشريط رفيع — حدّ أدنى محترم
-
-  // أيّ جدار عموديّ أقرب: الخلفي (أعلى) أم المدخل (أسفل)؟
-  const topAnchored = natTop <= (100 - natBottom);
-
-  if (topAnchored) {
-    // الحرّ = الأسفل → ارفع الحدّ السفلي ليكون فوق الغرض
-    const newBottom = Math.max(natTop + MIN_SIZE, iTop - PADDING);
-    if (newBottom < natBottom) {
-      return { left: natLeft, top: natTop, width: natW, height: newBottom - natTop };
-    }
-  } else {
-    // الحرّ = الأعلى → أنزل الحدّ العلوي ليكون تحت الغرض
-    const newTop = Math.min(natBottom - MIN_SIZE, iBottom + PADDING);
-    if (newTop > natTop) {
-      return { left: natLeft, top: newTop, width: natW, height: natBottom - newTop };
-    }
-  }
-
-  return fixed;
-}
-
-// حساب المستطيل المرئيّ لمساحة بناءً على كل الأغراض الخارجيّة المتداخلة معها
-// المستطيل في DB يبقى كما هو — التقليص بصريّ فقط، فيرجع للحجم الأصلي عندما يُسحب الغرض بعيداً
-function computeVisualZoneRect(zone, outsideItems) {
-  const nat = naturalZoneRect(zone);
-  let top = nat.top;
-  let bottom = nat.top + nat.height;   // الحدّ السفلي الحالي
-  for (const item of outsideItems) {
-    if (item.pos_top == null || item.pos_left == null) continue;
-    const itemRect = {
-      left:   item.pos_left,
-      top:    item.pos_top,
-      width:  item.width_pct  ?? 10,
-      height: item.height_pct ?? 10
-    };
-    const shrunk = shrinkRectAwayFromItem(zone, itemRect);
-    // العرض/اليسار ثابتان — نأخذ فقط أضيق نطاق عموديّ من كلّ الأغراض
-    top    = Math.max(top, shrunk.top);
-    bottom = Math.min(bottom, shrunk.top + shrunk.height);
-  }
-  return {
-    left:   nat.left,
-    width:  nat.width,
-    top,
-    height: Math.max(8, bottom - top)
-  };
-}
-
-// مزامنة المساحات الجارة: لو تقلّصت واحدة في صفّ/عمود، الأخريات في نفس الصفّ/العمود تأخذ نفس البعد
-// لتبقى الخريطة منظّمة بصريّاً
-function syncSiblingZones(zones, rects) {
-  const TOL = 5;            // نسبة تساهل لاعتبار مساحتين في نفس الصفّ/العمود
-  const result = rects.map(r => ({ ...r }));
-
-  function naturalLeftOf(z) {
-    return z.pos_left ?? (100 - (z.pos_right ?? 0) - (z.pos_width ?? 18));
-  }
-
-  // مزامنة الارتفاع داخل كلّ صفّ (مساحات بنفس pos_top الطبيعي)
-  const rowGroups = [];
-  for (let i = 0; i < zones.length; i++) {
-    const top = zones[i].pos_top ?? 0;
-    let g = rowGroups.find(g => Math.abs(g.top - top) < TOL);
-    if (!g) { g = { top, indices: [], minH: Infinity }; rowGroups.push(g); }
-    g.indices.push(i);
-    if (rects[i].height < g.minH) g.minH = rects[i].height;
-  }
-  for (const g of rowGroups) {
-    if (g.indices.length < 2) continue;
-    for (const i of g.indices) {
-      result[i].height = g.minH;
-      result[i].top = zones[i].pos_top ?? result[i].top;
-    }
-  }
-
-  // مزامنة العرض داخل كلّ عمود (مساحات بنفس الحافّة اليسرى الطبيعيّة)
-  const colGroups = [];
-  for (let i = 0; i < zones.length; i++) {
-    const left = naturalLeftOf(zones[i]);
-    let g = colGroups.find(g => Math.abs(g.left - left) < TOL);
-    if (!g) { g = { left, indices: [], minW: Infinity }; colGroups.push(g); }
-    g.indices.push(i);
-    if (result[i].width < g.minW) g.minW = result[i].width;
-  }
-  for (const g of colGroups) {
-    if (g.indices.length < 2) continue;
-    for (const i of g.indices) {
-      result[i].width = g.minW;
-      result[i].left = naturalLeftOf(zones[i]);
-    }
-  }
-
-  return result;
 }
 
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
@@ -219,10 +98,11 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   async function handleSubmitNewBox(values) {
     const { shelf, position } = selectedLocation;
     setBusy(true);
-    const { error } = await rpcAddBox(shelf.id, { ...values, position });
+    const { error, photoError } = await rpcAddBox(shelf.id, { ...values, position });
     setBusy(false);
     setSelectedLocation(null);
     if (error) return flash('فشل: ' + error.message, 'error');
+    if (photoError) return flash('تمّ إنشاء الصندوق لكن تعذّر حفظ الصورة — أعد رفعها من تعديل الصندوق', 'error');
     flash(`✅ تمّ إنشاء الصندوق في الموقع ${position}`);
     await onRefresh();
   }
@@ -937,23 +817,24 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
 
   const enriched = useMemo(() => {
     return data.items.map(it => {
-      const box = data.boxes.find(b => b.id === it.box_id);
-      const zoneLetter = box?.code?.split('-')[0];
-      const zone = (data.zones || []).find(z => z.letter === zoneLetter);
-      // مفتاح الفرز الرقمي: حرف المساحة + رقم الرف + رقم الصندوق (كأرقام لا نصوص)
-      const sortKey = box ? [
-        zoneLetter || 'ZZZ',
-        parseInt((box.code || '').split('-')[1] || '0', 10),
-        box.box_index ?? 0
-      ] : ['ZZZ', 0, 0];
+      const loc = resolveItemLocation(it, { boxes: data.boxes, zones: data.zones || [] });
+      if (!loc) {
+        // غرض مرتبط بصندوق محذوف/مفقود — يبقى ظاهراً بموقع غير معروف
+        return {
+          ...it, boxCode: '—', navCode: null, zoneLetter: undefined,
+          zoneName: '—', zoneColor: '#888', zone: null, sortKey: ['ZZZ', 0, 0]
+        };
+      }
+      const zone = (data.zones || []).find(z => z.letter === loc.zoneLetter);
       return {
         ...it,
-        boxCode: box?.code || '—',
-        zoneLetter,
-        zoneName: zone?.name || '—',
-        zoneColor: zone?.color || '#888',
+        boxCode: loc.boxCode,
+        navCode: loc.navCode,
+        zoneLetter: loc.zoneLetter,
+        zoneName: loc.zoneName,
+        zoneColor: loc.zoneColor,
         zone,
-        sortKey
+        sortKey: loc.sortKey
       };
     }).sort((a, b) => {
       // مقارنة المفاتيح بالترتيب: مساحة، رف، موقع — كلها رقمية
@@ -1022,8 +903,9 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
               className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md transition"
             >
               <button
-                onClick={() => onItemClick && onItemClick(it.boxCode)}
-                className="flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 hover:bg-stone-50 rounded-lg transition min-w-0"
+                onClick={() => it.navCode && onItemClick && onItemClick(it.navCode)}
+                disabled={!it.navCode}
+                className={`flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 rounded-lg transition min-w-0 ${it.navCode ? 'hover:bg-stone-50 cursor-pointer' : 'cursor-default'}`}
               >
                 {it.photo_url ? (
                   <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
@@ -1039,7 +921,7 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
                 <span className="text-[10px] px-2 py-1 rounded font-bold font-mono" style={{ color: it.zoneColor, backgroundColor: it.zoneColor + '15' }}>
                   {it.boxCode}
                 </span>
-                <span className="text-stone-400">→</span>
+                {it.navCode ? <span className="text-stone-400">→</span> : <span className="w-3" />}
               </button>
               {(isFounder || can('edit')) && (
                 <button
