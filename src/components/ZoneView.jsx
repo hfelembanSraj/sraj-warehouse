@@ -31,6 +31,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   const [draggedBox, setDraggedBox] = useState(null);
   // مجموعة معرّفات الصناديق المختارة (تدعم التحديد المتعدّد)
   const [selectedBoxIds, setSelectedBoxIds] = useState(() => new Set());
+  // مجموعة معرّفات الأغراض الكبيرة المختارة (تُحدَّد مع الصناديق معاً)
+  const [selectedItemIds, setSelectedItemIds] = useState(() => new Set());
   const [dragOverShelfId, setDragOverShelfId] = useState(null);
   const [dragOverTrash, setDragOverTrash] = useState(false);
   // الصندوق المُضاف حديثاً (لإبرازه بصرياً)
@@ -70,6 +72,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     ? (selectedBoxIds.has(draggedBox.id) ? selectedBoxesArray : [draggedBox])
     : selectedBoxesArray;
   const hasActiveSelection = activeBoxesForMove.length > 0;
+  // الأغراض الكبيرة المختارة + هل يوجد أيّ تحديد (صندوق أو غرض)
+  const selectedItemsArray = (data.items || []).filter(it => selectedItemIds.has(it.id));
+  const hasAnySelection = hasActiveSelection || selectedItemsArray.length > 0;
   // نموذج إضافة صندوق على رف معيّن
   const [addBoxOnShelf, setAddBoxOnShelf] = useState(null);
   // نموذج إضافة رف
@@ -509,8 +514,21 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     });
   }
 
+  // تبديل اختيار غرض كبير (يُحدَّد مع الصناديق في نفس الوقت)
+  function handleItemClickToSelect(it, e) {
+    if (!isFounder) return;
+    e?.stopPropagation();
+    setSelectedItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(it.id)) next.delete(it.id);
+      else next.add(it.id);
+      return next;
+    });
+  }
+
   function clearSelection() {
     setSelectedBoxIds(new Set());
+    setSelectedItemIds(new Set());
     setDraggedBox(null);
   }
 
@@ -555,27 +573,37 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
   async function handleDropOnTrash() {
     const boxes = activeBoxesForMove;
-    if (boxes.length === 0) return;
-    if (boxes.length === 1) {
+    const items = selectedItemsArray;
+    if (boxes.length === 0 && items.length === 0) return;
+    if (items.length === 0 && boxes.length === 1) {
       setConfirming({ type: 'box', box: boxes[0] });
     } else {
-      setConfirming({ type: 'bulk-delete', boxes });
+      setConfirming({ type: 'bulk-delete', boxes, items });
     }
     setDraggedBox(null);
     setDragOverTrash(false);
   }
 
   async function handleBulkDelete(keepItems = false) {
-    const ids = confirming.boxes.map(b => b.id);
+    const boxIds = (confirming.boxes || []).map(b => b.id);
+    const itemIds = (confirming.items || []).map(i => i.id);
     setBusy(true);
-    const { error } = await bulkDeleteBoxes(ids, { keepItems });
+    let error = null;
+    if (boxIds.length) {
+      ({ error } = await bulkDeleteBoxes(boxIds, { keepItems }));
+    }
+    if (!error && itemIds.length) {
+      ({ error } = await supabase.from('items')
+        .update({ deleted_at: new Date().toISOString() }).in('id', itemIds));
+    }
     setBusy(false);
     setConfirming(null);
     clearSelection();
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash(keepItems
-      ? `✅ حُذف ${ids.length} صناديق وبقيت أغراضها`
-      : `✅ حُذف ${ids.length} صناديق وأغراضها`);
+    const parts = [];
+    if (boxIds.length) parts.push(`${boxIds.length} صندوق${keepItems ? ' (بقيت أغراضها)' : ' وأغراضها'}`);
+    if (itemIds.length) parts.push(`${itemIds.length} غرض`);
+    flash(`✅ حُذف ${parts.join(' و ')}`);
     await onRefresh();
   }
 
@@ -664,13 +692,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         )}
 
         {/* مبدّل وضع العرض */}
-        <div className="bg-stone-100 rounded-lg p-0.5 inline-flex mb-4">
+        <div className="bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5 inline-flex mb-4">
           <button onClick={() => setZoneViewMode('rack')}
-            className={`text-[11px] px-3 py-1.5 rounded transition ${zoneViewMode === 'rack' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+            className={`text-[11px] px-3 py-1.5 rounded transition ${zoneViewMode === 'rack' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-200' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'}`}>
             🗄 الرف المرئي
           </button>
           <button onClick={() => setZoneViewMode('items')}
-            className={`text-[11px] px-3 py-1.5 rounded transition ${zoneViewMode === 'items' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+            className={`text-[11px] px-3 py-1.5 rounded transition ${zoneViewMode === 'items' ? 'bg-white dark:bg-stone-700 shadow-sm font-medium dark:text-stone-200' : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'}`}>
             📋 كل أغراض المساحة ({allItems.length})
           </button>
         </div>
@@ -721,8 +749,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         )}
 
-        {/* سلّة الحذف — تعمل بالسحب أو بالنقر بعد اختيار صناديق (تظهر دائماً للمؤسّس عند وجود اختيار) */}
-        {isFounder && hasActiveSelection && (
+        {/* سلّة الحذف — تعمل بالسحب أو بالنقر بعد اختيار صناديق/أغراض */}
+        {isFounder && hasAnySelection && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOverTrash(true); }}
             onDragLeave={() => setDragOverTrash(false)}
@@ -738,30 +766,38 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
             <div className="text-xs font-bold whitespace-nowrap">
               {dragOverTrash
                 ? '⬇ أفلت للحذف'
-                : activeBoxesForMove.length > 1
-                  ? `حذف ${activeBoxesForMove.length} صناديق`
-                  : 'حذف الصندوق'}
+                : `حذف ${[
+                    activeBoxesForMove.length ? `${activeBoxesForMove.length} صندوق` : '',
+                    selectedItemsArray.length ? `${selectedItemsArray.length} غرض` : ''
+                  ].filter(Boolean).join(' و ')}`}
             </div>
           </div>
         )}
 
-        {/* شريط التحديد المتعدّد العائم */}
-        {selectedBoxIds.size > 0 && (
+        {/* شريط التحديد المتعدّد العائم — صناديق و/أو أغراض */}
+        {hasAnySelection && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-3 rounded-xl shadow-2xl border-2 border-blue-800 animate-fade-in max-w-[95vw]">
             <div className="flex items-center gap-2 flex-wrap justify-center">
               <span className="bg-white/20 px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap">
-                {selectedBoxIds.size} {selectedBoxIds.size === 1 ? 'صندوق مختار' : 'صناديق مختارة'}
+                {[
+                  activeBoxesForMove.length ? `${activeBoxesForMove.length} صندوق` : '',
+                  selectedItemsArray.length ? `${selectedItemsArray.length} غرض` : ''
+                ].filter(Boolean).join(' و ')} مختار
               </span>
-              <span className="text-[10px] opacity-90 hidden sm:inline">اضغط على رف لنقل الكلّ، أو على السلّة للحذف</span>
+              <span className="text-[10px] opacity-90 hidden sm:inline">اضغط على السلّة للحذف{selectedBoxIds.size > 0 ? '، أو على رف لنقل الصناديق' : ''}</span>
               <div className="flex items-center gap-1.5 mr-2">
-                <button onClick={() => setShowCrossWhMove(true)}
-                  className="text-[11px] bg-amber-500/30 hover:bg-amber-500/40 px-2.5 py-1 rounded font-medium border border-amber-200/30">
-                  🔄 نقل لمستودع آخر
-                </button>
-                <button onClick={() => setShowBulkEdit(true)}
-                  className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
-                  ✏️ تعديل الوصف
-                </button>
+                {selectedBoxIds.size > 0 && (
+                  <>
+                    <button onClick={() => setShowCrossWhMove(true)}
+                      className="text-[11px] bg-amber-500/30 hover:bg-amber-500/40 px-2.5 py-1 rounded font-medium border border-amber-200/30">
+                      🔄 نقل لمستودع آخر
+                    </button>
+                    <button onClick={() => setShowBulkEdit(true)}
+                      className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded font-medium">
+                      ✏️ تعديل الوصف
+                    </button>
+                  </>
+                )}
                 <button onClick={clearSelection}
                   className="text-[11px] bg-white/30 hover:bg-white/40 px-2.5 py-1 rounded font-medium">
                   ✕ إلغاء
@@ -814,9 +850,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         {/* العرض الأمامي للأرفف */}
         {zoneViewMode === 'rack' && (
         <div className="flex justify-center mb-3">
-          <div className="w-full max-w-md bg-stone-100 rounded-lg p-4">
+          <div className="w-full max-w-md bg-stone-100 dark:bg-stone-800 rounded-lg p-4">
             <div
-              className={`relative w-full border-4 rounded-md p-2 flex flex-col gap-1.5 ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white'}`}
+              className={`relative w-full border-4 rounded-md p-2 flex flex-col gap-1.5 ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white dark:bg-stone-900'}`}
               style={{
                 aspectRatio: editMode ? `${fresh.width_cm}/${fresh.height_cm + 80}` : `${fresh.width_cm}/${fresh.height_cm}`,
                 borderColor: fresh.color
@@ -885,10 +921,12 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                   </svg>
                                 </button>
                               )}
-                              {itemsAtPos.map((it) => (
+                              {itemsAtPos.map((it) => {
+                                const isItemSelected = selectedItemIds.has(it.id);
+                                return (
                                 <div key={`it-${it.id}`}
-                                  onClick={(e) => { if (!editMode && !hasActiveSelection) { e.stopPropagation(); setEditingShelfItem(it); } }}
-                                  className="flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm"
+                                  onClick={(e) => { if (!editMode && !hasAnySelection) { e.stopPropagation(); setEditingShelfItem(it); } }}
+                                  className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''}`}
                                   title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
                                   {it.photo_url ? (
                                     <img src={it.photo_url} alt={it.name} draggable={false}
@@ -899,7 +937,24 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                     </div>
                                   )}
                                   <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[8px] font-bold px-1 rounded pointer-events-none">×{it.quantity}</span>
-                                  {(isFounder || can('edit')) && (
+                                  {isFounder && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleItemClickToSelect(it, e); }}
+                                      className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-lg shadow-md flex items-center justify-center z-20 transition ${
+                                        isItemSelected
+                                          ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
+                                          : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
+                                      }`}
+                                      title="اضغط لاختيار هذا الغرض مع الصناديق">
+                                      <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 ${isItemSelected ? 'fill-white' : 'fill-amber-800'}`}>
+                                        <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {isItemSelected && (
+                                    <span className="absolute bottom-0.5 right-0.5 text-[8px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10 font-bold shadow">✓ مختار</span>
+                                  )}
+                                  {(isFounder || can('edit')) && !hasAnySelection && (
                                     <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition z-10">
                                       <button onClick={(e) => { e.stopPropagation(); setEditingShelfItem(it); }}
                                         className="w-4 h-4 rounded bg-white text-stone-700 text-[8px] hover:bg-stone-100 shadow flex items-center justify-center" title="تعديل">✏️</button>
@@ -908,6 +963,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                     </div>
                                   )}
                                 </div>
+                                );
+                              })}
                               ))}
                               {boxesAtPos.map((box) => {
                                 const items = getBoxItems(box.id);
@@ -918,7 +975,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 const isRecentlyAdded = recentlyAddedBoxId === box.id;
                                 const showHandle = isFounder;
                                 const isPositionDropTarget = hasActiveSelection && !activeBoxesForMove.find(b => b.id === box.id);
-                                const canOpenBox = !editMode && !hasActiveSelection;
+                                const canOpenBox = !editMode && !hasAnySelection;
                                 return (
                                   <div key={box.id}
                                     onClick={(e) => {
@@ -1007,8 +1064,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                             disabled={busy}
                             className={`flex-1 border-2 border-dashed rounded-lg font-bold flex flex-col items-center justify-center gap-0.5 transition ${
                               hasActiveSelection
-                                ? 'border-purple-500 bg-purple-50 hover:bg-purple-100 hover:border-purple-700 text-purple-800'
-                                : 'border-green-400 bg-green-50 hover:bg-green-100 hover:border-green-500 text-green-800'
+                                ? 'border-purple-500 bg-purple-50 hover:bg-purple-100 hover:border-purple-700 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/50'
+                                : 'border-green-400 bg-green-50 hover:bg-green-100 hover:border-green-500 text-green-800 dark:bg-green-900/25 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/40'
                             }`}
                             title={hasActiveSelection
                               ? `أفلت هنا لنقل الصندوق إلى الموقع ${position}`
@@ -1208,11 +1265,26 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         );
       })()}
       {confirming?.type === 'bulk-delete' && (() => {
-        const totalItems = confirming.boxes.reduce((sum, b) => sum + getBoxItemCount(b.id), 0);
-        if (totalItems === 0) {
+        const bxs = confirming.boxes || [];
+        const stdItems = confirming.items || [];
+        const innerItems = bxs.reduce((sum, b) => sum + getBoxItemCount(b.id), 0);
+        const itemsTxt = stdItems.length ? ` و ${stdItems.length} غرض كبير` : '';
+        // لا صناديق — أغراض كبيرة فقط
+        if (bxs.length === 0) {
           return (
             <ConfirmDelete
-              message={`سيُحذف ${confirming.boxes.length} صناديق فارغة. هل أنت متأكّد؟`}
+              message={`سيُحذف ${stdItems.length} غرضاً. يمكن استرجاعها من سلّة المحذوفات. متأكّد؟`}
+              busy={busy}
+              onConfirm={() => handleBulkDelete(false)}
+              onCancel={() => setConfirming(null)}
+            />
+          );
+        }
+        // صناديق بلا أغراض داخليّة (± أغراض كبيرة مختارة)
+        if (innerItems === 0) {
+          return (
+            <ConfirmDelete
+              message={`سيُحذف ${bxs.length} صندوق${itemsTxt}. هل أنت متأكّد؟`}
               busy={busy}
               onConfirm={() => handleBulkDelete(false)}
               onCancel={() => setConfirming(null)}
@@ -1221,8 +1293,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         }
         return (
           <DeleteBoxWithItemsModal
-            boxCode={`${confirming.boxes.length} صناديق`}
-            itemCount={totalItems}
+            boxCode={`${bxs.length} صندوق${itemsTxt}`}
+            itemCount={innerItems}
             isBulk={true}
             busy={busy}
             onDeleteAll={() => handleBulkDelete(false)}
