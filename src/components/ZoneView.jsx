@@ -229,6 +229,39 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
+  // تكديس صندوق فوق موقع فيه غرض كبير فقط (لا صندوق سفليّ ليُستخدم add_stacked_box)
+  // نُنشئ الصندوق مباشرةً في نفس الموقع بـ stack_index أعلى من كل ما فيه
+  async function handleStackBoxOverItem(shelf, position) {
+    const occupants = [
+      ...data.boxes.filter(b => b.shelf_id === shelf.id && b.box_index === position),
+      ...shelfItems.filter(it => it.shelf_id === shelf.id && it.box_index === position)
+    ];
+    const newStack = occupants.length
+      ? Math.max(...occupants.map(o => o.stack_index || 0)) + 1
+      : 0;
+    const base = `${fresh.letter}-${shelf.shelf_index}-${position}`;
+    const code = newStack === 0 ? base : `${base}.${newStack + 1}`;
+    setBusy(true);
+    const { data: nb, error } = await supabase.from('boxes').insert({
+      warehouse_id: activeWarehouse.id,
+      shelf_id: shelf.id,
+      code,
+      description: '',
+      box_index: position,
+      stack_index: newStack,
+      width_cm: 50,
+      height_cm: 30
+    }).select('id').single();
+    setBusy(false);
+    if (error) return flash('فشل التكديس: ' + error.message, 'error');
+    flash('✅ صندوق مُكدَّس فوق الغرض');
+    if (nb?.id) {
+      setRecentlyAddedBoxId(nb.id);
+      setTimeout(() => setRecentlyAddedBoxId(null), 3000);
+    }
+    await onRefresh();
+  }
+
   // إضافة صندوق مُكدَّس فوق صندوق موجود (نفس الموقع، stack_index أعلى)
   async function handleStackBox(belowBox) {
     setBusy(true);
@@ -649,7 +682,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               <>
                 {zoneBoxes.length > 0 && (
                   <button onClick={selectAllInZone} disabled={busy}
-                    className="text-[11px] bg-blue-50 border border-blue-300 text-blue-800 px-2.5 py-1.5 rounded hover:bg-blue-100 font-medium">
+                    className="text-[11px] bg-blue-50 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 px-2.5 py-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 font-medium">
                     ✓ حدّد كل الصناديق ({zoneBoxes.length})
                   </button>
                 )}
@@ -657,16 +690,16 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   className={`text-[11px] px-3 py-1.5 rounded-lg font-medium border transition ${
                     editMode
                       ? 'bg-amber-500 text-white border-amber-500'
-                      : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                      : 'bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/50'
                   }`}>
                   {editMode ? '✓ إنهاء التعديل' : '🔧 وضع التعديل'}
                 </button>
                 <button onClick={() => setEditingZone(e => !e)} disabled={busy}
-                  className="text-[11px] border border-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100">
+                  className="text-[11px] border border-stone-300 dark:border-stone-600 dark:text-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800">
                   ✏️ تعديل المساحة
                 </button>
                 <button onClick={() => setConfirming({ type: 'zone' })} disabled={busy}
-                  className="text-[11px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100">
+                  className="text-[11px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-2.5 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50">
                   🗑 حذف
                 </button>
               </>
@@ -705,16 +738,16 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
         {/* البحث عن غرض (في وضع الرف المرئي) */}
         {zoneViewMode === 'rack' && !editMode && allItems.length > 0 && (
-          <div className="bg-stone-50 rounded-lg p-3 mb-4">
-            <p className="text-xs font-medium mb-2">البحث عن غرض</p>
+          <div className="bg-stone-50 dark:bg-stone-800 rounded-lg p-3 mb-4">
+            <p className="text-xs font-medium mb-2 dark:text-stone-300">البحث عن غرض</p>
             <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
               {allItems.map((it, i) => (
                 <button key={i}
                   onClick={() => setHighlightedBox(highlightedBox === it.boxCode ? null : it.boxCode)}
                   className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
                     highlightedBox === it.boxCode
-                      ? 'bg-green-100 border-green-400 text-green-800'
-                      : 'bg-white border-stone-300 hover:bg-orange-50 hover:border-orange-400'
+                      ? 'bg-green-100 dark:bg-green-900/40 border-green-400 dark:border-green-700 text-green-800 dark:text-green-300'
+                      : 'bg-white dark:bg-stone-900 border-stone-300 dark:border-stone-700 dark:text-stone-300 hover:bg-orange-50 dark:hover:bg-stone-700 hover:border-orange-400'
                   }`}>
                   {it.name}
                 </button>
@@ -739,7 +772,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
         {/* بانر وضع التعديل */}
         {editMode && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-900 flex items-start gap-2">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 mb-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
             <span className="text-base">🔧</span>
             <div className="flex-1 space-y-0.5">
               <p>• اضغط على المربّعات الخضراء لإضافة صندوق · اضغط ➕ لإضافة بلا حدّ</p>
@@ -809,16 +842,16 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
         {/* قسم الأغراض غير المحدّدة المكان (إن وُجدت) */}
         {unassignedItems.length > 0 && (
-          <div className="bg-amber-50 border-2 border-dashed border-amber-300 rounded-xl p-3 mb-4">
+          <div className="bg-amber-50 dark:bg-amber-900/15 border-2 border-dashed border-amber-300 dark:border-amber-800/60 rounded-xl p-3 mb-4">
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <h4 className="text-xs font-display font-bold text-amber-900 flex items-center gap-1.5">
+              <h4 className="text-xs font-display font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
                 📍 أغراض غير محدّدة المكان ({unassignedItems.length})
               </h4>
-              <span className="text-[10px] text-amber-700">اضغط "حدّد المكان" لتخصيص صندوق لكلّ غرض</span>
+              <span className="text-[10px] text-amber-700 dark:text-amber-400">اضغط "حدّد المكان" لتخصيص صندوق لكلّ غرض</span>
             </div>
             <div className="space-y-1.5">
               {unassignedItems.map(it => (
-                <div key={it.id} className="bg-white border border-amber-200 rounded-lg p-2 flex items-center gap-2.5">
+                <div key={it.id} className="bg-white dark:bg-stone-900 border border-amber-200 dark:border-stone-700 rounded-lg p-2 flex items-center gap-2.5">
                   {it.photo_url ? (
                     <img src={it.photo_url} alt={it.name} className="w-10 h-10 object-cover rounded border border-stone-200 flex-shrink-0" />
                   ) : (
@@ -885,8 +918,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       onDragLeave={() => setDragOverShelfId(null)}
                       onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
                       className={`flex-1 border-2 rounded p-1 flex gap-1 relative text-right transition ${
-                        fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50'
-                      } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50' : ''}`}
+                        fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50 dark:bg-stone-800'
+                      } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
                     >
                       <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow-md pointer-events-none z-30" style={{ backgroundColor: fresh.color }}>
@@ -943,7 +976,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                       className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-lg shadow-md flex items-center justify-center z-20 transition ${
                                         isItemSelected
                                           ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
-                                          : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
+                                          : 'bg-white/95 dark:bg-stone-800 border-2 border-amber-700 dark:border-amber-600 hover:bg-amber-50 dark:hover:bg-stone-700'
                                       }`}
                                       title="اضغط لاختيار هذا الغرض مع الصناديق">
                                       <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 ${isItemSelected ? 'fill-white' : 'fill-amber-800'}`}>
@@ -957,7 +990,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                   {(isFounder || can('edit')) && !hasAnySelection && (
                                     <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition z-10">
                                       <button onClick={(e) => { e.stopPropagation(); setEditingShelfItem(it); }}
-                                        className="w-4 h-4 rounded bg-white text-stone-700 text-[8px] hover:bg-stone-100 shadow flex items-center justify-center" title="تعديل">✏️</button>
+                                        className="w-4 h-4 rounded bg-white dark:bg-stone-800 dark:text-stone-300 text-stone-700 text-[8px] hover:bg-stone-100 dark:hover:bg-stone-700 shadow flex items-center justify-center" title="تعديل">✏️</button>
                                       <button onClick={(e) => { e.stopPropagation(); handleDeleteShelfItem(it); }}
                                         className="w-4 h-4 rounded bg-red-500 text-white text-[8px] hover:bg-red-600 shadow flex items-center justify-center" title="حذف">🗑</button>
                                     </div>
@@ -1016,7 +1049,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                         className={`absolute top-1 right-1 w-6 h-6 rounded-lg shadow-md cursor-grab active:cursor-grabbing flex items-center justify-center z-20 transition ${
                                           isSelected
                                             ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
-                                            : 'bg-white/95 border-2 border-amber-700 hover:bg-amber-50'
+                                            : 'bg-white/95 dark:bg-stone-800 border-2 border-amber-700 dark:border-amber-600 hover:bg-amber-50 dark:hover:bg-stone-700'
                                         }`}
                                         title="اسحب أو اضغط لنقل الصندوق"
                                       >
@@ -1037,7 +1070,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                     )}
                                     {editMode && isFounder && (
                                       <button onClick={(e) => { e.stopPropagation(); setConfirming({ type: 'box', box }); }}
-                                        className="absolute bottom-1 left-1 bg-white border border-red-300 text-red-600 text-[9px] w-5 h-5 rounded shadow-sm hover:bg-red-50 leading-none flex items-center justify-center z-20"
+                                        className="absolute bottom-1 left-1 bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-[9px] w-5 h-5 rounded shadow-sm hover:bg-red-50 dark:hover:bg-red-950/50 leading-none flex items-center justify-center z-20"
                                         title="حذف الصندوق">×</button>
                                     )}
                                   </div>
@@ -1096,7 +1129,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         <button
                           onClick={(e) => { e.stopPropagation(); handleQuickAddBox(shelf, totalSlots + 1); }}
                           disabled={busy}
-                          className="border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 rounded text-[9px] text-blue-700 font-bold flex flex-col items-center justify-center px-2"
+                          className="border-2 border-dashed border-blue-400 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/25 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded text-[9px] text-blue-700 dark:text-blue-300 font-bold flex flex-col items-center justify-center px-2"
                           title="إضافة موقع جديد في نهاية الرف"
                           style={{ minWidth: '40px' }}>
                           <span className="text-base leading-none">➕</span>
@@ -1113,7 +1146,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                 <button
                   onClick={handleQuickAddShelf}
                   disabled={busy}
-                  className="border-2 border-dashed border-green-400 bg-green-50 hover:bg-green-100 rounded p-3 text-xs text-green-800 font-bold transition"
+                  className="border-2 border-dashed border-green-400 dark:border-green-700 bg-green-50 dark:bg-green-900/25 hover:bg-green-100 dark:hover:bg-green-900/40 rounded p-3 text-xs text-green-800 dark:text-green-300 font-bold transition"
                   style={{ minHeight: '40px' }}
                   title="إضافة رف جديد"
                 >
@@ -1131,10 +1164,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
         {/* قسم "إدارة الأرفف" — مخفيّ افتراضياً، يظهر بالضغط على زرّ التبديل */}
         {isFounder && (
-          <div className="border-t border-stone-200 pt-3 mt-4">
+          <div className="border-t border-stone-200 dark:border-stone-800 pt-3 mt-4">
             <button
               onClick={() => setShelvesAdminOpen(s => !s)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg transition text-xs font-display font-bold text-stone-700">
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition text-xs font-display font-bold text-stone-700 dark:text-stone-300">
               <span className="flex items-center gap-2">
                 <span className="text-base">📚</span>
                 إدارة الأرفف ({shelves.length})
@@ -1146,7 +1179,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               <div className="mt-3 animate-fade-in">
                 <div className="flex items-center justify-end mb-2">
                   <button onClick={() => setShowAddShelfForm(s => !s)} disabled={busy}
-                    className="text-[11px] bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200">
+                    className="text-[11px] bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50">
                     + 👑 رف جديد
                   </button>
                 </div>
@@ -1172,7 +1205,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                 ) : (
                   <div className="space-y-1.5">
                     {shelves.map(s => (
-                      <div key={s.id} className="bg-stone-50 border border-stone-200 rounded-lg overflow-hidden">
+                      <div key={s.id} className="bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
                         <div className="flex items-center justify-between gap-2 p-2.5 text-xs">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <div className="w-7 h-7 rounded bg-blue-100 text-blue-700 flex items-center justify-center text-sm flex-shrink-0">📚</div>
@@ -1184,11 +1217,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                             </div>
                           </div>
                           <button onClick={() => setEditingShelfId(editingShelfId === s.id ? null : s.id)} disabled={busy}
-                            className="text-[10px] bg-white border border-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100">
+                            className="text-[10px] bg-white dark:bg-stone-900 dark:text-stone-300 border border-stone-300 dark:border-stone-600 px-2.5 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-700">
                             ✏️ تسمية وتعديل
                           </button>
                           <button onClick={() => setConfirming({ type: 'shelf', shelf: s })} disabled={busy}
-                            className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100">
+                            className="text-[10px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-2.5 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50">
                             🗑
                           </button>
                         </div>
@@ -1334,15 +1367,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   <button key={b.id}
                     onClick={() => handleAssignItem(b.id)}
                     disabled={busy}
-                    className="bg-white border-2 border-stone-200 rounded-lg p-2.5 text-center hover:border-amber-500 hover:bg-amber-50 transition disabled:opacity-50">
+                    className="bg-white dark:bg-stone-800 border-2 border-stone-200 dark:border-stone-700 rounded-lg p-2.5 text-center hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition disabled:opacity-50">
                     <div className="text-xs font-mono font-bold" style={{ color: fresh.color }}>{b.code}</div>
-                    {b.description && <div className="text-[9px] text-stone-500 mt-0.5 truncate">{b.description}</div>}
+                    {b.description && <div className="text-[9px] text-stone-500 dark:text-stone-400 mt-0.5 truncate">{b.description}</div>}
                   </button>
                 ))}
                 <button
                   onClick={handleCreateBoxAndAssign}
                   disabled={busy}
-                  className="bg-amber-50 border-2 border-dashed border-amber-400 rounded-lg p-2.5 text-center hover:bg-amber-100 hover:border-amber-600 transition disabled:opacity-50 text-amber-800">
+                  className="bg-amber-50 dark:bg-amber-900/25 border-2 border-dashed border-amber-400 dark:border-amber-700 rounded-lg p-2.5 text-center hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-600 transition disabled:opacity-50 text-amber-800 dark:text-amber-300">
                   <div className="text-lg leading-none">+</div>
                   <div className="text-[10px] font-bold mt-1">صندوق جديد</div>
                   <div className="text-[8px] opacity-70">ضع الغرض هنا</div>
@@ -1367,29 +1400,29 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                 const s = slotChoice;
                 setSlotChoice(null);
                 if (s.stack) {
-                  // كدّس صندوقاً فوق أعلى صندوق في الموقع (إن وُجد) وإلّا أنشئ صندوقاً في الموقع
+                  // كدّس فوق أعلى صندوق (إن وُجد)، وإلّا (الموقع فيه غرض فقط) كدّس فوق الغرض
                   const topB = data.boxes
                     .filter(b => b.shelf_id === s.shelf.id && b.box_index === s.position)
                     .sort((a, b) => (b.stack_index || 0) - (a.stack_index || 0))[0];
                   if (topB) handleStackBox(topB);
-                  else handleQuickAddBox(s.shelf, s.position);
+                  else handleStackBoxOverItem(s.shelf, s.position);
                 } else {
                   handleQuickAddBox(s.shelf, s.position);
                 }
               }}
               disabled={busy}
-              className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-stone-200 hover:border-brand-navy hover:bg-blue-50 transition disabled:opacity-50">
+              className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-stone-200 dark:border-stone-700 dark:text-stone-200 hover:border-brand-navy hover:bg-blue-50 dark:hover:bg-blue-900/30 transition disabled:opacity-50">
               <span className="text-4xl">📦</span>
               <span className="text-sm font-bold">صندوق</span>
-              <span className="text-[10px] text-stone-500 text-center">صندوق كرتوني يحوي أصنافاً بداخله</span>
+              <span className="text-[10px] text-stone-500 dark:text-stone-400 text-center">صندوق كرتوني يحوي أصنافاً بداخله</span>
             </button>
             <button
               onClick={() => { setAddItemAtSlot(slotChoice); setSlotChoice(null); }}
               disabled={busy}
-              className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-stone-200 hover:border-amber-500 hover:bg-amber-50 transition disabled:opacity-50">
+              className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-stone-200 dark:border-stone-700 dark:text-stone-200 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition disabled:opacity-50">
               <span className="text-4xl">🧊</span>
               <span className="text-sm font-bold">غرض كبير</span>
-              <span className="text-[10px] text-stone-500 text-center">ثلاجة/طاولة كبيرة — يأخذ نفس مكان الصندوق</span>
+              <span className="text-[10px] text-stone-500 dark:text-stone-400 text-center">ثلاجة/طاولة كبيرة — يأخذ نفس مكان الصندوق</span>
             </button>
           </div>
         </FormModal>
@@ -1522,12 +1555,12 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 function DeleteBoxWithItemsModal({ boxCode, itemCount, isBulk = false, busy, onDeleteAll, onKeepItems, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-in">
-        <div className="bg-gradient-to-l from-red-50 to-amber-50 px-5 py-4 border-b border-stone-200">
-          <h3 className="text-sm font-display font-bold flex items-center gap-2">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-in">
+        <div className="bg-gradient-to-l from-red-50 to-amber-50 dark:from-red-950/40 dark:to-amber-950/40 px-5 py-4 border-b border-stone-200 dark:border-stone-700">
+          <h3 className="text-sm font-display font-bold flex items-center gap-2 dark:text-stone-200">
             ⚠️ {isBulk ? 'حذف صناديق فيها أغراض' : `حذف الصندوق ${boxCode}`}
           </h3>
-          <p className="text-xs text-stone-600 mt-1">
+          <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">
             {isBulk
               ? `الصناديق المختارة تحتوي على ${itemCount} ${itemCount === 1 ? 'غرض' : 'أغراض'}. ماذا تفعل بها؟`
               : `هذا الصندوق يحتوي على ${itemCount} ${itemCount === 1 ? 'غرض' : 'أغراض'}. ماذا تفعل بها؟`
@@ -1539,12 +1572,12 @@ function DeleteBoxWithItemsModal({ boxCode, itemCount, isBulk = false, busy, onD
           <button
             onClick={onKeepItems}
             disabled={busy}
-            className="w-full text-right bg-white border-2 border-amber-300 hover:border-amber-500 hover:bg-amber-50 rounded-xl p-3 transition disabled:opacity-50">
+            className="w-full text-right bg-white dark:bg-stone-800 border-2 border-amber-300 dark:border-amber-700 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-xl p-3 transition disabled:opacity-50">
             <div className="flex items-start gap-2">
               <span className="text-xl">📍</span>
               <div className="flex-1">
-                <div className="text-sm font-bold text-amber-900">احتفظ بالأغراض في المساحة</div>
-                <div className="text-[11px] text-stone-600 mt-0.5">
+                <div className="text-sm font-bold text-amber-900 dark:text-amber-200">احتفظ بالأغراض في المساحة</div>
+                <div className="text-[11px] text-stone-600 dark:text-stone-400 mt-0.5">
                   يُحذَف الصندوق فقط. الأغراض تبقى داخل المساحة كـ"غير محدّدة" — وعليك تحديد صندوق جديد لها لاحقاً.
                 </div>
               </div>
@@ -1554,12 +1587,12 @@ function DeleteBoxWithItemsModal({ boxCode, itemCount, isBulk = false, busy, onD
           <button
             onClick={onDeleteAll}
             disabled={busy}
-            className="w-full text-right bg-white border-2 border-red-300 hover:border-red-500 hover:bg-red-50 rounded-xl p-3 transition disabled:opacity-50">
+            className="w-full text-right bg-white dark:bg-stone-800 border-2 border-red-300 dark:border-red-800 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl p-3 transition disabled:opacity-50">
             <div className="flex items-start gap-2">
               <span className="text-xl">🗑</span>
               <div className="flex-1">
-                <div className="text-sm font-bold text-red-900">احذف الصندوق والأغراض معاً</div>
-                <div className="text-[11px] text-stone-600 mt-0.5">
+                <div className="text-sm font-bold text-red-900 dark:text-red-300">احذف الصندوق والأغراض معاً</div>
+                <div className="text-[11px] text-stone-600 dark:text-stone-400 mt-0.5">
                   يُمكن استرجاع الكلّ من سلّة المحذوفات لاحقاً.
                 </div>
               </div>
@@ -1569,7 +1602,7 @@ function DeleteBoxWithItemsModal({ boxCode, itemCount, isBulk = false, busy, onD
 
         <div className="px-4 pb-4 flex justify-end">
           <button onClick={onCancel} disabled={busy}
-            className="text-xs px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-100">
+            className="text-xs px-4 py-2 border border-stone-300 dark:border-stone-600 dark:text-stone-300 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800">
             إلغاء
           </button>
         </div>
@@ -1653,7 +1686,7 @@ function ZoneItemsList({ items, zoneBoxes, zone, onItemClick, onRefresh, onAddIt
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="🔍 ابحث في أغراض المساحة..."
-          className="flex-1 min-w-[180px] px-3 py-2 border border-stone-300 rounded-lg text-xs"
+          className="flex-1 min-w-[180px] px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 rounded-lg text-xs"
         />
         {(isFounder || can?.('add')) && onAddItem && (
           <button onClick={onAddItem}
@@ -1674,15 +1707,15 @@ function ZoneItemsList({ items, zoneBoxes, zone, onItemClick, onRefresh, onAddIt
         <div className="space-y-1.5">
           {filtered.map(it => (
             <div key={it.id}
-              className="bg-white border border-stone-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md transition">
+              className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-md transition">
               <button
                 onClick={() => onItemClick && onItemClick(it.boxCode)}
-                className="flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 hover:bg-stone-50 rounded-lg transition min-w-0"
+                className="flex items-center gap-3 flex-1 text-right -m-2.5 p-2.5 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-lg transition min-w-0"
               >
                 {it.photo_url ? (
                   <img src={it.photo_url} alt={it.name} className="w-12 h-12 object-cover rounded border border-stone-200 flex-shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
+                  <div className="w-12 h-12 rounded bg-gradient-to-br from-amber-50 to-stone-100 dark:from-amber-950/40 dark:to-stone-800 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-[9px] font-bold text-stone-700 dark:text-stone-300 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
                 )}
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium truncate">{it.name}</h4>
@@ -1695,13 +1728,13 @@ function ZoneItemsList({ items, zoneBoxes, zone, onItemClick, onRefresh, onAddIt
               </button>
               {(isFounder || can?.('edit')) && (
                 <button onClick={() => setEditingItem(it)} disabled={busy}
-                  className="text-[10px] bg-stone-50 border border-stone-300 text-stone-700 px-2 py-1.5 rounded hover:bg-stone-100 flex-shrink-0">
+                  className="text-[10px] bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 px-2 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-700 flex-shrink-0">
                   ✏️
                 </button>
               )}
               {(isFounder || can?.('delete')) && (
                 <button onClick={() => setConfirmDelete(it)} disabled={busy}
-                  className="text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1.5 rounded hover:bg-red-100 flex-shrink-0">
+                  className="text-[10px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-2 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50 flex-shrink-0">
                   🗑
                 </button>
               )}
