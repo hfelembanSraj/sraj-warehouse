@@ -2,12 +2,67 @@
 
 > **Purpose:** complete context dump for the next Claude session. Read this first, end-to-end, before any new work.
 
-**Last updated:** 2026-05-17 (Session 2 — see addendum below)
+**Last updated:** 2026-05-17 (Session 3 — see addendum below)
 **Project status:** Production. Live at `https://sraj-warehouse.vercel.app`. Founder logged in and using.
+
+> **Portable context:** `CLAUDE.md` (repo root) is auto-loaded by Claude Code and
+> carries the durable project context across devices. Read it first, then this file.
+> New-device setup: see `CLAUDE_CODE_SETUP.md`.
 
 ---
 
-## ⚡ SESSION 2 ADDENDUM (2026-05-17) — READ THIS FIRST
+## ⚡ SESSION 3 ADDENDUM (2026-05-17) — READ THIS FIRST
+
+Session 3 work, on top of Session 2. Overrides conflicting older text.
+
+### Security — RLS tightened (APPLIED to prod)
+- **`migration_18_rls_warehouse_membership.sql`** applied to Supabase
+  `tfrzyiyoromlgmcissvu`. Replaced all `auth all` policies with
+  warehouse-membership policies. Helpers: `user_can_access_warehouse(wh)`,
+  `user_is_wh_manager(wh)`, `item_effective_warehouse(box,zone,shelf,wh)` —
+  all `SECURITY DEFINER`. Founder bypasses everything via `is_founder()`
+  (verified). `anon` warehouse-read + join-request insert preserved.
+  `activity_log` is now append-only except founder.
+
+### Multi-warehouse signup
+- `SignupPage` uses a checkbox list (select several warehouses).
+  `AuthContext.signUp(email,pw,name,warehouseIds[])` inserts one
+  `join_requests` row per warehouse.
+
+### WarehouseMap — free items vs zones
+- The 70/30 band + `FREE_AREA_TOP` clamp + dashed divider were REMOVED.
+- `FreeItemSquare` now takes an `obstacles` prop (zone rects). Items move
+  freely in open floor space but **cannot overlap a zone** (axis-separated
+  slide); resize can't grow into a zone; a saved position on a zone
+  self-heals downward (`resolveBelow`) and persists once. Zones stay fixed.
+- `resolveItemLocation()` in `helpers.js` — unified 4-bucket location
+  resolver; ReportsTab + AllItemsList now show large/unassigned/outside
+  items with a real location instead of skipping them.
+
+### Dark mode — softened globally
+- `index.css`: dark body color + `--tile-pill-text` `#e7e5e4` → `#bdb9b1`.
+- `dark:text-stone-100` → `dark:text-stone-300` app-wide.
+- Full dark-variant sweep of `WarehouseMap` and `ZoneView` (header buttons,
+  toggles, selects, cards, rack panel, shelf rows, slots, modals, help panel).
+
+### ZoneView — unified selection + stacking
+- Large shelf items are selectable together with boxes (`selectedItemIds`).
+  Floating bar shows a combined "N صندوق و M غرض" count; bulk delete removes
+  both. Box-only actions (cross-wh move, edit description) show only when
+  boxes are selected.
+- Stacking a box over an item-only slot works via `handleStackBoxOverItem`
+  (direct insert at the slot with `stack_index` above the item).
+
+### Other
+- `xlsx` is dynamically imported in `ReportsTab` (chunk 443 kB → 19 kB).
+- Removed 3 dead shrink helpers in `WarehouseMap`. **`ShelfView.jsx` is NOT
+  dead** — it is reachable via deep-link/scan navigation; do not delete it.
+- Box photo-save failure and LocationPicker cross-warehouse load failure
+  now surface to the user instead of being swallowed.
+
+---
+
+## ⚡ SESSION 2 ADDENDUM (2026-05-17)
 
 Everything below sections were written after Session 1. The rest of this
 document is still broadly accurate for architecture; this block lists what
