@@ -9,7 +9,8 @@
 ## 0. المالك وكيفية التواصل معه
 
 - **المالك:** حسين — مؤسّس *جمعية المسؤولية الاجتماعية بمحافظة جدّة* (جهة سعودية غير ربحية).
-- **البريد:** `evuon1@gmail.com` · **GitHub:** `hussain-HHS`.
+- **البريد (الحالي):** `h.felemban@sraj.org.sa` · **GitHub:** `hfelembanSraj`.
+  (نُقل المشروع في الجلسة 4 من حساب `evuon1@gmail.com`/`hussain-HHS` الشخصي إلى حساب الجمعيّة.)
 - **غير مبرمج.** تواصل معه **بالعربية الفصحى** دائماً. استخدم الجداول والقوائم
   القصيرة لا الفقرات الطويلة. اشرح كل أمر طرفية بالعربية.
 - **حاسم:** للقرارات التقنية الروتينية اختر الأفضل ونفّذ — لا تسأل "أ أم ب؟".
@@ -49,13 +50,15 @@
 
 | الموقع | القيمة |
 |:---|:---|
-| الموقع المباشر | `https://sraj-warehouse.vercel.app` |
-| مستودع GitHub | `https://github.com/hussain-HHS/-sraj-warehouse` (لاحظ الشرطة البادئة — لا تُصحّحها) |
-| Supabase | المرجع `tfrzyiyoromlgmcissvu` — `https://tfrzyiyoromlgmcissvu.supabase.co` |
-| Vercel | team `team_yjSVfkDNYdlWJjwbF1itNeHR` · project `prj_uoHMF49IQMc8xJAQSYhQDPoDhyTE` |
-| استقرار الإنتاج | Cron-job.org (إبقاء Supabase حيّاً) · GitHub Actions (نسخ احتياطي يومي) · UptimeRobot · Resend (تنبيهات + بريد ترحيب) |
+| الموقع المباشر | `https://sraj-warehouse-nine.vercel.app` (مؤقّت؛ يُخطَّط لأخذ `sraj-warehouse.vercel.app` بعد حذف القديم) |
+| مستودع GitHub | `https://github.com/hfelembanSraj/sraj-warehouse` (الجديد — حساب الجمعيّة) |
+| Supabase | المرجع `grlucvdrgcdmdpevwkfm` — `https://grlucvdrgcdmdpevwkfm.supabase.co` |
+| Vercel | حساب الجمعيّة الجديد · مشروع `sraj-warehouse` |
+| استقرار الإنتاج | GitHub Actions (نسخ احتياطي يومي ✅ مُفعَّل) · Cron-job.org (إبقاء Supabase حيّاً — يلزم إعداده) · UptimeRobot (يلزم إعداده) · Resend (مفتاحه منقول في app_config) |
 
-كل الحسابات على بريد `evuon1@gmail.com`. حساب المؤسّس في النظام هو نفسه — صلاحيات كاملة، غير قابل للحذف، وضع تخفٍّ اختياري.
+حساب المؤسّس في النظام: `h.felemban@sraj.org.sa` — صلاحيات كاملة، غير قابل للحذف، وضع تخفٍّ اختياري.
+
+**البنية القديمة (تُحذف لاحقاً — لا تستخدمها):** repo `hussain-HHS/-sraj-warehouse` · Supabase `tfrzyiyoromlgmcissvu` · `evuon1@gmail.com`. هذه تخصّ الحساب الشخصي القديم وستُوقَف.
 
 ---
 

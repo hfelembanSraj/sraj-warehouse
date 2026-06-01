@@ -61,7 +61,7 @@ gh auth login
 ```
 
 اختر: **GitHub.com** ← **HTTPS** ← **Login with a web browser** ، وسجّل الدخول
-بحساب `hussain-HHS`. هذا يسمح بحفظ تعديلاتك على GitHub من هذا الجهاز.
+بحساب الجمعيّة `hfelembanSraj`. هذا يسمح بحفظ تعديلاتك على GitHub من هذا الجهاز.
 
 ---
 
@@ -71,7 +71,7 @@ gh auth login
 
 ```
 cd D:\
-git clone https://github.com/hussain-HHS/-sraj-warehouse.git Sraj-Warehouse
+git clone https://github.com/hfelembanSraj/sraj-warehouse.git Sraj-Warehouse
 cd Sraj-Warehouse
 ```
 
@@ -88,8 +88,8 @@ cd Sraj-Warehouse
 2. ضع فيه هذين السطرين بالضبط:
 
 ```
-VITE_SUPABASE_URL=https://tfrzyiyoromlgmcissvu.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmcnp5aXlvcm9tbGdtY2lzc3Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NjQyMDMsImV4cCI6MjA5MzE0MDIwM30.j9YbXYP7tTlhzJbpxxxPBTgJevMTE8i44HFTXKXJop4
+VITE_SUPABASE_URL=https://grlucvdrgcdmdpevwkfm.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdybHVjdmRyZ2NkbWRwZXZ3a2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMzY1OTMsImV4cCI6MjA5NTgxMjU5M30.enF9FW30HMrBcjfOgM11_BnHdF_Cj9kJvdI2p3Jjby0
 ```
 
 > هذا المفتاح من نوع "anon" — آمن (يظهر أصلاً داخل كود الموقع المنشور للجميع)،
