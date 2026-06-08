@@ -24,31 +24,31 @@ export default function DamagedTab({ data, onRefresh }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-stone-200 p-5">
-      <h2 className="text-sm font-display font-bold mb-1">خانة المتلفات</h2>
-      <p className="text-xs text-stone-500 mb-4">الأدوات التالفة — يمكن استرجاعها للمستودع عند الحاجة</p>
+    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-5">
+      <h2 className="text-sm font-display font-bold mb-1 dark:text-stone-200">خانة المتلفات</h2>
+      <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">الأدوات التالفة — يمكن استرجاعها للمستودع عند الحاجة</p>
 
       {data.damaged.length === 0 ? (
-        <div className="text-center py-12 text-stone-400 text-sm">لا توجد متلفات</div>
+        <div className="text-center py-12 text-stone-600 dark:text-stone-300 text-sm">لا توجد متلفات</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-stone-50">
+            <thead className="bg-stone-50 dark:bg-stone-800">
               <tr>
-                <th className="p-2 text-center font-medium text-stone-600">الأداة</th>
-                <th className="p-2 text-center font-medium text-stone-600">الكمية</th>
-                <th className="p-2 text-center font-medium text-stone-600">سبب الإتلاف</th>
-                <th className="p-2 text-center font-medium text-stone-600">تاريخ الإتلاف</th>
-                <th className="p-2 text-center font-medium text-stone-600">المسؤول</th>
-                <th className="p-2 text-center font-medium text-stone-600">الإجراء</th>
+                <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الأداة</th>
+                <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الكمية</th>
+                <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">سبب الإتلاف</th>
+                <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">تاريخ الإتلاف</th>
+                <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">المسؤول</th>
+                <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الإجراء</th>
               </tr>
             </thead>
             <tbody>
               {data.damaged.map(d => (
-                <tr key={d.id} className="border-t border-stone-100">
+                <tr key={d.id} className="border-t border-stone-100 dark:border-stone-800">
                   <td className="p-2 text-center">{d.item_name}</td>
                   <td className="p-2 text-center">{d.quantity}</td>
-                  <td className="p-2 text-center text-stone-600">{d.reason}</td>
+                  <td className="p-2 text-center text-stone-600 dark:text-stone-300">{d.reason}</td>
                   <td className="p-2 text-center">{d.damaged_at}</td>
                   <td className="p-2 text-center">{d.user_name}</td>
                   <td className="p-2 text-center">

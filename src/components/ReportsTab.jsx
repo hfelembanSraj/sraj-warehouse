@@ -45,34 +45,39 @@ export default function ReportsTab({ data, onRefresh }) {
   // ====== جدول الأصناف المُجمَّع ======
   // يشمل كل الأغراض: داخل صندوق + غرض كبير على رفّ + غير محدّد + خارج المساحات
   const aggregatedItems = useMemo(() => {
+    // خرائط تجميع تُبنى مرّة واحدة — تتفادى الفلترة المتكرّرة لكل صنف (O(n×m) → O(n+m))
+    const boxById = new Map((data.boxes || []).map(b => [b.id, b]));
+    const coByBox = new Map();      // مفتاح: box_id::item_name → كميّة مُخرَجة
+    const coByItemId = new Map();   // مفتاح: item_id → كميّة مُخرَجة
+    for (const c of data.checkouts || []) {
+      if (c.box_id) coByBox.set(`${c.box_id}::${c.item_name}`, (coByBox.get(`${c.box_id}::${c.item_name}`) || 0) + (c.quantity || 0));
+      if (c.item_id) coByItemId.set(c.item_id, (coByItemId.get(c.item_id) || 0) + (c.quantity || 0));
+    }
+    const dmgByCode = new Map(), dmgByName = new Map();
+    for (const d of data.damaged || []) {
+      if (d.box_code) dmgByCode.set(`${d.box_code}::${d.item_name}`, (dmgByCode.get(`${d.box_code}::${d.item_name}`) || 0) + (d.quantity || 0));
+      else dmgByName.set(d.item_name, (dmgByName.get(d.item_name) || 0) + (d.quantity || 0));
+    }
+    const donByCode = new Map(), donByName = new Map();
+    for (const d of data.donated || []) {
+      if (d.box_code) donByCode.set(`${d.box_code}::${d.item_name}`, (donByCode.get(`${d.box_code}::${d.item_name}`) || 0) + (d.quantity || 0));
+      else donByName.set(d.item_name, (donByName.get(d.item_name) || 0) + (d.quantity || 0));
+    }
+
     const byLoc = {};
     for (const it of data.items) {
       const loc = resolveItemLocation(it, { boxes: data.boxes, zones: data.zones || [] });
       if (!loc) continue; // مرتبط بصندوق محذوف — يُتجاهَل
       let checkedOutQty, damagedQty, donatedQty;
       if (loc.kind === 'box') {
-        // الصناديق: نطابق كما كان (المُخرَج بمعرّف الصندوق، التالف/المدعوم برمزه)
-        const box = data.boxes.find(b => b.id === it.box_id);
-        checkedOutQty = data.checkouts
-          .filter(c => c.box_id === box.id && c.item_name === it.name)
-          .reduce((s, c) => s + (c.quantity || 0), 0);
-        damagedQty = data.damaged
-          .filter(d => d.box_code === box.code && d.item_name === it.name)
-          .reduce((s, d) => s + (d.quantity || 0), 0);
-        donatedQty = data.donated
-          .filter(d => d.box_code === box.code && d.item_name === it.name)
-          .reduce((s, d) => s + (d.quantity || 0), 0);
+        const box = boxById.get(it.box_id);
+        checkedOutQty = coByBox.get(`${box.id}::${it.name}`) || 0;
+        damagedQty = dmgByCode.get(`${box.code}::${it.name}`) || 0;
+        donatedQty = donByCode.get(`${box.code}::${it.name}`) || 0;
       } else {
-        // الأغراض بلا صندوق: المُخرَج بمعرّف الصنف (دقيق)، التالف/المدعوم بالاسم
-        checkedOutQty = data.checkouts
-          .filter(c => c.item_id === it.id)
-          .reduce((s, c) => s + (c.quantity || 0), 0);
-        damagedQty = data.damaged
-          .filter(d => !d.box_code && d.item_name === it.name)
-          .reduce((s, d) => s + (d.quantity || 0), 0);
-        donatedQty = data.donated
-          .filter(d => !d.box_code && d.item_name === it.name)
-          .reduce((s, d) => s + (d.quantity || 0), 0);
+        checkedOutQty = coByItemId.get(it.id) || 0;
+        damagedQty = dmgByName.get(it.name) || 0;
+        donatedQty = donByName.get(it.name) || 0;
       }
       byLoc[`${loc.boxCode}::${it.name}`] = {
         id: it.id,

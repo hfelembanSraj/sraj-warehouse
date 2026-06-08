@@ -69,7 +69,7 @@ export default function NotificationsBell() {
   return (
     <div ref={ref} className="relative">
       <button onClick={handleOpen}
-        className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-stone-100 transition"
+        className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition"
         title="الإشعارات">
         <span className="text-xl">🔔</span>
         {unreadCount > 0 && (
@@ -80,7 +80,7 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 w-80 sm:w-96 max-h-[70vh] overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-2xl z-50 animate-fade-in">
+        <div className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 w-80 sm:w-96 max-h-[70vh] overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl z-50 animate-fade-in">
           <div className="bg-gradient-to-l from-brand-navy to-brand-purple text-white px-4 py-2.5 flex items-center justify-between sticky top-0">
             <div>
               <div className="text-sm font-bold">🔔 الإشعارات</div>
@@ -90,23 +90,23 @@ export default function NotificationsBell() {
           </div>
 
           {entries.length === 0 ? (
-            <div className="text-center py-8 text-stone-400 text-sm">
+            <div className="text-center py-8 text-stone-400 dark:text-stone-400 text-sm">
               <div className="text-3xl mb-2">📭</div>
               لا توجد أحداث بعد
             </div>
           ) : (
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y divide-stone-100 dark:divide-stone-800">
               {entries.map(e => {
                 const isNew = new Date(e.created_at) > lastSeen;
                 return (
-                  <div key={e.id} className={`p-3 text-xs ${isNew ? 'bg-blue-50/50' : ''}`}>
+                  <div key={e.id} className={`p-3 text-xs ${isNew ? 'bg-blue-50/50 dark:bg-blue-900/30' : ''}`}>
                     <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <span className="font-bold text-brand-navy">{e.action}</span>
-                      <span className="text-[10px] text-stone-500 whitespace-nowrap">{timeAgo(e.created_at)}</span>
+                      <span className="font-bold text-brand-navy dark:text-stone-200">{e.action}</span>
+                      <span className="text-[10px] text-stone-500 dark:text-stone-400 whitespace-nowrap">{timeAgo(e.created_at)}</span>
                     </div>
-                    {e.target && <div className="text-stone-700 text-[11px]">📌 {e.target}</div>}
-                    {e.location && <div className="text-[10px] text-stone-500">📍 {e.location}</div>}
-                    <div className="text-[10px] text-stone-500 mt-0.5">بواسطة <strong>{e.user_name}</strong></div>
+                    {e.target && <div className="text-stone-700 dark:text-stone-300 text-[11px]">📌 {e.target}</div>}
+                    {e.location && <div className="text-[10px] text-stone-500 dark:text-stone-400">📍 {e.location}</div>}
+                    <div className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">بواسطة <strong>{e.user_name}</strong></div>
                   </div>
                 );
               })}

@@ -51,15 +51,15 @@ export default function AddItemModal({ data, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 animate-fade-in">
-        <h3 className="text-sm font-display font-bold mb-3">إضافة أداة جديدة</h3>
+      <div className="bg-white dark:bg-stone-900 rounded-xl shadow-2xl max-w-md w-full p-5 animate-fade-in">
+        <h3 className="text-sm font-display font-bold mb-3 dark:text-stone-200">إضافة أداة جديدة</h3>
 
         {zones.length === 0 ? (
           <>
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-lg mb-4">
+            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs p-3 rounded-lg mb-4">
               ⚠️ لا توجد مساحات تخزين في هذا المستودع. اطلب من المؤسّس إنشاء مساحات أوّلاً.
             </div>
-            <button onClick={onClose} className="w-full px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+            <button onClick={onClose} className="w-full px-4 py-2 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
               إغلاق
             </button>
           </>
@@ -67,20 +67,20 @@ export default function AddItemModal({ data, onClose, onSaved }) {
           <>
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-xs text-stone-600 mb-1">اسم الأداة</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">اسم الأداة</label>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="مثال: حبال تجاذب"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
               </div>
               <div>
-                <label className="block text-xs text-stone-600 mb-1">الكمية</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">الكمية</label>
                 <input type="number" min={1} value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
               </div>
               <div>
-                <label className="block text-xs text-stone-600 mb-1">المساحة</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">المساحة</label>
                 <select value={zoneLetter} onChange={(e) => setZoneLetter(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs bg-white">
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs bg-white dark:bg-stone-800 dark:text-stone-200">
                   {zones.map(z => (
                     <option key={z.id} value={z.letter}>{z.name} ({z.letter})</option>
                   ))}
@@ -94,8 +94,8 @@ export default function AddItemModal({ data, onClose, onSaved }) {
               />
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 text-blue-900 text-xs p-3 rounded-lg mb-4">
-              🤖 <strong>اقتراح ذكي:</strong> الموقع الأنسب هو <strong className="text-blue-950">{suggestedCode}</strong>
+            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs p-3 rounded-lg mb-4">
+              🤖 <strong>اقتراح ذكي:</strong> الموقع الأنسب هو <strong className="text-blue-950 dark:text-blue-100">{suggestedCode}</strong>
             </div>
 
             <div className="flex gap-2">
@@ -103,7 +103,7 @@ export default function AddItemModal({ data, onClose, onSaved }) {
                 className="flex-1 bg-brand-blue text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-800 disabled:opacity-50">
                 {loading ? 'جاري الحفظ...' : 'حفظ'}
               </button>
-              <button onClick={onClose} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+              <button onClick={onClose} className="px-4 py-2 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
                 إلغاء
               </button>
             </div>

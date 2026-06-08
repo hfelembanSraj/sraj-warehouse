@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, logActivity } from '../lib/supabase';
@@ -57,10 +57,27 @@ export default function Dashboard() {
     log: [], requests: [], users: [], zones: []
   });
   const [loading, setLoading] = useState(true);
+  // هدف قفز مؤجَّل (بعد تبديل المستودع) — يُنفَّذ حين تصل بيانات المستودع الجديد فعلاً
+  const pendingJumpRef = useRef(null);
 
   useEffect(() => {
     if (warehouseId) loadAllData();
   }, [warehouseId]);
+
+  // ينفّذ القفز المؤجَّل بعد تحميل بيانات المستودع الصحيح (بدل setTimeout العشوائي)
+  useEffect(() => {
+    const j = pendingJumpRef.current;
+    if (!j) return;
+    if (j.warehouseId && j.warehouseId !== warehouseId) return; // ننتظر تبديل المستودع
+    if (data.zones.length === 0) return;                        // ننتظر تحميل البيانات
+    if (j.type === 'zone') {
+      const zone = data.zones.find(z => z.letter === j.letter);
+      if (zone) { setCurrentZone(zone); setCurrentShelf(null); setCurrentBox(null); }
+    } else if (j.type === 'box') {
+      goToBoxByCode(j.boxCode);
+    }
+    pendingJumpRef.current = null;
+  }, [data, warehouseId]);
 
   // اختصارات لوحة المفاتيح: / للبحث · Ctrl+K لماسح QR
   useGlobalShortcuts({
@@ -254,24 +271,25 @@ export default function Dashboard() {
       if (isFounder) setEnteredWarehouse(true);
       setActiveTab(isFounder ? 'home' : 'map');
     } else if (target.type === 'zone') {
-      if (target.warehouseId !== warehouseId) setWarehouseId?.(target.warehouseId);
-      // الانتظار قليلاً لتحميل البيانات الجديدة (يتم بعد setWarehouseId)
-      setTimeout(() => {
-        const zone = data.zones.find(z => z.letter === target.letter);
-        if (zone) setCurrentZone(zone);
-      }, 100);
-      setCurrentShelf(null);
-      setCurrentBox(null);
+      const switching = target.warehouseId && target.warehouseId !== warehouseId;
       if (isFounder) setEnteredWarehouse(true);
       setActiveTab(isFounder ? 'home' : 'map');
-    } else if (target.type === 'box' && target.boxCode) {
-      if (target.warehouseId && target.warehouseId !== warehouseId) {
+      if (switching) {
+        // أجِّل القفز حتى تصل بيانات المستودع الجديد (useEffect أعلاه)
+        pendingJumpRef.current = { type: 'zone', warehouseId: target.warehouseId, letter: target.letter };
         setWarehouseId?.(target.warehouseId);
+      } else {
+        const zone = data.zones.find(z => z.letter === target.letter);
+        if (zone) { setCurrentZone(zone); setCurrentShelf(null); setCurrentBox(null); }
       }
-      // الانتقال يحدث بعد تحديث البيانات
-      setTimeout(() => {
-        handleScannedUrl(`?wh=${target.warehouseId || warehouseId}&box=${target.boxCode}`);
-      }, 100);
+    } else if (target.type === 'box' && target.boxCode) {
+      const switching = target.warehouseId && target.warehouseId !== warehouseId;
+      if (switching) {
+        pendingJumpRef.current = { type: 'box', warehouseId: target.warehouseId, boxCode: target.boxCode };
+        setWarehouseId?.(target.warehouseId);
+      } else {
+        goToBoxByCode(target.boxCode);
+      }
     }
   }
 

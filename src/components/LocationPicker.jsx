@@ -349,10 +349,15 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
       alert('فشل إنشاء صندوق: ' + (error?.message || 'خطأ غير معروف'));
       return;
     }
-    const { data: newBox } = await supabase.from('boxes').select('*').eq('id', newBoxId).single();
+    const { data: newBox, error: fetchErr } = await supabase.from('boxes').select('*').eq('id', newBoxId).single();
     setCreating(false);
+    if (fetchErr || !newBox) {
+      console.error('تعذّر جلب الصندوق بعد إنشائه:', fetchErr);
+      alert('أُنشئ الصندوق لكن تعذّر تحميل بياناته. أغلق النافذة وستجده في مكانه.');
+      return;
+    }
     setPickingNewBoxPosition(false);
-    if (newBox) onPick(newBox);
+    onPick(newBox);
   }
 
   if (shelves.length === 0) {

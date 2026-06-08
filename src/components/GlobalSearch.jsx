@@ -125,20 +125,20 @@ export default function GlobalSearch({ onJump }) {
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         placeholder="🔍 بحث شامل... (/)"
-        className="w-40 sm:w-56 text-xs px-3 py-1.5 border border-stone-300 rounded-lg focus:outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20"
+        className="w-40 sm:w-56 text-xs px-3 py-1.5 border border-stone-300 rounded-lg focus:outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 dark:bg-stone-800 dark:text-stone-200 dark:border-stone-700"
       />
 
       {open && query.trim() && (
-        <div className="absolute top-full mt-1 right-0 w-80 sm:w-96 max-h-[60vh] overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-xl z-50">
+        <div className="absolute top-full mt-1 right-0 w-80 sm:w-96 max-h-[60vh] overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-xl z-50">
           {loading ? (
-            <div className="p-4 text-center text-xs text-stone-500">جاري البحث...</div>
+            <div className="p-4 text-center text-xs text-stone-500 dark:text-stone-400">جاري البحث...</div>
           ) : !results ? (
-            <div className="p-4 text-center text-xs text-stone-400">اكتب للبحث</div>
+            <div className="p-4 text-center text-xs text-stone-400 dark:text-stone-400">اكتب للبحث</div>
           ) : totalResults === 0 ? (
-            <div className="p-4 text-center text-xs text-stone-400">لا توجد نتائج لـ "{query}"</div>
+            <div className="p-4 text-center text-xs text-stone-400 dark:text-stone-400">لا توجد نتائج لـ "{query}"</div>
           ) : (
             <div>
-              <div className="px-3 py-1.5 text-[10px] text-stone-500 bg-stone-50 border-b border-stone-100 sticky top-0">
+              <div className="px-3 py-1.5 text-[10px] text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800 border-b border-stone-100 dark:border-stone-800 sticky top-0">
                 {totalResults} نتيجة
               </div>
 
@@ -199,7 +199,7 @@ export default function GlobalSearch({ onJump }) {
                         key={it.id}
                         icon={it.photo_url
                           ? <img src={it.photo_url} alt="" className="w-8 h-8 object-cover rounded" />
-                          : <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[7px] font-bold text-stone-700 text-center p-0.5 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
+                          : <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-50 to-stone-100 dark:from-amber-900/30 dark:to-stone-800 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-[7px] font-bold text-stone-700 dark:text-stone-300 text-center p-0.5 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
                         }
                         title={it.name}
                         subtitle={`${it.warehouseName}${z ? ` ← ${z.letter}` : ''} ← ${it.boxes?.code || '—'} · كميّة: ${it.quantity}`}
@@ -220,7 +220,7 @@ export default function GlobalSearch({ onJump }) {
 function Section({ title, children }) {
   return (
     <div>
-      <div className="px-3 py-1.5 text-[10px] font-bold text-stone-600 bg-stone-50 border-y border-stone-100">
+      <div className="px-3 py-1.5 text-[10px] font-bold text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 border-y border-stone-100 dark:border-stone-800">
         {title}
       </div>
       <div>{children}</div>
@@ -232,16 +232,16 @@ function ResultRow({ icon, title, subtitle, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-right px-3 py-2 hover:bg-blue-50 flex items-center gap-2 border-b border-stone-50 last:border-b-0 transition"
+      className="w-full text-right px-3 py-2 hover:bg-blue-50 dark:hover:bg-stone-800 flex items-center gap-2 border-b border-stone-50 dark:border-stone-800 last:border-b-0 transition"
     >
       <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
         {typeof icon === 'string' ? <span className="text-lg">{icon}</span> : icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium truncate">{title}</div>
-        {subtitle && <div className="text-[10px] text-stone-500 truncate">{subtitle}</div>}
+        {subtitle && <div className="text-[10px] text-stone-500 dark:text-stone-400 truncate">{subtitle}</div>}
       </div>
-      <span className="text-stone-400 text-xs">→</span>
+      <span className="text-stone-400 dark:text-stone-400 text-xs">→</span>
     </button>
   );
 }

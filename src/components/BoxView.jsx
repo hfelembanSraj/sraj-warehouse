@@ -184,12 +184,12 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
 
       {/* شريط التنقّل — الرجوع مباشرةً للمساحة (لا تمرّ بشاشة الرفّ) */}
       <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
-        <button onClick={onBackToZone} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100">→ الرجوع للمساحة</button>
-        <div className="text-stone-500 flex items-center gap-1">
+        <button onClick={onBackToZone} className="px-3 py-1.5 border border-stone-300 dark:border-stone-700 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800">→ الرجوع للمساحة</button>
+        <div className="text-stone-500 dark:text-stone-400 flex items-center gap-1">
           <button onClick={onBackToMap} className="hover:underline">المستودع</button>
-          <span className="text-stone-300">‹</span>
+          <span className="text-stone-300 dark:text-stone-600">‹</span>
           <button onClick={onBackToZone} className="hover:underline" style={{ color: zone.color }}>مساحة {zone.letter}</button>
-          <span className="text-stone-300">‹</span>
+          <span className="text-stone-300 dark:text-stone-600">‹</span>
           <span className="font-medium text-amber-700">صندوق {currentBox.code}</span>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                 صندوق {currentBox.code}
                 <CopyCodeButton code={currentBox.code} />
               </h2>
-              {currentBox.description && <p className="text-xs text-stone-500">{currentBox.description}</p>}
+              {currentBox.description && <p className="text-xs text-stone-500 dark:text-stone-400">{currentBox.description}</p>}
               <p className="text-[10px] text-stone-400 mt-0.5">
                 {currentBox.width_cm}×{currentBox.height_cm}سم · في {shelfDisplayName(shelf, zone?.shelves || [])} من مساحة {zone.letter}
               </p>
@@ -217,24 +217,24 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <button onClick={loadHistory}
-              className="text-[11px] bg-stone-50 border border-stone-300 text-stone-700 px-2.5 py-1.5 rounded hover:bg-stone-100"
+              className="text-[11px] bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-700"
               title="سجلّ حركة هذا الصندوق وأغراضه">
               📜 السجلّ
             </button>
             <button
               onClick={() => printBoxLabel(currentBox, activeWarehouse?.id, activeWarehouse?.name, zone?.name)}
-              className="text-[11px] bg-blue-50 border border-blue-300 text-blue-800 px-2.5 py-1.5 rounded hover:bg-blue-100"
+              className="text-[11px] bg-blue-50 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 px-2.5 py-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50"
               title="اطبع ملصق هذا الصندوق فقط (QR + رمز + اسم المساحة)">
               🖨 طباعة الملصق
             </button>
             {isFounder && (
               <>
                 <button onClick={() => setEditing(e => !e)} disabled={busy}
-                  className="text-[11px] border border-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100">
+                  className="text-[11px] border border-stone-300 dark:border-stone-700 dark:text-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800">
                   ✏️ تعديل
                 </button>
                 <button onClick={() => setConfirming({ type: 'box' })} disabled={busy}
-                  className="text-[11px] bg-red-50 border border-red-200 text-red-700 px-2.5 py-1.5 rounded hover:bg-red-100">
+                  className="text-[11px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-2.5 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50">
                   🗑 حذف
                 </button>
               </>
@@ -258,9 +258,9 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
         )}
 
         {/* المنظور العلوي للصندوق المفتوح + الأصناف داخله */}
-        <div className="border-t border-stone-200 pt-4">
+        <div className="border-t border-stone-200 dark:border-stone-800 pt-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-display font-bold text-stone-700">📦 منظور علوي للصندوق ({items.length} صنف)</h3>
+            <h3 className="text-xs font-display font-bold text-stone-700 dark:text-stone-300">📦 منظور علوي للصندوق ({items.length} صنف)</h3>
             {(isFounder || can('add')) && (
               <button onClick={() => setShowAddItem(s => !s)} disabled={busy}
                 className="text-xs bg-gradient-to-l from-brand-navy to-brand-purple text-white px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 font-bold shadow-sm">
@@ -287,7 +287,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           {loading ? (
             <p className="text-center text-sm text-stone-400 py-8">جاري التحميل...</p>
           ) : (
-            <div className="bg-stone-100 rounded-lg p-4">
+            <div className="bg-stone-100 dark:bg-stone-800 rounded-lg p-4">
               {/* إطار الصندوق المفتوح من فوق */}
               <div className="relative rounded-md mx-auto overflow-hidden"
                 style={{
@@ -329,7 +329,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                   </div>
                 )}
               </div>
-              <p className="text-center text-[10px] text-stone-500 mt-3 italic">
+              <p className="text-center text-[10px] text-stone-500 dark:text-stone-400 mt-3 italic">
                 {currentBox.width_cm} × {currentBox.height_cm} سم · {items.length} صنف
               </p>
             </div>
@@ -402,7 +402,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           maxWidth="max-w-2xl"
         >
           {historyLoading ? (
-            <p className="text-center text-sm text-stone-500 py-8">جاري التحميل...</p>
+            <p className="text-center text-sm text-stone-500 dark:text-stone-400 py-8">جاري التحميل...</p>
           ) : historyEntries.length === 0 ? (
             <div className="text-center py-8 text-stone-400">
               <div className="text-3xl mb-2">📭</div>
@@ -412,16 +412,16 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           ) : (
             <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
               {historyEntries.map(e => (
-                <div key={e.id} className="bg-stone-50 border border-stone-200 rounded-lg p-2.5 text-xs">
+                <div key={e.id} className="bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg p-2.5 text-xs">
                   <div className="flex items-center justify-between flex-wrap gap-1">
-                    <span className="font-bold text-brand-navy">{e.action}</span>
-                    <span className="text-[10px] text-stone-500">
+                    <span className="font-bold text-brand-navy dark:text-stone-200">{e.action}</span>
+                    <span className="text-[10px] text-stone-500 dark:text-stone-400">
                       {new Date(e.created_at).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}
                     </span>
                   </div>
-                  {e.target && <div className="text-stone-700 mt-0.5">📌 {e.target}</div>}
-                  {e.location && <div className="text-[10px] text-stone-500">📍 {e.location}</div>}
-                  <div className="text-[10px] text-stone-500 mt-1">بواسطة: <strong>{e.user_name}</strong></div>
+                  {e.target && <div className="text-stone-700 dark:text-stone-300 mt-0.5">📌 {e.target}</div>}
+                  {e.location && <div className="text-[10px] text-stone-500 dark:text-stone-400">📍 {e.location}</div>}
+                  <div className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">بواسطة: <strong>{e.user_name}</strong></div>
                 </div>
               ))}
             </div>
@@ -441,22 +441,22 @@ function AddItemInBoxForm({ busy, onCancel, onSave, tagSuggestions = [] }) {
   const isValid = name.trim().length > 0;
 
   return (
-    <div className="bg-white border-2 border-blue-400 rounded-xl p-4 animate-fade-in">
-      <h4 className="text-xs font-display font-bold text-blue-900 mb-3">+ صنف جديد داخل هذا الصندوق</h4>
+    <div className="bg-white dark:bg-stone-900 border-2 border-blue-400 dark:border-blue-700 rounded-xl p-4 animate-fade-in">
+      <h4 className="text-xs font-display font-bold text-blue-900 dark:text-blue-300 mb-3">+ صنف جديد داخل هذا الصندوق</h4>
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">اسم الصنف *</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">اسم الصنف *</label>
           <input value={name} onChange={e => setName(e.target.value)}
             placeholder="مثال: حبال تجاذب"
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الكميّة</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الكميّة</label>
           <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">🏷 وسوم (تصنيفات)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">🏷 وسوم (تصنيفات)</label>
           <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
         </div>
         <div className="col-span-2">
@@ -474,7 +474,7 @@ function AddItemInBoxForm({ busy, onCancel, onSave, tagSuggestions = [] }) {
           className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm">
           💾 حفظ
         </button>
-        <button onClick={onCancel} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+        <button onClick={onCancel} className="px-4 py-2 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
           إلغاء
         </button>
       </div>
@@ -485,11 +485,11 @@ function AddItemInBoxForm({ busy, onCancel, onSave, tagSuggestions = [] }) {
 // مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
 function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onDragStart, onDragEnd, onClickHandle, onMove }) {
   return (
-    <div className={`bg-white rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
+    <div className={`bg-white dark:bg-stone-900 rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
       style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
       <>
           {/* صورة الصنف — أو الاسم نصّاً إن لم توجد صورة */}
-          <div className="aspect-square bg-stone-50 relative overflow-hidden">
+          <div className="aspect-square bg-stone-50 dark:bg-stone-800 relative overflow-hidden">
             {item.photo_url ? (
               <img src={item.photo_url} alt={item.name} draggable={false} className="w-full h-full object-cover pointer-events-none" />
             ) : (
@@ -531,7 +531,7 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
           {/* اسم الصنف + الوسوم (يظهران تحت الصورة فقط — وإن لم توجد صورة فالاسم في الأعلى) */}
           <div className="p-2">
             {item.photo_url && (
-              <h5 className="text-xs font-medium text-stone-900 truncate text-center mb-1">{item.name}</h5>
+              <h5 className="text-xs font-medium text-stone-900 dark:text-stone-200 truncate text-center mb-1">{item.name}</h5>
             )}
             {item.tags && item.tags.length > 0 && (
               <div className="flex justify-center mb-1.5">
@@ -547,20 +547,20 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
               )}
               {canMove && onMove && (
                 <button onClick={onMove} disabled={busy}
-                  className="text-[9px] bg-purple-50 border border-purple-300 text-purple-800 px-1.5 py-0.5 rounded hover:bg-purple-100"
+                  className="text-[9px] bg-purple-50 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-300 px-1.5 py-0.5 rounded hover:bg-purple-100 dark:hover:bg-purple-900/50"
                   title="نقل لصندوق آخر">
                   📍 نقل
                 </button>
               )}
               {canEdit && (
                 <button onClick={onToggleEdit} disabled={busy}
-                  className="text-[9px] border border-stone-300 px-1.5 py-0.5 rounded hover:bg-stone-100">
+                  className="text-[9px] border border-stone-300 dark:border-stone-700 dark:text-stone-300 px-1.5 py-0.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800">
                   ✏️
                 </button>
               )}
               {canDelete && (
                 <button onClick={onDelete} disabled={busy}
-                  className="text-[9px] bg-red-50 border border-red-200 text-red-700 px-1.5 py-0.5 rounded hover:bg-red-100">
+                  className="text-[9px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50">
                   🗑
                 </button>
               )}
@@ -587,17 +587,17 @@ function EditItemInline({ item, busy, onCancel, onSave, tagSuggestions = [] }) {
     <div className="text-xs">
       <div className="grid grid-cols-2 gap-2 mb-2">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الاسم</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الاسم</label>
           <input value={name} onChange={e => setName(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الكميّة</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الكميّة</label>
           <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">🏷 وسوم</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">🏷 وسوم</label>
           <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
         </div>
         <div className="col-span-2">
@@ -610,7 +610,7 @@ function EditItemInline({ item, busy, onCancel, onSave, tagSuggestions = [] }) {
           className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-30 shadow-sm">
           💾 حفظ
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 rounded text-xs hover:bg-stone-100">
+        <button onClick={onCancel} className="px-4 py-1.5 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
           إلغاء
         </button>
       </div>

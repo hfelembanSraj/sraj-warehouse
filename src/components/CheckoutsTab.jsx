@@ -12,19 +12,19 @@ export default function CheckoutsTab({ data, onRefresh }) {
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-stone-200 p-5 mb-4">
+      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-5 mb-4">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
           <div>
             <h2 className="text-sm font-display font-bold">العُدّة المُخرَجة حالياً</h2>
-            <p className="text-xs text-stone-500">المهلة الافتراضية {DEFAULT_RETURN_DAYS} أيام للإرجاع</p>
+            <p className="text-xs text-stone-500 dark:text-stone-400">المهلة الافتراضية {DEFAULT_RETURN_DAYS} أيام للإرجاع</p>
           </div>
-          <div className="bg-stone-100 rounded-lg p-0.5 inline-flex">
+          <div className="bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5 inline-flex">
             <button onClick={() => setViewMode('list')}
-              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'list' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'list' ? 'bg-white dark:bg-stone-900 shadow-sm font-medium' : 'text-stone-600 dark:text-stone-300 hover:text-stone-900'}`}>
               📋 قائمة
             </button>
             <button onClick={() => setViewMode('calendar')}
-              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'calendar' ? 'bg-white shadow-sm font-medium' : 'text-stone-600 hover:text-stone-900'}`}>
+              className={`text-[11px] px-3 py-1.5 rounded transition ${viewMode === 'calendar' ? 'bg-white dark:bg-stone-900 shadow-sm font-medium' : 'text-stone-600 dark:text-stone-300 hover:text-stone-900'}`}>
               📅 تقويم
             </button>
           </div>
@@ -39,19 +39,19 @@ export default function CheckoutsTab({ data, onRefresh }) {
 
 
         {data.checkouts.length === 0 ? (
-          <div className="text-center py-12 text-stone-400 text-sm">لا توجد عُدّة مُخرَجة حالياً</div>
+          <div className="text-center py-12 text-stone-600 dark:text-stone-300 text-sm">لا توجد عُدّة مُخرَجة حالياً</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-stone-50">
+              <thead className="bg-stone-50 dark:bg-stone-800">
                 <tr>
-                  <th className="p-2 text-center font-medium text-stone-600">الأداة</th>
-                  <th className="p-2 text-center font-medium text-stone-600">الكمية</th>
-                  <th className="p-2 text-center font-medium text-stone-600">المسؤول</th>
-                  <th className="p-2 text-center font-medium text-stone-600">الغرض/المبادرة</th>
-                  <th className="p-2 text-center font-medium text-stone-600">تاريخ الإخراج</th>
-                  <th className="p-2 text-center font-medium text-stone-600">الحالة</th>
-                  <th className="p-2 text-center font-medium text-stone-600">الإجراء</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الأداة</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الكمية</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">المسؤول</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الغرض/المبادرة</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">تاريخ الإخراج</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الحالة</th>
+                  <th className="p-2 text-center font-medium text-stone-600 dark:text-stone-300">الإجراء</th>
                 </tr>
               </thead>
               <tbody>
@@ -59,7 +59,7 @@ export default function CheckoutsTab({ data, onRefresh }) {
                   const days = daysSince(c.date_out);
                   const overdue = isOverdue(c);
                   return (
-                    <tr key={c.id} className="border-t border-stone-100">
+                    <tr key={c.id} className="border-t border-stone-100 dark:border-stone-800">
                       <td className="p-2 text-center">{c.item_name}</td>
                       <td className="p-2 text-center">{c.quantity}</td>
                       <td className="p-2 text-center">{c.user_name}</td>
@@ -191,30 +191,30 @@ function ActionModal({ type, checkout, warehouseId, userId, userName, onClose, o
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 animate-fade-in">
+      <div className="bg-white dark:bg-stone-900 rounded-xl shadow-2xl max-w-md w-full p-5 animate-fade-in">
         <h3 className="text-sm font-display font-bold mb-3">{titles[type]}{checkout.item_name}</h3>
 
         {type === 'return' && (
-          <p className="text-xs text-stone-600 mb-4">سيتم إرجاع {checkout.quantity} قطعة إلى الموقع {checkout.box_code}</p>
+          <p className="text-xs text-stone-600 dark:text-stone-300 mb-4">سيتم إرجاع {checkout.quantity} قطعة إلى الموقع {checkout.box_code}</p>
         )}
 
         {type === 'damage' && (
           <>
-            <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-2.5 rounded-lg mb-3">
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-stone-700 text-red-800 text-xs p-2.5 rounded-lg mb-3">
               ⚠ ستُحذف الأداة من المستودع وتُنقَل لخانة المتلفات. يمكن استرجاعها لاحقاً.
             </div>
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-xs text-stone-600 mb-1">سبب الإتلاف</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">سبب الإتلاف</label>
                 <select value={reason} onChange={(e) => setReason(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs">
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs">
                   {DAMAGE_REASONS.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-stone-600 mb-1">تفاصيل إضافية (اختياري)</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">تفاصيل إضافية (اختياري)</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs" />
               </div>
             </div>
           </>
@@ -222,21 +222,21 @@ function ActionModal({ type, checkout, warehouseId, userId, userName, onClose, o
 
         {type === 'donate' && (
           <>
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2.5 rounded-lg mb-3">
+            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-stone-700 text-amber-800 text-xs p-2.5 rounded-lg mb-3">
               ⚠ ستُحذف الأداة من المستودع وتُسجَّل في سجل الدعم.
             </div>
             <div className="space-y-3 mb-4">
               <div>
-                <label className="block text-xs text-stone-600 mb-1">اسم الجهة المستفيدة *</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">اسم الجهة المستفيدة *</label>
                 <input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
                   placeholder="مثال: جمعية إبصار الخيرية"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs" />
               </div>
               <div>
-                <label className="block text-xs text-stone-600 mb-1">المبادرة / السياق</label>
+                <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">المبادرة / السياق</label>
                 <input type="text" value={initiative} onChange={(e) => setInitiative(e.target.value)}
                   placeholder="مثال: دعم فعالية اليوم العالمي للتطوّع"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+                  className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs" />
               </div>
             </div>
           </>
@@ -251,7 +251,7 @@ function ActionModal({ type, checkout, warehouseId, userId, userName, onClose, o
             }`}>
             {loading ? 'جاري الحفظ...' : 'تأكيد'}
           </button>
-          <button onClick={onClose} className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+          <button onClick={onClose} className="px-4 py-2 border border-stone-300 dark:border-stone-700 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
             إلغاء
           </button>
         </div>
@@ -318,24 +318,24 @@ function CheckoutsCalendar({ checkouts }) {
       {/* رأس التقويم */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 text-xs">→ السابق</button>
+          <button onClick={prevMonth} className="px-3 py-1.5 border border-stone-300 dark:border-stone-700 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-xs">→ السابق</button>
           <button onClick={goToday} className="px-3 py-1.5 bg-brand-navy text-white rounded-lg hover:opacity-90 text-xs font-bold">اليوم</button>
-          <button onClick={nextMonth} className="px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100 text-xs">التالي ←</button>
+          <button onClick={nextMonth} className="px-3 py-1.5 border border-stone-300 dark:border-stone-700 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-xs">التالي ←</button>
         </div>
         <h3 className="text-base font-display font-bold text-brand-navy">{monthNames[month]} {year}</h3>
       </div>
 
       {/* وسيلة الإيضاح */}
-      <div className="flex items-center gap-3 text-[10px] text-stone-600 mb-2 flex-wrap">
+      <div className="flex items-center gap-3 text-[10px] text-stone-600 dark:text-stone-300 mb-2 flex-wrap">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200"></span>إخراج</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-200"></span>إرجاع متوقّع</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200"></span>متأخّر</span>
       </div>
 
       {/* شبكة الأيّام */}
-      <div className="border border-stone-200 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-7 bg-stone-100 text-[10px] font-bold text-stone-700">
-          {weekDays.map(d => <div key={d} className="p-2 text-center border-l border-stone-200 last:border-l-0">{d}</div>)}
+      <div className="border border-stone-200 dark:border-stone-800 rounded-lg overflow-hidden">
+        <div className="grid grid-cols-7 bg-stone-100 dark:bg-stone-800 text-[10px] font-bold text-stone-700 dark:text-stone-300">
+          {weekDays.map(d => <div key={d} className="p-2 text-center border-l border-stone-200 dark:border-stone-700 last:border-l-0">{d}</div>)}
         </div>
         <div className="grid grid-cols-7">
           {days.map((d, i) => {
@@ -352,15 +352,15 @@ function CheckoutsCalendar({ checkouts }) {
                 key={i}
                 onClick={() => d && setSelectedDay(d.toISOString().slice(0, 10))}
                 disabled={!d}
-                className={`min-h-[64px] p-1 border border-stone-100 text-right transition ${
-                  !d ? 'bg-stone-50/50' :
+                className={`min-h-[64px] p-1 border border-stone-100 dark:border-stone-800 text-right transition ${
+                  !d ? 'bg-stone-50/50 dark:bg-stone-800/50' :
                   isSelected ? 'bg-brand-navy/10 ring-2 ring-brand-navy ring-inset' :
-                  isToday(d) ? 'bg-amber-50 hover:bg-amber-100' :
-                  totalEvents > 0 ? 'bg-white hover:bg-stone-50' : 'bg-white hover:bg-stone-50'
+                  isToday(d) ? 'bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/40' :
+                  totalEvents > 0 ? 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800' : 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800'
                 }`}>
                 {d && (
                   <>
-                    <div className={`text-[11px] font-bold ${isToday(d) ? 'text-amber-700' : 'text-stone-700'}`}>
+                    <div className={`text-[11px] font-bold ${isToday(d) ? 'text-amber-700 dark:text-amber-400' : 'text-stone-700 dark:text-stone-300'}`}>
                       {d.getDate()}
                     </div>
                     {totalEvents > 0 && (
@@ -387,17 +387,17 @@ function CheckoutsCalendar({ checkouts }) {
 
       {/* تفاصيل اليوم المختار */}
       {selectedDay && selectedEvents && (
-        <div className="mt-3 bg-stone-50 border border-stone-200 rounded-lg p-3">
+        <div className="mt-3 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-800 rounded-lg p-3">
           <h4 className="text-xs font-bold mb-2">📅 {new Date(selectedDay).toLocaleDateString('ar-SA', { dateStyle: 'full' })}</h4>
           {selectedEvents.out.length === 0 && selectedEvents.dueReturn.length === 0 ? (
-            <p className="text-xs text-stone-400">لا أحداث في هذا اليوم</p>
+            <p className="text-xs text-stone-600 dark:text-stone-300">لا أحداث في هذا اليوم</p>
           ) : (
             <div className="space-y-2">
               {selectedEvents.out.length > 0 && (
                 <div>
                   <p className="text-[11px] font-bold text-orange-700 mb-1">↑ إخراج ({selectedEvents.out.length})</p>
                   {selectedEvents.out.map(c => (
-                    <div key={c.id} className="text-[11px] bg-white border border-orange-200 rounded p-2 mb-1">
+                    <div key={c.id} className="text-[11px] bg-white dark:bg-stone-900 border border-orange-200 dark:border-stone-700 rounded p-2 mb-1">
                       <strong>{c.item_name}</strong> ×{c.quantity} · لـ {c.user_name} · من {c.box_code}
                       {c.purpose === 'initiative' && c.initiative && <div className="text-[10px] text-blue-700 mt-0.5">مبادرة: {c.initiative}</div>}
                     </div>
@@ -408,7 +408,7 @@ function CheckoutsCalendar({ checkouts }) {
                 <div>
                   <p className="text-[11px] font-bold text-blue-700 mb-1">↓ إرجاع متوقّع ({selectedEvents.dueReturn.length})</p>
                   {selectedEvents.dueReturn.map(c => (
-                    <div key={c.id} className="text-[11px] bg-white border border-blue-200 rounded p-2 mb-1">
+                    <div key={c.id} className="text-[11px] bg-white dark:bg-stone-900 border border-blue-200 dark:border-stone-700 rounded p-2 mb-1">
                       <strong>{c.item_name}</strong> ×{c.quantity} · من {c.user_name} · أُخرِج في {c.date_out}
                     </div>
                   ))}
