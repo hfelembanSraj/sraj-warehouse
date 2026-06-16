@@ -7,6 +7,7 @@ import AddBoxModal from './AddBoxModal';
 import { AddShelfForm, EditZoneForm, EditShelfForm, AddBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { CardboardBoxMini } from './CardboardBox';
 import PhotoUploader from './PhotoUploader';
+import ImageLightbox from './ImageLightbox';
 import WarehouseMiniMap from './WarehouseMiniMap';
 import LocationPicker from './LocationPicker';
 import {
@@ -26,6 +27,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
   // وضع التعديل التفاعلي على الرفّ
   const [editMode, setEditMode] = useState(false);
+  // رابط الصورة المعروضة مكبّرة (نافذة التكبير) — null = مغلقة
+  const [zoomUrl, setZoomUrl] = useState(null);
 
   // حالة السحب والإفلات (للديسكتوب) + النقر للاختيار المتعدّد (للجوال أو لتحرّكات جماعيّة)
   const [draggedBox, setDraggedBox] = useState(null);
@@ -655,6 +658,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   return (
     <>
       <StatusToast msg={msg} />
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
 
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <button onClick={onBack} className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100">→ الرجوع للمستودع</button>
@@ -680,13 +684,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           <div className="flex items-center gap-1.5 flex-wrap">
             {isFounder && (
               <>
-                {zoneBoxes.length > 0 && (
+                {editMode && zoneBoxes.length > 0 && (
                   <button onClick={selectAllInZone} disabled={busy}
                     className="text-[11px] bg-blue-50 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 px-2.5 py-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 font-medium">
                     ✓ حدّد كل الصناديق ({zoneBoxes.length})
                   </button>
                 )}
-                <button onClick={() => setEditMode(e => !e)} disabled={busy}
+                <button onClick={() => { setEditMode(e => !e); clearSelection(); }} disabled={busy}
                   className={`text-[11px] px-3 py-1.5 rounded-lg font-medium border transition ${
                     editMode
                       ? 'bg-amber-500 text-white border-amber-500'
@@ -694,14 +698,18 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   }`}>
                   {editMode ? '✓ إنهاء التعديل' : '🔧 وضع التعديل'}
                 </button>
-                <button onClick={() => setEditingZone(e => !e)} disabled={busy}
-                  className="text-[11px] border border-stone-300 dark:border-stone-600 dark:text-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800">
-                  ✏️ تعديل المساحة
-                </button>
-                <button onClick={() => setConfirming({ type: 'zone' })} disabled={busy}
-                  className="text-[11px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-2.5 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50">
-                  🗑 حذف
-                </button>
+                {editMode && (
+                  <>
+                    <button onClick={() => setEditingZone(e => !e)} disabled={busy}
+                      className="text-[11px] border border-stone-300 dark:border-stone-600 dark:text-stone-300 px-2.5 py-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800">
+                      ✏️ تعديل المساحة
+                    </button>
+                    <button onClick={() => setConfirming({ type: 'zone' })} disabled={busy}
+                      className="text-[11px] bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-2.5 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50">
+                      🗑 حذف
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -776,14 +784,14 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
             <span className="text-base">🔧</span>
             <div className="flex-1 space-y-0.5">
               <p>• اضغط على المربّعات الخضراء لإضافة صندوق · اضغط ➕ لإضافة بلا حدّ</p>
-              <p>• <strong>اسحب أيّ صندوق</strong> إلى رف آخر لنقله، أو إلى 🗑 لحذفه</p>
-              <p>• اضغط على اسم الرف ✏️ لإعادة تسميته · اضغط × لحذف عنصر</p>
+              <p>• اضغط <strong>✓</strong> على <strong>الصناديق والأغراض الكبيرة</strong> لتحديدها معاً، ثم اضغط السلّة 🗑 أو اسحبها إليها لحذفها دفعة واحدة</p>
+              <p>• <strong>اسحب أيّ صندوق</strong> إلى رف آخر لنقله · اضغط × لحذف عنصر · ✏️ لإعادة تسمية الرف</p>
             </div>
           </div>
         )}
 
-        {/* سلّة الحذف — تعمل بالسحب أو بالنقر بعد اختيار صناديق/أغراض */}
-        {isFounder && hasAnySelection && (
+        {/* سلّة الحذف — تعمل بالسحب أو بالنقر بعد اختيار صناديق/أغراض (في وضع التعديل فقط) */}
+        {isFounder && editMode && hasAnySelection && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOverTrash(true); }}
             onDragLeave={() => setDragOverTrash(false)}
@@ -807,8 +815,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         )}
 
-        {/* شريط التحديد المتعدّد العائم — صناديق و/أو أغراض */}
-        {hasAnySelection && (
+        {/* شريط التحديد المتعدّد العائم — صناديق و/أو أغراض (في وضع التعديل فقط) */}
+        {editMode && hasAnySelection && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-3 rounded-xl shadow-2xl border-2 border-blue-800 animate-fade-in max-w-[95vw]">
             <div className="flex items-center gap-2 flex-wrap justify-center">
               <span className="bg-white/20 px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap">
@@ -853,7 +861,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               {unassignedItems.map(it => (
                 <div key={it.id} className="bg-white dark:bg-stone-900 border border-amber-200 dark:border-stone-700 rounded-lg p-2 flex items-center gap-2.5">
                   {it.photo_url ? (
-                    <img src={it.photo_url} alt={it.name} className="w-10 h-10 object-cover rounded border border-stone-200 flex-shrink-0" />
+                    <img src={it.photo_url} alt={it.name}
+                      onClick={() => setZoomUrl(it.photo_url)}
+                      title="اضغط لتكبير الصورة"
+                      className="w-10 h-10 object-cover rounded border border-stone-200 dark:border-stone-700 flex-shrink-0 cursor-zoom-in" />
                   ) : (
                     <div className="w-10 h-10 rounded bg-gradient-to-br from-amber-50 to-stone-100 border border-stone-200 flex items-center justify-center text-[8px] font-bold text-stone-700 text-center p-1 flex-shrink-0 leading-tight overflow-hidden"><span className="line-clamp-2">{it.name}</span></div>
                   )}
@@ -861,7 +872,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     <div className="text-xs font-medium truncate">{it.name}</div>
                     <div className="text-[10px] text-stone-500">الكميّة: {it.quantity} · بدون صندوق</div>
                   </div>
-                  {isFounder && (
+                  {isFounder && editMode && (
                     <div className="flex items-center gap-1">
                       <button onClick={() => setAssigningItem(it)}
                         className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded font-medium whitespace-nowrap">
@@ -958,8 +969,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 const isItemSelected = selectedItemIds.has(it.id);
                                 return (
                                 <div key={`it-${it.id}`}
-                                  onClick={(e) => { if (!editMode && !hasAnySelection) { e.stopPropagation(); setEditingShelfItem(it); } }}
-                                  className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''}`}
+                                  onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoomUrl(it.photo_url); } }}
+                                  className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
                                   title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
                                   {it.photo_url ? (
                                     <img src={it.photo_url} alt={it.name} draggable={false}
@@ -970,7 +981,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                     </div>
                                   )}
                                   <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[8px] font-bold px-1 rounded pointer-events-none">×{it.quantity}</span>
-                                  {isFounder && (
+                                  {isFounder && editMode && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleItemClickToSelect(it, e); }}
                                       className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-lg shadow-md flex items-center justify-center z-20 transition ${
@@ -987,7 +998,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                   {isItemSelected && (
                                     <span className="absolute bottom-0.5 right-0.5 text-[8px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10 font-bold shadow">✓ مختار</span>
                                   )}
-                                  {(isFounder || can('edit')) && !hasAnySelection && (
+                                  {editMode && (isFounder || can('edit')) && !hasAnySelection && (
                                     <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition z-10">
                                       <button onClick={(e) => { e.stopPropagation(); setEditingShelfItem(it); }}
                                         className="w-4 h-4 rounded bg-white dark:bg-stone-800 dark:text-stone-300 text-stone-700 text-[8px] hover:bg-stone-100 dark:hover:bg-stone-700 shadow flex items-center justify-center" title="تعديل">✏️</button>
@@ -1005,7 +1016,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 const isDragging = draggedBox?.id === box.id;
                                 const isSelected = selectedBoxIds.has(box.id);
                                 const isRecentlyAdded = recentlyAddedBoxId === box.id;
-                                const showHandle = isFounder;
+                                const showHandle = isFounder && editMode;
                                 const isPositionDropTarget = hasActiveSelection && !activeBoxesForMove.find(b => b.id === box.id);
                                 const canOpenBox = !editMode && !hasAnySelection;
                                 return (
@@ -1046,15 +1057,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                         onDragStart={(e) => handleBoxDragStart(e, box)}
                                         onDragEnd={handleBoxDragEnd}
                                         onClick={(e) => { e.stopPropagation(); handleBoxClickToSelect(box, e); }}
-                                        className={`absolute top-1 right-1 w-6 h-6 rounded-lg shadow-md cursor-grab active:cursor-grabbing flex items-center justify-center z-20 transition ${
+                                        className={`absolute top-1 right-1 w-6 h-6 rounded-lg shadow-md cursor-pointer active:cursor-grabbing flex items-center justify-center z-20 transition ${
                                           isSelected
                                             ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
                                             : 'bg-white/95 dark:bg-stone-800 border-2 border-amber-700 dark:border-amber-600 hover:bg-amber-50 dark:hover:bg-stone-700'
                                         }`}
-                                        title="اسحب أو اضغط لنقل الصندوق"
+                                        title="اضغط لتحديد الصندوق (مع الأغراض) للحذف أو النقل — أو اسحبه لنقله"
                                       >
                                         <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 ${isSelected ? 'fill-white' : 'fill-amber-800'}`}>
-                                          <path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/>
+                                          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                                         </svg>
                                       </div>
                                     )}
@@ -1079,9 +1090,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                             </div>
                           );
                         }
-                        // الخانات الفارغة قابلة للنقر دائماً للمؤسّس (حتى خارج وضع التعديل)
-                        // وتقبل الإفلات إن كان هناك اختيار → نقل إلى هذا الموقع بالضبط
-                        return isFounder ? (
+                        // الخانات الفارغة تظهر فقط في وضع التعديل (للإضافة أو النقل إليها).
+                        // خارج وضع التعديل لا يُعرض إلا الصناديق — مكان فارغ شفّاف يحفظ ترتيب المواقع.
+                        return (isFounder && editMode) ? (
                           <button
                             key={`empty-${position}`}
                             onClick={(e) => { e.stopPropagation(); handleDropOrClickOnPosition(shelf, position); }}
@@ -1118,9 +1129,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                             )}
                           </button>
                         ) : (
-                          <div key={`empty-${position}`} className="flex-1 border border-dashed border-stone-300 rounded text-[9px] text-stone-400 flex items-center justify-center pointer-events-none">
-                            فارغ
-                          </div>
+                          <div key={`empty-${position}`} className="flex-1" aria-hidden="true" />
                         );
                       })}
 
@@ -1162,8 +1171,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
         {/* (أُزيل الفورم المكرّر — التحرير الآن في قسم إدارة الأرفف بالأسفل) */}
 
-        {/* قسم "إدارة الأرفف" — مخفيّ افتراضياً، يظهر بالضغط على زرّ التبديل */}
-        {isFounder && (
+        {/* قسم "إدارة الأرفف" — يظهر في وضع التعديل فقط */}
+        {isFounder && editMode && (
           <div className="border-t border-stone-200 dark:border-stone-800 pt-3 mt-4">
             <button
               onClick={() => setShelvesAdminOpen(s => !s)}

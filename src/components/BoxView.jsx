@@ -7,6 +7,7 @@ import LocationPicker from './LocationPicker';
 import CopyCodeButton from './CopyCodeButton';
 import { printBoxLabel } from './PrintBoxLabel';
 import TagInput, { TagChips } from './TagInput';
+import ImageLightbox from './ImageLightbox';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
@@ -23,6 +24,8 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
   const [checkoutItem, setCheckoutItem] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, flash] = useFlash();
+  // رابط الصورة المعروضة مكبّرة (نافذة التكبير) — null = مغلقة
+  const [zoomUrl, setZoomUrl] = useState(null);
 
   // الصندوق الحديث (يُحدَّث محليّاً بعد التعديل)
   const [currentBox, setCurrentBox] = useState(box);
@@ -181,6 +184,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
   return (
     <>
       <StatusToast msg={msg} />
+      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
 
       {/* شريط التنقّل — الرجوع مباشرةً للمساحة (لا تمرّ بشاشة الرفّ) */}
       <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
@@ -199,8 +203,9 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           <div className="flex items-center gap-3">
             {currentBox.photo_url ? (
               <img src={currentBox.photo_url} alt={currentBox.code}
-                className="w-20 h-20 object-cover rounded-lg border border-amber-200 cursor-zoom-in"
-                onClick={() => window.open(currentBox.photo_url, '_blank')} />
+                className="w-20 h-20 object-cover rounded-lg border border-amber-200 dark:border-amber-800 cursor-zoom-in"
+                title="اضغط لتكبير الصورة"
+                onClick={() => setZoomUrl(currentBox.photo_url)} />
             ) : (
               <div className="w-20 h-20 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-3xl">📦</div>
             )}
@@ -324,6 +329,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                         onDelete={() => setConfirming({ type: 'item', item: it })}
                         onClickHandle={(e) => handleItemClickHandle(it, e)}
                         onMove={() => setMovingItem(it)}
+                        onZoom={(url) => setZoomUrl(url)}
                       />
                     ))}
                   </div>
@@ -483,13 +489,16 @@ function AddItemInBoxForm({ busy, onCancel, onSave, tagSuggestions = [] }) {
 }
 
 // مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
-function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onDragStart, onDragEnd, onClickHandle, onMove }) {
+function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onDragStart, onDragEnd, onClickHandle, onMove, onZoom }) {
   return (
-    <div className={`bg-white dark:bg-stone-900 rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
+    <div title={item.name}
+      className={`bg-white dark:bg-stone-900 rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
       style={{ boxShadow: '0 2px 5px rgba(120,80,40,0.15), inset 0 1px 0 rgba(255,255,255,0.6)' }}>
       <>
-          {/* صورة الصنف — أو الاسم نصّاً إن لم توجد صورة */}
-          <div className="aspect-square bg-stone-50 dark:bg-stone-800 relative overflow-hidden">
+          {/* صورة الصنف — أو الاسم نصّاً إن لم توجد صورة. الضغط على الصورة يكبّرها */}
+          <div
+            onClick={() => item.photo_url && onZoom?.(item.photo_url)}
+            className={`aspect-square bg-stone-50 dark:bg-stone-800 relative overflow-hidden ${item.photo_url ? 'cursor-zoom-in' : ''}`}>
             {item.photo_url ? (
               <img src={item.photo_url} alt={item.name} draggable={false} className="w-full h-full object-cover pointer-events-none" />
             ) : (
@@ -531,7 +540,7 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
           {/* اسم الصنف + الوسوم (يظهران تحت الصورة فقط — وإن لم توجد صورة فالاسم في الأعلى) */}
           <div className="p-2">
             {item.photo_url && (
-              <h5 className="text-xs font-medium text-stone-900 dark:text-stone-200 truncate text-center mb-1">{item.name}</h5>
+              <h5 title={item.name} className="text-xs font-medium text-stone-900 dark:text-stone-200 text-center mb-1 break-words leading-tight">{item.name}</h5>
             )}
             {item.tags && item.tags.length > 0 && (
               <div className="flex justify-center mb-1.5">

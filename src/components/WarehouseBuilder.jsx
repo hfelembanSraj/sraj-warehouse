@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import PhotoUploader from './PhotoUploader';
 
 const PRESET_COLORS = ['#D85A30', '#185FA5', '#27500A', '#633806', '#7C3AED', '#0891B2', '#BE185D', '#65A30D'];
 const PRESET_POSITIONS = [
@@ -190,13 +191,19 @@ export default function WarehouseBuilder({ onClose, onChanged }) {
   }
 
   async function handleAddBox(values) {
-    const ok = await rpc('add_box_to_shelf', {
+    const newBoxId = await rpc('add_box_to_shelf', {
       s_id: nav.shelf.id,
       b_description: values.description?.trim() || '',
       b_width_cm: Number(values.width_cm) || 50,
       b_height_cm: Number(values.height_cm) || 65
     }, '✅ تمت إضافة الصندوق');
-    if (ok === null) return false;
+    if (newBoxId === null) return false;
+    // حفظ صورة الصندوق (إن وُجدت) — الـRPC لا يستقبل الصورة، فنحدّثها بعد الإنشاء
+    if (values.photo_url && newBoxId) {
+      const { error: photoErr } = await supabase.from('boxes')
+        .update({ photo_url: values.photo_url }).eq('id', newBoxId);
+      if (photoErr) flash('أُنشئ الصندوق لكن تعذّر حفظ الصورة — أعد رفعها من تعديل الصندوق', 'error');
+    }
     await loadLayout(nav.warehouse.id);
     await onChanged();
     return true;
@@ -207,7 +214,8 @@ export default function WarehouseBuilder({ onClose, onChanged }) {
     const { error } = await supabase.from('boxes').update({
       description: patch.description ?? box.description,
       width_cm: patch.width_cm ?? box.width_cm,
-      height_cm: patch.height_cm ?? box.height_cm
+      height_cm: patch.height_cm ?? box.height_cm,
+      photo_url: 'photo_url' in patch ? patch.photo_url : box.photo_url
     }).eq('id', box.id);
     setBusy(false);
     if (error) { flash('فشل الحفظ: ' + error.message, 'error'); return false; }
@@ -1121,6 +1129,7 @@ function AddBoxForm({ busy, onCancel, onSave }) {
   const [description, setDescription] = useState('');
   const [width_cm, setWidth] = useState(50);
   const [height_cm, setHeight] = useState(65);
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   return (
     <div className="bg-white border-2 border-blue-400 rounded-xl p-4 animate-fade-in">
@@ -1142,9 +1151,17 @@ function AddBoxForm({ busy, onCancel, onSave }) {
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
+        <div className="col-span-2">
+          <PhotoUploader
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            prefix="boxes"
+            label="صورة الصندوق (اختياريّة)"
+          />
+        </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ description, width_cm, height_cm })} disabled={busy}
+        <button onClick={() => onSave({ description, width_cm, height_cm, photo_url: photoUrl })} disabled={busy}
           className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
           💾 حفظ وإنشاء
         </button>
@@ -1160,11 +1177,13 @@ function BoxEditForm({ box, busy, onCancel, onSave }) {
   const [description, setDescription] = useState(box.description || '');
   const [width_cm, setWidth] = useState(box.width_cm || 50);
   const [height_cm, setHeight] = useState(box.height_cm || 65);
+  const [photoUrl, setPhotoUrl] = useState(box.photo_url || null);
 
   const dirty =
     description !== (box.description || '') ||
     Number(width_cm) !== Number(box.width_cm || 50) ||
-    Number(height_cm) !== Number(box.height_cm || 65);
+    Number(height_cm) !== Number(box.height_cm || 65) ||
+    photoUrl !== (box.photo_url || null);
 
   return (
     <div className="text-xs">
@@ -1184,9 +1203,17 @@ function BoxEditForm({ box, busy, onCancel, onSave }) {
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
+        <div className="col-span-2">
+          <PhotoUploader
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            prefix="boxes"
+            label="صورة الصندوق"
+          />
+        </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ description, width_cm: Number(width_cm), height_cm: Number(height_cm) })}
+        <button onClick={() => onSave({ description, width_cm: Number(width_cm), height_cm: Number(height_cm), photo_url: photoUrl })}
           disabled={busy || !dirty}
           className="flex-1 bg-brand-blue text-white py-1.5 rounded text-xs font-medium hover:bg-blue-800 disabled:opacity-30">
           💾 حفظ التعديلات
