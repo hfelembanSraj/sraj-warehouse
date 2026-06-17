@@ -143,8 +143,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       photo_url: values.photo_url || null,
       pos_top: 80,
       pos_left: 40 + jitter,
-      width_pct: 12,
-      height_pct: 12
+      width_pct: 9,
+      height_pct: 9
     });
     setBusy(false);
     if (!error) await logActivity('إضافة', `${values.name.trim()} × ${values.quantity}`, '(خارج المساحات)');
@@ -160,7 +160,9 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     const { error } = await supabase.from('items').update({
       name: patch.name?.trim(),
       quantity: Number(patch.quantity) || 1,
-      photo_url: patch.photo_url || null
+      photo_url: patch.photo_url || null,
+      ...(patch.width_pct != null ? { width_pct: patch.width_pct } : {}),
+      ...(patch.height_pct != null ? { height_pct: patch.height_pct } : {})
     }).eq('id', editingOutsideItem.id);
     setBusy(false);
     setEditingOutsideItem(null);
@@ -308,7 +310,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
 
               {outsideItems.length > 0 && (
                 <p className="text-center text-[10px] text-stone-500 dark:text-stone-400 mt-3">
-                  💡 <strong>{outsideItems.length}</strong> {outsideItems.length === 1 ? 'غرض' : 'أغراض'} خارج المساحات معروضة على الخريطة — اسحبها لتغيير موقعها
+                  💡 <strong>{outsideItems.length}</strong> {outsideItems.length === 1 ? 'غرض' : 'أغراض'} خارج المساحات — اسحبها لتغيير موقعها · المقبض ◢ أو ✏️ تعديل لتغيير الحجم
                 </p>
               )}
             </>
@@ -395,6 +397,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           <EditItemFormInline
             item={editingOutsideItem}
             busy={busy}
+            showSize={true}
             onCancel={() => setEditingOutsideItem(null)}
             onSave={handleSaveOutsideEdit}
           />
@@ -521,7 +524,7 @@ function WarehouseMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-xl aspect-[4/5] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
+      className="relative w-full max-w-3xl aspect-[4/6] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium">
         الجدار الخلفي
@@ -708,7 +711,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
               {shelvesToShow.map((sh) => {
                 const shelfBoxes = zoneBoxes.filter(b => b.code.split('-')[1] === String(sh.shelf_index));
                 const shelfLargeItems = (zoneItems || []).filter(it => it.shelf_id === sh.id);
-                const occupied = shelfBoxes.length + shelfLargeItems.length;
+                // كل غرض كبير يملأ خلايا بقدر نسبته من الرفّ (كامل = العمود كلّه)
+                const itemCells = shelfLargeItems.reduce((s, it) => {
+                  const pct = Number(it.width_pct);
+                  return s + Math.max(1, Math.round((pct >= 25 && pct <= 100 ? pct : 0) / 100 * (sh.max_boxes || 4)));
+                }, 0);
+                const occupied = shelfBoxes.length + itemCells;
                 const cap = Math.max(sh.max_boxes || 4, occupied, 1);
                 return (
                   <div key={sh.id}
@@ -973,42 +981,77 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
   );
 }
 
-// نموذج تعديل غرض من قائمة "كل الأغراض"
-function EditItemFormInline({ item, busy, onCancel, onSave }) {
+// نموذج تعديل غرض من قائمة "كل الأغراض". showSize=true يُظهر اختيار حجم الغرض الخارجي على الخريطة
+function EditItemFormInline({ item, busy, onCancel, onSave, showSize = false }) {
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity);
   const [photoUrl, setPhotoUrl] = useState(item.photo_url || null);
+  const [widthPct, setWidthPct] = useState(Number(item.width_pct) || 12);
+  const [heightPct, setHeightPct] = useState(Number(item.height_pct) || 12);
   const dirty =
     name !== item.name ||
     Number(quantity) !== Number(item.quantity) ||
-    photoUrl !== (item.photo_url || null);
+    photoUrl !== (item.photo_url || null) ||
+    (showSize && (widthPct !== (Number(item.width_pct) || 12) || heightPct !== (Number(item.height_pct) || 12)));
+
+  // مقاسات جاهزة (نسبة من عرض/ارتفاع الأرضية) + تكبير/تصغير يدويّ ضمن الحدود
+  const sizePresets = [{ t: 'صغير', w: 8, h: 8 }, { t: 'متوسط', w: 14, h: 14 }, { t: 'كبير', w: 22, h: 22 }, { t: 'كبير جداً', w: 32, h: 32 }];
+  const clampW = (v) => Math.max(5, Math.min(70, Math.round(v)));
+  const clampH = (v) => Math.max(5, Math.min(90, Math.round(v)));
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl }); }}
+    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl, ...(showSize ? { width_pct: widthPct, height_pct: heightPct } : {}) }); }}
       className="space-y-3">
       <div>
-        <label className="block text-xs text-stone-700 font-medium mb-1">الاسم</label>
+        <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">الاسم</label>
         <input value={name} onChange={e => setName(e.target.value)} autoFocus
-          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+          className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
       </div>
       <div>
-        <label className="block text-xs text-stone-700 font-medium mb-1">الكميّة</label>
+        <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">الكميّة</label>
         <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
-          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+          className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
       </div>
+      {showSize && (
+        <div>
+          <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">حجم الغرض على الخريطة</label>
+          <div className="grid grid-cols-4 gap-1.5 mb-1.5">
+            {sizePresets.map(p => {
+              const active = widthPct === p.w && heightPct === p.h;
+              return (
+                <button key={p.t} type="button" onClick={() => { setWidthPct(p.w); setHeightPct(p.h); }}
+                  className={`py-1.5 rounded-lg text-[11px] font-bold border transition ${
+                    active
+                      ? 'bg-amber-500 text-white border-amber-500'
+                      : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700'
+                  }`}>
+                  {p.t}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => { setWidthPct(w => clampW(w - 3)); setHeightPct(h => clampH(h - 3)); }}
+              className="w-8 h-8 rounded-lg border border-stone-300 dark:border-stone-600 dark:text-stone-300 text-lg font-bold hover:bg-stone-100 dark:hover:bg-stone-700">−</button>
+            <span className="text-[11px] text-stone-500 dark:text-stone-400 flex-1 text-center">ضبط دقيق</span>
+            <button type="button" onClick={() => { setWidthPct(w => clampW(w + 3)); setHeightPct(h => clampH(h + 3)); }}
+              className="w-8 h-8 rounded-lg border border-stone-300 dark:border-stone-600 dark:text-stone-300 text-lg font-bold hover:bg-stone-100 dark:hover:bg-stone-700">+</button>
+          </div>
+        </div>
+      )}
       <PhotoUploader
         value={photoUrl}
         onChange={setPhotoUrl}
         prefix="items"
         label="صورة الغرض (اختياريّة)"
       />
-      <div className="flex gap-2 pt-2 border-t border-stone-200">
+      <div className="flex gap-2 pt-2 border-t border-stone-200 dark:border-stone-700">
         <button type="submit" disabled={busy || !dirty || !name.trim()}
           className="flex-1 bg-brand-navy text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50">
           {busy ? '...' : '💾 حفظ'}
         </button>
         <button type="button" onClick={onCancel}
-          className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+          className="px-4 py-2 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
           إلغاء
         </button>
       </div>

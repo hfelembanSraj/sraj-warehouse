@@ -661,6 +661,52 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     await onRefresh();
   }
 
+  // بطاقة غرض كبير — تُعرَض في خانة موقع أو كشريط ممتدّ بعرض الرفّ (مستوى)
+  function renderLargeItem(it) {
+    const isItemSelected = selectedItemIds.has(it.id);
+    return (
+      <div key={`it-${it.id}`}
+        onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoom({ url: it.photo_url, caption: it.name }); } }}
+        className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
+        title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
+        {it.photo_url ? (
+          <img src={it.photo_url} alt={it.name} draggable={false}
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 pointer-events-none">
+            <span className="text-[9px] font-bold text-amber-900 dark:text-amber-100 text-center px-0.5 leading-tight line-clamp-3">{it.name}</span>
+          </div>
+        )}
+        <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[8px] font-bold px-1 rounded pointer-events-none">×{it.quantity}</span>
+        {isFounder && editMode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleItemClickToSelect(it, e); }}
+            className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-lg shadow-md flex items-center justify-center z-20 transition ${
+              isItemSelected
+                ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
+                : 'bg-white/95 dark:bg-stone-800 border-2 border-amber-700 dark:border-amber-600 hover:bg-amber-50 dark:hover:bg-stone-700'
+            }`}
+            title="اضغط لاختيار هذا الغرض مع الصناديق">
+            <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 ${isItemSelected ? 'fill-white' : 'fill-amber-800'}`}>
+              <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+          </button>
+        )}
+        {isItemSelected && (
+          <span className="absolute bottom-0.5 right-0.5 text-[8px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10 font-bold shadow">✓ مختار</span>
+        )}
+        {editMode && (isFounder || can('edit')) && !hasAnySelection && (
+          <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition z-10">
+            <button onClick={(e) => { e.stopPropagation(); setEditingShelfItem(it); }}
+              className="w-4 h-4 rounded bg-white dark:bg-stone-800 dark:text-stone-300 text-stone-700 text-[8px] hover:bg-stone-100 dark:hover:bg-stone-700 shadow flex items-center justify-center" title="تعديل">✏️</button>
+            <button onClick={(e) => { e.stopPropagation(); handleDeleteShelfItem(it); }}
+              className="w-4 h-4 rounded bg-red-500 text-white text-[8px] hover:bg-red-600 shadow flex items-center justify-center" title="حذف">🗑</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <StatusToast msg={msg} />
@@ -921,11 +967,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               ) : (
                 shelves.map(shelf => {
                   const shelfBoxes = getShelfBoxes(shelf.shelf_index);
-                  // أعلى موقع موجود (لتقدير عدد الـ slots المعروضة)
-                  const maxBoxIdx = shelfBoxes.length > 0
-                    ? Math.max(...shelfBoxes.map(b => b.box_index || 0))
-                    : 0;
+                  // أغراض "كامل" (≥100%) تُعرض كأشرطة بعرض الرفّ مرصوصة فوق بعضها؛ والباقي في صفّ الخانات
+                  const shelfAllItems = shelfItems.filter(it => it.shelf_id === shelf.id);
+                  const shelfFullItems = shelfAllItems.filter(it => Number(it.width_pct) >= 100);
+                  const slotItems = shelfAllItems.filter(it => !(Number(it.width_pct) >= 100));
+                  const maxBoxIdx = Math.max(0, ...shelfBoxes.map(b => b.box_index || 0), ...slotItems.map(it => it.box_index || 0));
                   const totalSlots = Math.max(shelf.max_boxes, maxBoxIdx);
+                  const showSlotRow = shelfBoxes.length > 0 || slotItems.length > 0 || editMode;
                   // الرف يصير drop target حتى خارج edit mode إن كان فيه سحب أو اختيار نشط
                   const dragModeActive = hasActiveSelection;
                   const isDropTarget = dragOverShelfId === shelf.id;
@@ -940,7 +988,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       onDragOver={(e) => { if (hasActiveSelection) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
                       onDragLeave={() => setDragOverShelfId(null)}
                       onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
-                      className={`flex-1 border-2 rounded p-1 flex gap-1 relative text-right transition ${
+                      className={`flex-1 border-2 rounded p-1 flex flex-col gap-1 relative text-right transition ${
                         fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50 dark:bg-stone-800'
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`}
                       style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
@@ -949,6 +997,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         {shelfDisplayName(shelf, shelves)}
                       </span>
 
+                      {/* أغراض "كامل" — كلٌّ شريط بعرض الرفّ، مرصوصة فوق بعضها كمستويات */}
+                      {shelfFullItems.map(it => renderLargeItem(it))}
+
+                      {showSlotRow && (
+                      <div className="flex gap-1 flex-1 min-h-0">
                       {/* رسم الـ slots على أساس الموقع — كل slot = موقع 1, 2, 3... */}
                       {Array.from({ length: totalSlots }).map((_, idx) => {
                         const position = idx + 1;
@@ -956,9 +1009,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         const boxesAtPos = shelfBoxes
                           .filter(b => b.box_index === position)
                           .sort((a, b) => (b.stack_index || 0) - (a.stack_index || 0));
-                        // الأغراض الكبيرة التي تشغل نفس الموقع على هذا الرفّ
-                        const itemsAtPos = shelfItems
-                          .filter(it => it.shelf_id === shelf.id && it.box_index === position)
+                        // الأغراض الكبيرة (عدا "كامل" التي تظهر كأشرطة) في هذا الموقع
+                        const itemsAtPos = slotItems
+                          .filter(it => it.box_index === position)
                           .sort((a, b) => (b.stack_index || 0) - (a.stack_index || 0));
                         if (boxesAtPos.length > 0 || itemsAtPos.length > 0) {
                           const topBox = boxesAtPos[0]; // قد يكون undefined لو الموقع فيه غرض فقط
@@ -982,50 +1035,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                   </svg>
                                 </button>
                               )}
-                              {itemsAtPos.map((it) => {
-                                const isItemSelected = selectedItemIds.has(it.id);
-                                return (
-                                <div key={`it-${it.id}`}
-                                  onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoom({ url: it.photo_url, caption: it.name }); } }}
-                                  className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
-                                  title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
-                                  {it.photo_url ? (
-                                    <img src={it.photo_url} alt={it.name} draggable={false}
-                                      className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                                  ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 pointer-events-none">
-                                      <span className="text-[9px] font-bold text-amber-900 dark:text-amber-100 text-center px-0.5 leading-tight line-clamp-3">{it.name}</span>
-                                    </div>
-                                  )}
-                                  <span className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[8px] font-bold px-1 rounded pointer-events-none">×{it.quantity}</span>
-                                  {isFounder && editMode && (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleItemClickToSelect(it, e); }}
-                                      className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-lg shadow-md flex items-center justify-center z-20 transition ${
-                                        isItemSelected
-                                          ? 'bg-blue-600 border-2 border-blue-700 hover:bg-blue-700'
-                                          : 'bg-white/95 dark:bg-stone-800 border-2 border-amber-700 dark:border-amber-600 hover:bg-amber-50 dark:hover:bg-stone-700'
-                                      }`}
-                                      title="اضغط لاختيار هذا الغرض مع الصناديق">
-                                      <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 ${isItemSelected ? 'fill-white' : 'fill-amber-800'}`}>
-                                        <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                                      </svg>
-                                    </button>
-                                  )}
-                                  {isItemSelected && (
-                                    <span className="absolute bottom-0.5 right-0.5 text-[8px] text-white bg-blue-600 px-1 py-0.5 rounded pointer-events-none z-10 font-bold shadow">✓ مختار</span>
-                                  )}
-                                  {editMode && (isFounder || can('edit')) && !hasAnySelection && (
-                                    <div className="absolute bottom-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition z-10">
-                                      <button onClick={(e) => { e.stopPropagation(); setEditingShelfItem(it); }}
-                                        className="w-4 h-4 rounded bg-white dark:bg-stone-800 dark:text-stone-300 text-stone-700 text-[8px] hover:bg-stone-100 dark:hover:bg-stone-700 shadow flex items-center justify-center" title="تعديل">✏️</button>
-                                      <button onClick={(e) => { e.stopPropagation(); handleDeleteShelfItem(it); }}
-                                        className="w-4 h-4 rounded bg-red-500 text-white text-[8px] hover:bg-red-600 shadow flex items-center justify-center" title="حذف">🗑</button>
-                                    </div>
-                                  )}
-                                </div>
-                                );
-                              })}
+                              {itemsAtPos.map(it => renderLargeItem(it))}
                               {boxesAtPos.map((box) => {
                                 const items = getBoxItems(box.id);
                                 const isOut = isCheckedOut(box.id);
@@ -1161,6 +1171,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           <span className="text-base leading-none">➕</span>
                           <span className="text-[8px]">جديد</span>
                         </button>
+                      )}
+                      </div>
                       )}
                     </div>
                   );
