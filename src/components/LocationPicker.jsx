@@ -43,10 +43,13 @@ export default function LocationPicker({
     setShowWhPicker(false);
     setSelectedZone(null);  // إعادة تعيين المساحة عند تبديل المستودع
     try {
-      const [layoutR, boxesR] = await Promise.all([
+      const [layoutR, boxesR, itemsR] = await Promise.all([
         fetchWarehouseLayout(wh.id),
         supabase.from('boxes').select('*')
-          .eq('warehouse_id', wh.id).is('deleted_at', null).not('shelf_id', 'is', null)
+          .eq('warehouse_id', wh.id).is('deleted_at', null).not('shelf_id', 'is', null),
+        // الأغراض الكبيرة في مساحات هذا المستودع (لاحتساب إشغال المواقع بشكل صحيح)
+        supabase.from('items').select('*, zones!inner(warehouse_id)')
+          .eq('zones.warehouse_id', wh.id).is('box_id', null).not('zone_id', 'is', null).is('deleted_at', null)
       ]);
       // استعلامات Supabase لا ترمي استثناءً — الخطأ يأتي في النتيجة
       if (layoutR.error || boxesR.error) {
@@ -55,7 +58,7 @@ export default function LocationPicker({
       setCurrentData({
         zones: layoutR.data?.zones || [],
         boxes: boxesR.data || [],
-        items: data?.items || []  // عناصر الواجهة الأصليّة (لا تتغيّر بين المستودعات بقدر اللزوم)
+        items: itemsR.data || []  // أغراض المستودع الهدف (للإشغال الصحيح للمواقع)
       });
       setCurrentWh(wh);
     } catch (e) {
@@ -85,7 +88,8 @@ export default function LocationPicker({
         return { full: true, label: 'لا توجد أرفف', color: 'red' };
       }
       const totalCap = shelves.reduce((s, sh) => s + (sh.max_boxes || 0), 0);
-      const used = zoneBoxes.length;
+      const zoneShelfItems = (currentData?.items || []).filter(it => it.box_id == null && it.shelf_id && shelves.some(s => s.id === it.shelf_id));
+      const used = zoneBoxes.length + zoneShelfItems.length;
       const available = totalCap - used;
       if (available <= 0) {
         return { full: true, label: 'ممتلئة 🚫', color: 'red' };
@@ -251,6 +255,9 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
 function PositionPickerStep({ zone, data, onPick, onBack }) {
   const shelves = (zone.shelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index);
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
+  // الأغراض الكبيرة تشغل مواقع على الرفّ أيضاً (box_id فارغ، shelf_id محدّد)
+  const shelfIdSet = new Set(shelves.map(s => s.id));
+  const zoneItems = (data.items || []).filter(it => it.box_id == null && it.shelf_id && shelfIdSet.has(it.shelf_id) && it.box_index != null);
 
   function getShelfBoxes(shelfIndex) {
     return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex));
@@ -268,8 +275,11 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
       <div className="space-y-3">
         {shelves.map(sh => {
           const shelfBoxes = getShelfBoxes(sh.shelf_index);
-          const totalSlots = sh.max_boxes || 4;
-          const fullShelf = shelfBoxes.length >= totalSlots;
+          const shelfItems = zoneItems.filter(it => it.shelf_id === sh.id);
+          const maxIdx = Math.max(0, ...shelfBoxes.map(b => b.box_index || 0), ...shelfItems.map(it => it.box_index || 0));
+          const totalSlots = Math.max(sh.max_boxes || 4, maxIdx);
+          const occupiedCount = new Set([...shelfBoxes.map(b => b.box_index), ...shelfItems.map(it => it.box_index)]).size;
+          const fullShelf = occupiedCount >= totalSlots;
           return (
             <div key={sh.id} className="bg-stone-50 border-2 rounded-xl p-2.5" style={{ borderColor: zone.color + '50' }}>
               <div className="flex items-center justify-between mb-2 text-xs">
@@ -277,7 +287,7 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
                   📚 {shelfDisplayName(sh, shelves)}
                 </span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${fullShelf ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>
-                  {shelfBoxes.length}/{totalSlots}
+                  {occupiedCount}/{totalSlots}
                   {fullShelf && ' · ممتلئ'}
                 </span>
               </div>
@@ -285,16 +295,17 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
                 {Array.from({ length: totalSlots }).map((_, idx) => {
                   const position = idx + 1;
                   const box = shelfBoxes.find(b => b.box_index === position);
-                  if (box) {
+                  const largeItem = shelfItems.find(it => it.box_index === position);
+                  if (box || largeItem) {
                     return (
                       <div key={`occ-${position}`}
-                        className="flex-1 h-14 rounded-lg flex flex-col items-center justify-center text-[9px] font-mono opacity-60"
+                        className="flex-1 h-14 rounded-lg flex flex-col items-center justify-center text-[9px] font-mono opacity-60 px-0.5 text-center"
                         style={{
                           backgroundColor: zone.color + '40',
                           border: `1px solid ${zone.color}80`
                         }}>
-                        <span className="font-bold">{box.code}</span>
-                        <span className="text-[8px] text-stone-700">مشغول</span>
+                        <span className="font-bold truncate max-w-full">{box ? box.code : largeItem.name}</span>
+                        <span className="text-[8px] text-stone-700">{box ? 'مشغول' : 'غرض كبير'}</span>
                       </div>
                     );
                   }
@@ -328,6 +339,8 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
   const [pickingNewBoxPosition, setPickingNewBoxPosition] = useState(false);
   const shelves = (zone.shelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index);
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zone.letter + '-'));
+  const shelfIdSet = new Set(shelves.map(s => s.id));
+  const zoneItems = (data.items || []).filter(it => it.box_id == null && it.shelf_id && shelfIdSet.has(it.shelf_id) && it.box_index != null);
 
   function getShelfBoxes(shelfIndex) {
     return zoneBoxes.filter(b => b.code.split('-')[1] === String(shelfIndex));
@@ -455,9 +468,8 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
           >
             {shelves.map(shelf => {
               const shelfBoxes = getShelfBoxes(shelf.shelf_index);
-              const maxBoxIdx = shelfBoxes.length > 0
-                ? Math.max(...shelfBoxes.map(b => b.box_index || 0))
-                : 0;
+              const shelfItems = zoneItems.filter(it => it.shelf_id === shelf.id);
+              const maxBoxIdx = Math.max(0, ...shelfBoxes.map(b => b.box_index || 0), ...shelfItems.map(it => it.box_index || 0));
               const totalSlots = Math.max(shelf.max_boxes || 4, maxBoxIdx);
               return (
                 <div key={shelf.id}
@@ -485,6 +497,18 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
                           />
                           <div className="absolute inset-0 ring-2 ring-blue-400 ring-offset-1 rounded opacity-0 hover:opacity-100 transition pointer-events-none"></div>
                         </button>
+                      );
+                    }
+                    const largeItem = shelfItems.find(it => it.box_index === position);
+                    if (largeItem) {
+                      return (
+                        <div key={`it-${position}`}
+                          className="flex-1 rounded border-2 border-amber-500 bg-amber-50 overflow-hidden flex items-center justify-center text-[8px] font-bold text-amber-900 text-center px-0.5 opacity-80"
+                          title={`${largeItem.name} — غرض كبير (الموقع ${position})`}>
+                          {largeItem.photo_url
+                            ? <img src={largeItem.photo_url} alt="" className="w-full h-full object-cover" />
+                            : <span className="line-clamp-2">{largeItem.name}</span>}
+                        </div>
                       );
                     }
                     return (

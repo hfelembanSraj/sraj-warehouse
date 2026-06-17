@@ -536,6 +536,7 @@ function WarehouseMapCanvas({
           boxCount={boxCountForZone(z.letter)}
           zoneShelves={z.shelves || []}
           zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
+          zoneItems={(data.items || []).filter(it => it.box_id == null && it.shelf_id != null && it.zone_id === z.id)}
           onClick={() => onZoneClick(z)}
           isFounder={isFounder}
           busy={busy}
@@ -657,7 +658,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [] }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [], zoneItems = [] }) {
   // إن وُجد displayRect (مستطيل بعد التقليص بسبب الأغراض) استخدمه، وإلا استعمل أبعاد الـDB
   const style = displayRect ? {
     top:    `${displayRect.top}%`,
@@ -706,7 +707,9 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
             <div className="flex-1 flex flex-row gap-[3px] items-stretch">
               {shelvesToShow.map((sh) => {
                 const shelfBoxes = zoneBoxes.filter(b => b.code.split('-')[1] === String(sh.shelf_index));
-                const cap = Math.max(sh.max_boxes || 4, shelfBoxes.length, 1);
+                const shelfLargeItems = (zoneItems || []).filter(it => it.shelf_id === sh.id);
+                const occupied = shelfBoxes.length + shelfLargeItems.length;
+                const cap = Math.max(sh.max_boxes || 4, occupied, 1);
                 return (
                   <div key={sh.id}
                     className="flex-1 flex flex-col rounded-md gap-[2px] p-[2px] relative"
@@ -715,14 +718,15 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
                       borderLeft:  `2px solid ${zone.color}40`,
                       backgroundColor: zone.color + '0a'
                     }}
-                    title={`الرف ${sh.shelf_index}${sh.label ? ' — ' + sh.label : ''} (${shelfBoxes.length}/${sh.max_boxes})`}
+                    title={`الرف ${sh.shelf_index}${sh.label ? ' — ' + sh.label : ''} (${occupied}/${sh.max_boxes})`}
                   >
                     {Array.from({ length: cap }).map((_, k) => {
-                      const has = k < shelfBoxes.length;
+                      const has = k < occupied;
+                      const isItemCell = k >= shelfBoxes.length && k < occupied; // خلية غرض كبير
                       return (
                         <div key={k} className="flex-1 rounded-[2px] transition"
                           style={{
-                            backgroundColor: has ? zone.color + 'd0' : 'transparent',
+                            backgroundColor: has ? (isItemCell ? '#d97706d0' : zone.color + 'd0') : 'transparent',
                             border: has ? 'none' : `1px dashed ${zone.color}40`,
                             minHeight: '3px'
                           }}>
@@ -748,6 +752,7 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
             borderColor: zone.color + '40'
           }}>
           {boxCount} {boxCount === 1 ? 'صندوق' : 'صناديق'}
+          {zoneItems.length > 0 && ` · ${zoneItems.length} غرض كبير`}
         </div>
       </button>
 
