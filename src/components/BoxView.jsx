@@ -10,7 +10,7 @@ import TagInput, { TagChips } from './TagInput';
 import ImageLightbox from './ImageLightbox';
 import { shelfDisplayName } from '../lib/helpers';
 import { EditBoxForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
-import { updateBox, deleteBox, softDeleteItem, moveItemToBox } from '../lib/warehouseOps';
+import { updateBox, deleteBox, softDeleteItem, moveItemToBox, rpcAddBox } from '../lib/warehouseOps';
 
 export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZone, onBackToShelf, onRefresh }) {
   const { isFounder, can, activeWarehouse } = useAuth();
@@ -26,6 +26,11 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
   const [msg, flash] = useFlash();
   // رابط الصورة المعروضة مكبّرة (نافذة التكبير) — null = مغلقة
   const [zoomUrl, setZoomUrl] = useState(null);
+  // النسخ: الغرض الجاري نسخه + حالات نسخ الصندوق
+  const [copyingItem, setCopyingItem] = useState(null);
+  const [copyingBox, setCopyingBox] = useState(false);
+  const [copyBoxWithItems, setCopyBoxWithItems] = useState(true);
+  const [copyBoxPickLocation, setCopyBoxPickLocation] = useState(false);
 
   // الصندوق الحديث (يُحدَّث محليّاً بعد التعديل)
   const [currentBox, setCurrentBox] = useState(box);
@@ -181,6 +186,65 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
     await onRefresh();
   }
 
+  // نسخ غرض إلى صندوق آخر (إنشاء نسخة جديدة — لا ينقل الأصل)
+  async function handleCopyItem(targetBoxId) {
+    if (!copyingItem || !targetBoxId) return;
+    const src = copyingItem;
+    setBusy(true);
+    const { error } = await supabase.from('items').insert({
+      box_id: targetBoxId,
+      name: src.name,
+      quantity: src.quantity,
+      status: src.status || 'ok',
+      photo_url: src.photo_url || null,
+      tags: src.tags || []
+    });
+    setBusy(false);
+    setCopyingItem(null);
+    if (error) return flash('فشل النسخ: ' + error.message, 'error');
+    flash(`✅ نُسخ "${src.name}"`);
+    await loadItems();
+    await onRefresh();
+  }
+
+  // نسخ الصندوق إلى موقع مختار (وأغراضه اختياريّاً) — إنشاء فقط، لا حذف
+  async function handleCopyBox({ shelf, position }) {
+    const src = currentBox;
+    const withItems = copyBoxWithItems;
+    setCopyBoxPickLocation(false);
+    setCopyingBox(false);
+    setBusy(true);
+    const { data: newBoxId, error, photoError } = await rpcAddBox(shelf.id, {
+      description: src.description || '',
+      width_cm: src.width_cm,
+      height_cm: src.height_cm,
+      photo_url: src.photo_url || null,
+      position
+    });
+    if (error) { setBusy(false); return flash('فشل نسخ الصندوق: ' + error.message, 'error'); }
+    let copiedCount = 0;
+    if (withItems && newBoxId) {
+      const { data: srcItems } = await supabase.from('items')
+        .select('*').eq('box_id', src.id).is('deleted_at', null);
+      if (srcItems && srcItems.length) {
+        const clones = srcItems.map(it => ({
+          box_id: newBoxId,
+          name: it.name,
+          quantity: it.quantity,
+          status: it.status || 'ok',
+          photo_url: it.photo_url || null,
+          tags: it.tags || []
+        }));
+        const { error: itemsErr } = await supabase.from('items').insert(clones);
+        if (!itemsErr) copiedCount = clones.length;
+      }
+    }
+    setBusy(false);
+    if (photoError) flash('نُسخ الصندوق لكن تعذّر نسخ صورته', 'error');
+    else flash(`✅ نُسخ الصندوق${copiedCount ? ` و ${copiedCount} غرض` : ''}`);
+    await onRefresh();
+  }
+
   return (
     <>
       <StatusToast msg={msg} />
@@ -232,6 +296,13 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
               title="اطبع ملصق هذا الصندوق فقط (QR + رمز + اسم المساحة)">
               🖨 طباعة الملصق
             </button>
+            {(isFounder || can('add')) && (
+              <button onClick={() => { setCopyBoxWithItems(true); setCopyBoxPickLocation(false); setCopyingBox(true); }} disabled={busy}
+                className="text-[11px] bg-teal-50 dark:bg-teal-900/30 border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-300 px-2.5 py-1.5 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50"
+                title="نسخ هذا الصندوق إلى مكان آخر">
+                📋 نسخ
+              </button>
+            )}
             {isFounder && (
               <>
                 <button onClick={() => setEditing(e => !e)} disabled={busy}
@@ -322,6 +393,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                         canEdit={isFounder || can('edit')}
                         canDelete={isFounder || can('delete')}
                         canMove={isFounder || can('edit')}
+                        canCopy={isFounder || can('add')}
                         busy={busy}
                         isSelected={selectedItemForMove?.id === it.id}
                         onCheckout={() => setCheckoutItem({ ...it, boxCode: currentBox.code, boxId: currentBox.id })}
@@ -329,6 +401,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                         onDelete={() => setConfirming({ type: 'item', item: it })}
                         onClickHandle={(e) => handleItemClickHandle(it, e)}
                         onMove={() => setMovingItem(it)}
+                        onCopy={() => setCopyingItem(it)}
                         onZoom={(url) => setZoomUrl(url)}
                       />
                     ))}
@@ -396,6 +469,59 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
           onSelect={({ box }) => handleMoveItem(box.id)}
           title={`📍 نقل "${movingItem.name}"`}
           subtitle={`من ${currentBox.code} · اختر الوجهة من خريطة المستودع`}
+        />
+      )}
+
+      {/* نسخ غرض إلى صندوق آخر */}
+      {copyingItem && (
+        <LocationPicker
+          mode="item"
+          data={data || { boxes: [], zones: [], items: [] }}
+          activeWarehouse={activeWarehouse}
+          onCancel={() => setCopyingItem(null)}
+          onSelect={({ box }) => handleCopyItem(box.id)}
+          title={`📋 نسخ "${copyingItem.name}"`}
+          subtitle="اختر الصندوق الذي تُوضَع فيه النسخة"
+        />
+      )}
+
+      {/* نسخ الصندوق — خطوة 1: خيارات النسخ */}
+      {copyingBox && !copyBoxPickLocation && (
+        <FormModal
+          title={`📋 نسخ الصندوق ${currentBox.code}`}
+          subtitle="يُنشأ صندوق جديد بنفس المواصفات في المكان الذي تختاره"
+          onClose={() => setCopyingBox(false)}
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-3 text-xs">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={copyBoxWithItems} onChange={e => setCopyBoxWithItems(e.target.checked)} className="w-4 h-4 accent-teal-600" />
+              <span className="dark:text-stone-300">انسخ الأغراض بداخله أيضاً{items.length > 0 ? ` (${items.length} غرض)` : ''}</span>
+            </label>
+            <div className="flex gap-2 pt-2 border-t border-stone-200 dark:border-stone-700">
+              <button onClick={() => setCopyBoxPickLocation(true)} disabled={busy}
+                className="flex-1 bg-gradient-to-l from-brand-navy to-brand-purple text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50">
+                اختر المكان ←
+              </button>
+              <button onClick={() => setCopyingBox(false)}
+                className="px-4 py-2 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </FormModal>
+      )}
+
+      {/* نسخ الصندوق — خطوة 2: اختيار المكان */}
+      {copyingBox && copyBoxPickLocation && (
+        <LocationPicker
+          mode="box"
+          data={data || { boxes: [], zones: [], items: [] }}
+          activeWarehouse={activeWarehouse}
+          onCancel={() => { setCopyBoxPickLocation(false); setCopyingBox(false); }}
+          onSelect={handleCopyBox}
+          title={`📋 نسخ الصندوق ${currentBox.code}`}
+          subtitle="اختر المستودع ثمّ المساحة ثمّ الموقع لوضع النسخة"
         />
       )}
 
@@ -489,7 +615,7 @@ function AddItemInBoxForm({ busy, onCancel, onSave, tagSuggestions = [] }) {
 }
 
 // مكوّن صنف من فوق (يبدو كأنّك تنظر إلى داخل الصندوق)
-function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onDragStart, onDragEnd, onClickHandle, onMove, onZoom }) {
+function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, canCopy, busy, isDragging, isSelected, onCheckout, onToggleEdit, onDelete, onDragStart, onDragEnd, onClickHandle, onMove, onCopy, onZoom }) {
   return (
     <div title={item.name}
       className={`bg-white dark:bg-stone-900 rounded-md border-2 border-amber-700/40 shadow-md hover:shadow-lg hover:border-amber-700/60 transition relative overflow-hidden ${isDragging ? 'opacity-30 scale-95' : ''} ${isSelected ? 'ring-4 ring-blue-500 ring-offset-1' : ''}`}
@@ -559,6 +685,13 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, busy, i
                   className="text-[9px] bg-purple-50 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-300 px-1.5 py-0.5 rounded hover:bg-purple-100 dark:hover:bg-purple-900/50"
                   title="نقل لصندوق آخر">
                   📍 نقل
+                </button>
+              )}
+              {canCopy && onCopy && (
+                <button onClick={onCopy} disabled={busy}
+                  className="text-[9px] bg-teal-50 dark:bg-teal-900/30 border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-300 px-1.5 py-0.5 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50"
+                  title="نسخ إلى صندوق آخر">
+                  📋 نسخ
                 </button>
               )}
               {canEdit && (

@@ -29,6 +29,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   const [editMode, setEditMode] = useState(false);
   // رابط الصورة المعروضة مكبّرة (نافذة التكبير) — null = مغلقة
   const [zoomUrl, setZoomUrl] = useState(null);
+  // الإضافة بلا وضع التعديل: قائمة الإضافة + اختيار موقع لصندوق/غرض كبير جديد
+  const [addMenu, setAddMenu] = useState(false);
+  const [placingNewBox, setPlacingNewBox] = useState(false);
+  const [placingNewLargeItem, setPlacingNewLargeItem] = useState(false);
 
   // حالة السحب والإفلات (للديسكتوب) + النقر للاختيار المتعدّد (للجوال أو لتحرّكات جماعيّة)
   const [draggedBox, setDraggedBox] = useState(null);
@@ -308,7 +312,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       name: values.name.trim(),
       quantity: Number(values.quantity) || 1,
       status: 'ok',
-      photo_url: values.photo_url || null
+      photo_url: values.photo_url || null,
+      width_pct: Number(values.width_pct) || 100
     }).select().single();
     setBusy(false);
     setAddItemAtSlot(null);
@@ -325,7 +330,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
     const { error } = await supabase.from('items').update({
       name: patch.name?.trim(),
       quantity: Number(patch.quantity) || 1,
-      photo_url: patch.photo_url || null
+      photo_url: patch.photo_url || null,
+      width_pct: Number(patch.width_pct) || 100
     }).eq('id', editingShelfItem.id);
     setBusy(false);
     setEditingShelfItem(null);
@@ -682,6 +688,12 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
+            {(isFounder || can('add')) && (
+              <button onClick={() => setAddMenu(true)} disabled={busy}
+                className="text-[11px] bg-gradient-to-l from-brand-navy to-brand-purple text-white px-3 py-1.5 rounded-lg font-bold hover:opacity-90 disabled:opacity-50 shadow-sm">
+                ➕ إضافة
+              </button>
+            )}
             {isFounder && (
               <>
                 {editMode && zoneBoxes.length > 0 && (
@@ -967,10 +979,14 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                               )}
                               {itemsAtPos.map((it) => {
                                 const isItemSelected = selectedItemIds.has(it.id);
+                                // عرض الغرض كنسبة من الموقع (القيم القديمة <25 تُعرض كاملة)
+                                const itemWidthPct = (Number(it.width_pct) >= 25 && Number(it.width_pct) <= 100) ? Number(it.width_pct) : 100;
+                                const sized = itemWidthPct < 100; // أصغر من الموقع → مربّع صغير يجلس أسفل الرفّ
                                 return (
                                 <div key={`it-${it.id}`}
                                   onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoomUrl(it.photo_url); } }}
-                                  className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
+                                  style={sized ? { width: `${itemWidthPct}%`, aspectRatio: '1 / 1' } : undefined}
+                                  className={`${sized ? 'mt-auto mx-auto' : 'flex-1'} relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
                                   title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
                                   {it.photo_url ? (
                                     <img src={it.photo_url} alt={it.name} draggable={false}
@@ -1448,6 +1464,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           <ZoneItemEditForm
             item={{ name: '', quantity: 1, photo_url: null }}
             busy={busy}
+            showSize={true}
             onCancel={() => setAddItemAtSlot(null)}
             onSave={handleAddItemAtSlot}
           />
@@ -1465,10 +1482,69 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           <ZoneItemEditForm
             item={editingShelfItem}
             busy={busy}
+            showSize={true}
             onCancel={() => setEditingShelfItem(null)}
             onSave={handleSaveShelfItemEdit}
           />
         </FormModal>
+      )}
+
+      {/* قائمة الإضافة السريعة — متاحة دائماً دون الدخول لوضع التعديل */}
+      {addMenu && (
+        <FormModal
+          title="➕ ماذا تريد أن تضيف؟"
+          subtitle={`في مساحة ${fresh.letter} — ${fresh.name}`}
+          onClose={() => setAddMenu(false)}
+          maxWidth="max-w-md"
+        >
+          <div className="grid grid-cols-1 gap-2.5">
+            <button onClick={() => { setAddMenu(false); setPlacingNewBox(true); }}
+              className="flex items-center gap-3 p-4 rounded-xl border-2 border-stone-200 dark:border-stone-700 dark:text-stone-200 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition text-right">
+              <span className="text-3xl">📦</span>
+              <span><span className="block text-sm font-bold">صندوق</span><span className="block text-[11px] text-stone-500 dark:text-stone-400">صندوق كرتوني في موقع على الرفّ</span></span>
+            </button>
+            <button onClick={() => { setAddMenu(false); setAddingItemInZone(true); }}
+              className="flex items-center gap-3 p-4 rounded-xl border-2 border-stone-200 dark:border-stone-700 dark:text-stone-200 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition text-right">
+              <span className="text-3xl">🔧</span>
+              <span><span className="block text-sm font-bold">غرض داخل صندوق</span><span className="block text-[11px] text-stone-500 dark:text-stone-400">يُحفَظ داخل صندوق تختاره</span></span>
+            </button>
+            <button onClick={() => { setAddMenu(false); setPlacingNewLargeItem(true); }}
+              className="flex items-center gap-3 p-4 rounded-xl border-2 border-stone-200 dark:border-stone-700 dark:text-stone-200 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition text-right">
+              <span className="text-3xl">🧊</span>
+              <span><span className="block text-sm font-bold">غرض كبير على الرفّ</span><span className="block text-[11px] text-stone-500 dark:text-stone-400">ثلاجة/طاولة كبيرة — يأخذ موقعاً على الرفّ</span></span>
+            </button>
+          </div>
+        </FormModal>
+      )}
+
+      {/* اختيار موقع لصندوق جديد (إضافة دون وضع التعديل) */}
+      {placingNewBox && (
+        <LocationPicker
+          mode="box"
+          data={data}
+          activeWarehouse={activeWarehouse}
+          initialZone={fresh}
+          lockZone={true}
+          onCancel={() => setPlacingNewBox(false)}
+          onSelect={({ shelf, position }) => { setPlacingNewBox(false); handleQuickAddBox(shelf, position); }}
+          title={`📦 إضافة صندوق في مساحة ${fresh.letter}`}
+          subtitle="اختر الموقع الذي يُوضَع فيه الصندوق الجديد"
+        />
+      )}
+
+      {/* اختيار موقع لغرض كبير جديد (إضافة دون وضع التعديل) */}
+      {placingNewLargeItem && (
+        <LocationPicker
+          mode="box"
+          data={data}
+          activeWarehouse={activeWarehouse}
+          initialZone={fresh}
+          lockZone={true}
+          onCancel={() => setPlacingNewLargeItem(false)}
+          onSelect={({ shelf, position }) => { setPlacingNewLargeItem(false); setAddItemAtSlot({ shelf, position, stack: false }); }}
+          title={`🧊 إضافة غرض كبير في مساحة ${fresh.letter}`}
+          subtitle="اختر الموقع الذي يُوضَع فيه الغرض الكبير"
+        />
       )}
 
       {/* الخريطة المصغّرة العائمة — للنقل بالسحب أو الانتقال السريع بين المساحات */}
@@ -1780,42 +1856,65 @@ function ZoneItemsList({ items, zoneBoxes, zone, onItemClick, onRefresh, onAddIt
   );
 }
 
-// نموذج تعديل غرض من قائمة "كل أغراض المساحة"
-function ZoneItemEditForm({ item, busy, onCancel, onSave }) {
+// نموذج تعديل غرض. showSize=true يُظهر مُحدِّد حجم الغرض الكبير على الرفّ.
+function ZoneItemEditForm({ item, busy, onCancel, onSave, showSize = false }) {
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity);
   const [photoUrl, setPhotoUrl] = useState(item.photo_url || null);
+  // حجم الغرض على الرفّ كنسبة من عرض الموقع (25/50/75/100). القيم القديمة (<25) تُعامَل ككامل
+  const initialWidth = (() => { const w = Number(item.width_pct); return (w >= 25 && w <= 100) ? w : 100; })();
+  const [widthPct, setWidthPct] = useState(initialWidth);
   const dirty =
     name !== item.name ||
     Number(quantity) !== Number(item.quantity) ||
-    photoUrl !== (item.photo_url || null);
+    photoUrl !== (item.photo_url || null) ||
+    (showSize && widthPct !== initialWidth);
+
+  const sizeOptions = [{ v: 25, t: 'ربع' }, { v: 50, t: 'نصف' }, { v: 75, t: '¾' }, { v: 100, t: 'كامل' }];
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl }); }}
+    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl, ...(showSize ? { width_pct: widthPct } : {}) }); }}
       className="space-y-3">
       <div>
-        <label className="block text-xs text-stone-700 font-medium mb-1">الاسم</label>
+        <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">الاسم</label>
         <input value={name} onChange={e => setName(e.target.value)} autoFocus
-          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+          className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
       </div>
       <div>
-        <label className="block text-xs text-stone-700 font-medium mb-1">الكميّة</label>
+        <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">الكميّة</label>
         <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
-          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
+          className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
       </div>
+      {showSize && (
+        <div>
+          <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">حجم الغرض على الرفّ (كم يأخذ من عرض الموقع)</label>
+          <div className="grid grid-cols-4 gap-1.5">
+            {sizeOptions.map(o => (
+              <button key={o.v} type="button" onClick={() => setWidthPct(o.v)}
+                className={`py-1.5 rounded-lg text-xs font-bold border transition ${
+                  widthPct === o.v
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-300 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700'
+                }`}>
+                {o.t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <PhotoUploader
         value={photoUrl}
         onChange={setPhotoUrl}
         prefix="items"
         label="صورة الغرض (اختياريّة)"
       />
-      <div className="flex gap-2 pt-2 border-t border-stone-200">
+      <div className="flex gap-2 pt-2 border-t border-stone-200 dark:border-stone-700">
         <button type="submit" disabled={busy || !dirty || !name.trim()}
           className="flex-1 bg-brand-navy text-white py-2 rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50">
           {busy ? '...' : '💾 حفظ'}
         </button>
         <button type="button" onClick={onCancel}
-          className="px-4 py-2 border border-stone-300 rounded-lg text-xs hover:bg-stone-100">
+          className="px-4 py-2 border border-stone-300 dark:border-stone-700 dark:text-stone-300 rounded-lg text-xs hover:bg-stone-100 dark:hover:bg-stone-800">
           إلغاء
         </button>
       </div>
