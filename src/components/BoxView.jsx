@@ -24,8 +24,8 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
   const [checkoutItem, setCheckoutItem] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, flash] = useFlash();
-  // رابط الصورة المعروضة مكبّرة (نافذة التكبير) — null = مغلقة
-  const [zoomUrl, setZoomUrl] = useState(null);
+  // الصورة المعروضة مكبّرة (نافذة التكبير): { url, caption } أو null
+  const [zoom, setZoom] = useState(null);
   // النسخ: الغرض الجاري نسخه + حالات نسخ الصندوق
   const [copyingItem, setCopyingItem] = useState(null);
   const [copyingBox, setCopyingBox] = useState(false);
@@ -248,7 +248,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
   return (
     <>
       <StatusToast msg={msg} />
-      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
+      <ImageLightbox url={zoom?.url} caption={zoom?.caption} onClose={() => setZoom(null)} />
 
       {/* شريط التنقّل — الرجوع مباشرةً للمساحة (لا تمرّ بشاشة الرفّ) */}
       <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
@@ -269,7 +269,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
               <img src={currentBox.photo_url} alt={currentBox.code}
                 className="w-20 h-20 object-cover rounded-lg border border-amber-200 dark:border-amber-800 cursor-zoom-in"
                 title="اضغط لتكبير الصورة"
-                onClick={() => setZoomUrl(currentBox.photo_url)} />
+                onClick={() => setZoom({ url: currentBox.photo_url, caption: `صندوق ${currentBox.code}` })} />
             ) : (
               <div className="w-20 h-20 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-3xl">📦</div>
             )}
@@ -402,7 +402,7 @@ export default function BoxView({ zone, shelf, box, data, onBackToMap, onBackToZ
                         onClickHandle={(e) => handleItemClickHandle(it, e)}
                         onMove={() => setMovingItem(it)}
                         onCopy={() => setCopyingItem(it)}
-                        onZoom={(url) => setZoomUrl(url)}
+                        onZoom={(url, name) => setZoom({ url, caption: name })}
                       />
                     ))}
                   </div>
@@ -623,7 +623,7 @@ function ItemFromAbove({ item, canCheckout, canEdit, canDelete, canMove, canCopy
       <>
           {/* صورة الصنف — أو الاسم نصّاً إن لم توجد صورة. الضغط على الصورة يكبّرها */}
           <div
-            onClick={() => item.photo_url && onZoom?.(item.photo_url)}
+            onClick={() => item.photo_url && onZoom?.(item.photo_url, item.name)}
             className={`aspect-square bg-stone-50 dark:bg-stone-800 relative overflow-hidden ${item.photo_url ? 'cursor-zoom-in' : ''}`}>
             {item.photo_url ? (
               <img src={item.photo_url} alt={item.name} draggable={false} className="w-full h-full object-cover pointer-events-none" />

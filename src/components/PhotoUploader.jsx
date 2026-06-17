@@ -28,6 +28,41 @@ export default function PhotoUploader({ value, onChange, prefix = 'item', disabl
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
+  // تدوير الصورة 90° (يُعيد رفعها مدوّرة فتبقى مدوّرة في كل مكان)
+  async function handleRotate() {
+    if (!value || uploading) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        im.onload = () => resolve(im);
+        im.onerror = () => reject(new Error('load'));
+        // كاسر تخزين مؤقّت لضمان طلب يحمل ترويسات CORS
+        im.src = value + (value.includes('?') ? '&' : '?') + 'r=' + value.length;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalHeight;
+      canvas.height = img.naturalWidth;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.95));
+      if (!blob) throw new Error('blob');
+      const file = new File([blob], 'rotated.jpg', { type: 'image/jpeg' });
+      const result = await uploadPhoto(file, prefix);
+      if (result.error) { setError(result.error); return; }
+      // لا نحذف الصورة القديمة هنا — حتى لو أُلغي النموذج قبل الحفظ تبقى الصورة سليمة
+      onChange(result.url);
+    } catch (e) {
+      setError('تعذّر تدوير الصورة — جرّب إعادة رفعها مدوّرة');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <div>
       <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">{label}</label>
@@ -42,23 +77,38 @@ export default function PhotoUploader({ value, onChange, prefix = 'item', disabl
       />
 
       {value ? (
-        <div className="relative inline-block">
-          <img src={value} alt="معاينة"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-24 h-24 object-cover rounded-lg border border-stone-300 dark:border-stone-600 cursor-pointer"
-            title="اضغط لاستبدال الصورة" />
-          <button
-            onClick={handleRemove}
-            disabled={disabled || uploading}
-            className="absolute -top-1 -left-1 w-5 h-5 bg-red-600 text-white rounded-full text-[10px] hover:bg-red-700 leading-none flex items-center justify-center"
-            title="حذف الصورة"
-          >×</button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || uploading}
-            className="absolute -bottom-1 -left-1 bg-white dark:bg-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-600 text-[9px] px-1.5 py-0.5 rounded shadow-sm hover:bg-stone-50 dark:hover:bg-stone-700"
-            title="استبدال"
-          >📷 تغيير</button>
+        <div className="inline-block">
+          <div className="relative inline-block">
+            <img src={value} alt="معاينة"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-24 h-24 object-cover rounded-lg border border-stone-300 dark:border-stone-600 cursor-pointer"
+              title="اضغط لاستبدال الصورة" />
+            <button
+              onClick={handleRemove}
+              disabled={disabled || uploading}
+              className="absolute -top-1 -left-1 w-5 h-5 bg-red-600 text-white rounded-full text-[10px] hover:bg-red-700 leading-none flex items-center justify-center"
+              title="حذف الصورة"
+            >×</button>
+            {uploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-1.5 mt-1 w-24">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || uploading}
+              className="flex-1 bg-white dark:bg-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-600 text-[9px] px-1 py-0.5 rounded shadow-sm hover:bg-stone-50 dark:hover:bg-stone-700 disabled:opacity-50"
+              title="استبدال الصورة"
+            >📷 تغيير</button>
+            <button
+              onClick={handleRotate}
+              disabled={disabled || uploading}
+              className="flex-1 bg-white dark:bg-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-600 text-[9px] px-1 py-0.5 rounded shadow-sm hover:bg-stone-50 dark:hover:bg-stone-700 disabled:opacity-50"
+              title="تدوير الصورة 90°"
+            >🔄 تدوير</button>
+          </div>
         </div>
       ) : (
         <button

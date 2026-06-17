@@ -27,8 +27,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
   // وضع التعديل التفاعلي على الرفّ
   const [editMode, setEditMode] = useState(false);
-  // رابط الصورة المعروضة مكبّرة (نافذة التكبير) — null = مغلقة
-  const [zoomUrl, setZoomUrl] = useState(null);
+  // الصورة المعروضة مكبّرة (نافذة التكبير): { url, caption } أو null
+  const [zoom, setZoom] = useState(null);
   // الإضافة بلا وضع التعديل: قائمة الإضافة + اختيار موقع لصندوق/غرض كبير جديد
   const [addMenu, setAddMenu] = useState(false);
   const [placingNewBox, setPlacingNewBox] = useState(false);
@@ -664,7 +664,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   return (
     <>
       <StatusToast msg={msg} />
-      <ImageLightbox url={zoomUrl} onClose={() => setZoomUrl(null)} />
+      <ImageLightbox url={zoom?.url} caption={zoom?.caption} onClose={() => setZoom(null)} />
 
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <button onClick={onBack} className="text-xs px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-100">→ الرجوع للمستودع</button>
@@ -874,7 +874,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                 <div key={it.id} className="bg-white dark:bg-stone-900 border border-amber-200 dark:border-stone-700 rounded-lg p-2 flex items-center gap-2.5">
                   {it.photo_url ? (
                     <img src={it.photo_url} alt={it.name}
-                      onClick={() => setZoomUrl(it.photo_url)}
+                      onClick={() => setZoom({ url: it.photo_url, caption: it.name })}
                       title="اضغط لتكبير الصورة"
                       className="w-10 h-10 object-cover rounded border border-stone-200 dark:border-stone-700 flex-shrink-0 cursor-zoom-in" />
                   ) : (
@@ -986,7 +986,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                                 const isItemSelected = selectedItemIds.has(it.id);
                                 return (
                                 <div key={`it-${it.id}`}
-                                  onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoomUrl(it.photo_url); } }}
+                                  onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoom({ url: it.photo_url, caption: it.name }); } }}
                                   className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
                                   title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
                                   {it.photo_url ? (
