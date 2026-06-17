@@ -313,7 +313,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       quantity: Number(values.quantity) || 1,
       status: 'ok',
       photo_url: values.photo_url || null,
-      width_pct: Number(values.width_pct) || 100
+      width_pct: Number(values.width_pct) || 0
     }).select().single();
     setBusy(false);
     setAddItemAtSlot(null);
@@ -331,7 +331,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
       name: patch.name?.trim(),
       quantity: Number(patch.quantity) || 1,
       photo_url: patch.photo_url || null,
-      width_pct: Number(patch.width_pct) || 100
+      width_pct: Number(patch.width_pct) || 0
     }).eq('id', editingShelfItem.id);
     setBusy(false);
     setEditingShelfItem(null);
@@ -962,8 +962,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                           .sort((a, b) => (b.stack_index || 0) - (a.stack_index || 0));
                         if (boxesAtPos.length > 0 || itemsAtPos.length > 0) {
                           const topBox = boxesAtPos[0]; // قد يكون undefined لو الموقع فيه غرض فقط
+                          // غرض كبير قد يمتدّ ليأخذ نسبة من عرض الرفّ كاملاً (إن لم يكن في الموقع صندوق)
+                          const spanItem = itemsAtPos[0];
+                          const shelfSpan = (spanItem && boxesAtPos.length === 0 && Number(spanItem.width_pct) >= 25 && Number(spanItem.width_pct) <= 100) ? Number(spanItem.width_pct) : null;
                           return (
-                            <div key={`stack-${position}`} className="flex-1 flex flex-col gap-0.5 relative">
+                            <div key={`stack-${position}`}
+                              style={shelfSpan ? { flex: `0 1 ${shelfSpan}%` } : undefined}
+                              className={`${shelfSpan ? '' : 'flex-1'} flex flex-col gap-0.5 relative`}>
                               {/* زرّ التكديس — وضع التعديل · يكدّس صندوقاً أو غرضاً فوق ما في الموقع */}
                               {isFounder && editMode && (
                                 <button
@@ -979,14 +984,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                               )}
                               {itemsAtPos.map((it) => {
                                 const isItemSelected = selectedItemIds.has(it.id);
-                                // عرض الغرض كنسبة من الموقع (القيم القديمة <25 تُعرض كاملة)
-                                const itemWidthPct = (Number(it.width_pct) >= 25 && Number(it.width_pct) <= 100) ? Number(it.width_pct) : 100;
-                                const sized = itemWidthPct < 100; // أصغر من الموقع → مربّع صغير يجلس أسفل الرفّ
                                 return (
                                 <div key={`it-${it.id}`}
                                   onClick={(e) => { if (!editMode && !hasAnySelection && it.photo_url) { e.stopPropagation(); setZoomUrl(it.photo_url); } }}
-                                  style={sized ? { width: `${itemWidthPct}%`, aspectRatio: '1 / 1' } : undefined}
-                                  className={`${sized ? 'mt-auto mx-auto' : 'flex-1'} relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
+                                  className={`flex-1 relative group rounded-sm border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 overflow-hidden shadow-sm transition ${isItemSelected ? 'ring-4 ring-blue-500 ring-offset-1 scale-105' : ''} ${!editMode && it.photo_url ? 'cursor-zoom-in' : ''}`}
                                   title={`${it.name} (الكميّة: ${it.quantity}) — غرض كبير`}>
                                   {it.photo_url ? (
                                     <img src={it.photo_url} alt={it.name} draggable={false}
@@ -1861,8 +1862,8 @@ function ZoneItemEditForm({ item, busy, onCancel, onSave, showSize = false }) {
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity);
   const [photoUrl, setPhotoUrl] = useState(item.photo_url || null);
-  // حجم الغرض على الرفّ كنسبة من عرض الموقع (25/50/75/100). القيم القديمة (<25) تُعامَل ككامل
-  const initialWidth = (() => { const w = Number(item.width_pct); return (w >= 25 && w <= 100) ? w : 100; })();
+  // كم يأخذ الغرض من عرض الرفّ كاملاً (0=خانة واحدة عاديّة، 25/50/75/100=نسبة من الرفّ). القيم القديمة (<25) = خانة واحدة
+  const initialWidth = (() => { const w = Number(item.width_pct); return (w >= 25 && w <= 100) ? w : 0; })();
   const [widthPct, setWidthPct] = useState(initialWidth);
   const dirty =
     name !== item.name ||
@@ -1870,7 +1871,7 @@ function ZoneItemEditForm({ item, busy, onCancel, onSave, showSize = false }) {
     photoUrl !== (item.photo_url || null) ||
     (showSize && widthPct !== initialWidth);
 
-  const sizeOptions = [{ v: 25, t: 'ربع' }, { v: 50, t: 'نصف' }, { v: 75, t: '¾' }, { v: 100, t: 'كامل' }];
+  const sizeOptions = [{ v: 0, t: 'خانة' }, { v: 25, t: 'ربع' }, { v: 50, t: 'نصف' }, { v: 75, t: '¾' }, { v: 100, t: 'كامل' }];
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl, ...(showSize ? { width_pct: widthPct } : {}) }); }}
@@ -1887,8 +1888,8 @@ function ZoneItemEditForm({ item, busy, onCancel, onSave, showSize = false }) {
       </div>
       {showSize && (
         <div>
-          <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">حجم الغرض على الرفّ (كم يأخذ من عرض الموقع)</label>
-          <div className="grid grid-cols-4 gap-1.5">
+          <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">كم يأخذ الغرض من عرض الرفّ؟ («خانة» = موقع واحد عاديّ)</label>
+          <div className="grid grid-cols-5 gap-1.5">
             {sizeOptions.map(o => (
               <button key={o.v} type="button" onClick={() => setWidthPct(o.v)}
                 className={`py-1.5 rounded-lg text-xs font-bold border transition ${
