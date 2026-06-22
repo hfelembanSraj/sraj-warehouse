@@ -5,7 +5,8 @@ import LocationPicker from './LocationPicker';
 import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import FreeItemSquare from './FreeItemSquare';
-import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition } from '../lib/warehouseOps';
+import useDragResize from '../lib/useDragResize';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
 
 // المساحات ثابتة لا تتحرّك أبداً؛ الأغراض الحرّة تُوضَع في أيّ مكان على
@@ -49,6 +50,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [showAddOutside, setShowAddOutside] = useState(false);
   // مودال تعديل غرض خارج المساحات
   const [editingOutsideItem, setEditingOutsideItem] = useState(null);
+  // وضع تحرير المخطّط (سحب/تكبير الغرف ثم القفل) — للمؤسّس فقط
+  const [layoutEditMode, setLayoutEditMode] = useState(false);
 
   const zones = data.zones || [];
 
@@ -203,6 +206,14 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {isFounder && viewMode === 'map' && (
+              <button onClick={() => setLayoutEditMode(e => !e)}
+                className={layoutEditMode
+                  ? "bg-green-600 text-white border border-green-700 text-xs px-3 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm"
+                  : "bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700/60 text-blue-900 dark:text-blue-200 text-xs px-3 py-2 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/60 font-medium"}>
+                {layoutEditMode ? '✅ اعتماد المخطّط (قفل)' : '✏️ تحرير المخطّط'}
+              </button>
+            )}
+            {isFounder && viewMode === 'map' && (
               <button onClick={() => setShowAddZone(s => !s)}
                 className="bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 text-xs px-3 py-2 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/60">
                 + 👑 مساحة جديدة
@@ -271,6 +282,16 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
             </div>
           ) : (
             <>
+              {layoutEditMode && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-3 mb-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
+                  <span className="text-base">✏️</span>
+                  <div className="flex-1 space-y-0.5">
+                    <p>• <strong>اسحب</strong> أيّ غرفة لتحريكها · اسحب المقبض ◢ في زاويتها لتغيير حجمها</p>
+                    <p>• اضغط ✏️ على الغرفة لتسميتها/تلوينها · اللون <strong>الرصاصي</strong> = هيكل ثابت (جدار/طاولة) · أيّ لون آخر = مكان تخزين</p>
+                    <p>• عند الانتهاء اضغط <strong>«✅ اعتماد المخطّط»</strong> ليُقفل ويصبح ثابتاً</p>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-center">
                 <WarehouseMapCanvas
                   zones={zones}
@@ -278,6 +299,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   data={data}
                   isFounder={isFounder}
                   busy={busy}
+                  layoutEditMode={layoutEditMode}
                   boxCountForZone={boxCountForZone}
                   onZoneClick={onZoneClick}
                   onZoneEdit={(z) => setEditingZoneId(editingZoneId === z.id ? null : z.id)}
@@ -488,11 +510,24 @@ function StatCard({ num, label, color = 'default', onClick }) {
 
 // ====== لوحة خريطة المستودع: مساحات + أغراض خارج المساحات (قابلة للسحب) ======
 function WarehouseMapCanvas({
-  zones, outsideItems, data, isFounder, busy,
+  zones, outsideItems, data, isFounder, busy, layoutEditMode,
   boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
   onItemEdit, onItemDelete, onRefresh, flash
 }) {
   const containerRef = useRef(null);
+
+  // حفظ موقع/حجم الغرفة بعد سحبها أو تكبيرها (وضع تحرير المخطّط)
+  async function handleZoneGeometry(zone, rect) {
+    try {
+      await rpcUpdateZone(zone, {
+        pos_top: rect.top, pos_left: rect.left, pos_right: null,
+        pos_width: rect.width, pos_height: rect.height
+      });
+      onRefresh?.();
+    } catch (err) {
+      flash?.('فشل حفظ المخطّط: ' + err.message, 'error');
+    }
+  }
   // مستطيلات المساحات كعوائق — الغرض الحرّ ممنوع أن يتداخل معها إطلاقاً
   const zoneObstacles = useMemo(() => zones.map(z => naturalZoneRect(z)), [zones]);
 
@@ -543,13 +578,16 @@ function WarehouseMapCanvas({
           onClick={() => onZoneClick(z)}
           isFounder={isFounder}
           busy={busy}
+          editMode={layoutEditMode}
+          containerRef={containerRef}
+          onGeometry={handleZoneGeometry}
           onEdit={() => onZoneEdit(z)}
           onDelete={() => onZoneDelete(z)}
         />
       ))}
 
-      {/* الأغراض خارج المساحات — مربّعات قابلة للسحب وتغيير الحجم في أيّ مكان */}
-      {outsideItems.map(it => (
+      {/* الأغراض خارج المساحات — مخفيّة أثناء تحرير المخطّط لتجنّب التداخل مع سحب الغرف */}
+      {!layoutEditMode && outsideItems.map(it => (
         <FreeItemSquare
           key={it.id}
           item={it}
@@ -661,57 +699,57 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [], zoneItems = [] }) {
-  // إن وُجد displayRect (مستطيل بعد التقليص بسبب الأغراض) استخدمه، وإلا استعمل أبعاد الـDB
-  const style = displayRect ? {
-    top:    `${displayRect.top}%`,
-    left:   `${displayRect.left}%`,
-    width:  `${displayRect.width}%`,
-    height: `${displayRect.height}%`,
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry }) {
+  const editing = editMode && isFounder;
+  // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
+  const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
+  const fallbackRect = { top: zone.pos_top ?? 0, left: zone.pos_left ?? 0, width: zone.pos_width ?? 18, height: zone.pos_height ?? 42 };
+  const { pos, mode, begin } = useDragResize({
+    rect: displayRect || fallbackRect,
+    containerRef,
+    enabled: editing,
+    onChange: (r) => onGeometry?.(zone, r)
+  });
+  const rect = editing ? pos : (displayRect || fallbackRect);
+  const style = {
+    top:    `${rect.top}%`,
+    left:   `${rect.left}%`,
+    width:  `${rect.width}%`,
+    height: `${rect.height}%`,
     borderColor: zone.color,
-    backgroundImage: `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+    backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+    backgroundColor: isDecor ? `${zone.color}66` : undefined,
     boxShadow: `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`,
-    transition: 'top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease'
-  } : {
-    top:    zone.pos_top    != null ? `${zone.pos_top}%`    : undefined,
-    bottom: (zone.pos_top == null && zone.pos_height != null) ? `${100 - zone.pos_height - 6}%` : undefined,
-    left:   zone.pos_left   != null ? `${zone.pos_left}%`   : undefined,
-    right:  zone.pos_right  != null ? `${zone.pos_right}%`  : undefined,
-    width:  zone.pos_width  != null ? `${zone.pos_width}%`  : undefined,
-    height: zone.pos_height != null ? `${zone.pos_height}%` : undefined,
-    borderColor: zone.color,
-    backgroundImage: `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
-    boxShadow: `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
+    transition: mode ? 'none' : 'top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease',
+    zIndex: mode ? 50 : undefined,
+    cursor: editing ? (mode === 'move' ? 'grabbing' : 'grab') : undefined,
+    touchAction: editing ? 'none' : undefined
   };
-  // عدد الأرفف المعروضة (حدّ أقصى 6) — مرتّبة بـ shelf_index تصاعدياً
-  // في RTL: أوّل عنصر في الـ DOM يظهر يميناً (= الرف الأوّل/الأسفل ماديّاً)
   const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
   const showShelves = shelvesToShow.length > 0;
 
   return (
-    <div style={style} className="absolute border-2 rounded-xl flex flex-col group overflow-hidden transition-transform hover:scale-[1.02]">
-      <button onClick={onClick} className="flex-1 hover:brightness-95 transition relative flex flex-col">
-        {/* الجدار العلويّ — حافّة الرف من فوق */}
+    <div style={style}
+      onMouseDown={editing ? (e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); } : undefined}
+      onTouchStart={editing ? (e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); } : undefined}
+      className={`absolute border-2 rounded-xl flex flex-col group overflow-hidden ${editing ? 'ring-2 ring-blue-500 ring-offset-1 select-none' : (isDecor ? '' : 'transition-transform hover:scale-[1.02]')}`}>
+      <button onClick={(editing || isDecor) ? undefined : onClick} className={`flex-1 relative flex flex-col w-full ${(editing || isDecor) ? '' : 'hover:brightness-95 transition'}`}>
         <div className="h-1.5 w-full" style={{ backgroundColor: zone.color, opacity: 0.85 }}></div>
 
         <div className="relative flex-1 flex flex-col px-1.5 py-2 gap-1">
-          {/* الحرف والاسم في طبقة علويّة */}
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none z-10">
-            <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>
+            {!isDecor && <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>}
             <div className="mt-1 leading-tight text-center font-semibold backdrop-blur rounded-full px-2 py-0.5 shadow-sm text-[10px]"
               style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
               {zone.name}
             </div>
           </div>
 
-          {showShelves ? (
-            // الأرفف: صفّ أفقي (في RTL: shelf_index=1 يظهر يميناً = الأوّل/الأسفل، الأكبر يظهر يساراً = الأعلى)
-            // كلّ رفّ عمود بصناديقه مكدّسة عمودياً
+          {!isDecor && (showShelves ? (
             <div className="flex-1 flex flex-row gap-[3px] items-stretch">
               {shelvesToShow.map((sh) => {
                 const shelfBoxes = zoneBoxes.filter(b => b.code.split('-')[1] === String(sh.shelf_index));
                 const shelfLargeItems = (zoneItems || []).filter(it => it.shelf_id === sh.id);
-                // كل غرض كبير يملأ خلايا بقدر نسبته من الرفّ (كامل = العمود كلّه)
                 const itemCells = shelfLargeItems.reduce((s, it) => {
                   const pct = Number(it.width_pct);
                   return s + Math.max(1, Math.round((pct >= 25 && pct <= 100 ? pct : 0) / 100 * (sh.max_boxes || 4)));
@@ -730,7 +768,7 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
                   >
                     {Array.from({ length: cap }).map((_, k) => {
                       const has = k < occupied;
-                      const isItemCell = k >= shelfBoxes.length && k < occupied; // خلية غرض كبير
+                      const isItemCell = k >= shelfBoxes.length && k < occupied;
                       return (
                         <div key={k} className="flex-1 rounded-[2px] transition"
                           style={{
@@ -749,31 +787,44 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
             <div className="flex-1 flex flex-col items-center justify-center">
               <div className="text-[9px] text-stone-400 italic">— لا توجد أرفف —</div>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* شريط معلومات الأسفل */}
-        <div className="text-[10px] text-center py-1 backdrop-blur border-t font-semibold"
-          style={{
-            backgroundColor: 'var(--tile-pill-bg)',
-            color: 'var(--tile-pill-text)',
-            borderColor: zone.color + '40'
-          }}>
-          {boxCount} {boxCount === 1 ? 'صندوق' : 'صناديق'}
-          {zoneItems.length > 0 && ` · ${zoneItems.length} غرض كبير`}
-        </div>
+        {!isDecor && (
+          <div className="text-[10px] text-center py-1 backdrop-blur border-t font-semibold"
+            style={{
+              backgroundColor: 'var(--tile-pill-bg)',
+              color: 'var(--tile-pill-text)',
+              borderColor: zone.color + '40'
+            }}>
+            {boxCount} {boxCount === 1 ? 'صندوق' : 'صناديق'}
+            {zoneItems.length > 0 && ` · ${zoneItems.length} غرض كبير`}
+          </div>
+        )}
       </button>
 
       {isFounder && (
         <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
-          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
+          <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
             className="text-[10px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
             title="تعديل"
           >✏️</button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
+          <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
             className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
             title="حذف"
           >🗑</button>
+        </div>
+      )}
+
+      {editing && (
+        <div
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('resize', e.clientX, e.clientY); }}
+          onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; if (t) begin('resize', t.clientX, t.clientY); }}
+          className="absolute bottom-0 left-0 w-6 h-6 flex items-end justify-start cursor-nesw-resize z-30"
+          title="اسحب لتغيير الحجم">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-blue-600 drop-shadow">
+            <path d="M22 22H2v-2h2v-2H2v-2h4v-2H2v-2h6V8H2V6h8V2h2v18h2v-6h2v6h2v-4h2v4h2v2z" transform="scale(-1,1) translate(-24,0)"/>
+          </svg>
         </div>
       )}
     </div>

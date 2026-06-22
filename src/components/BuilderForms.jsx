@@ -176,6 +176,7 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
                 style={{ backgroundColor: c }} />
             ))}
           </div>
+          <p className="text-[9px] text-stone-500 mt-1">الرصاصي = عنصر هيكلي ثابت (جدار/طاولة/خشب) غير قابل للضغط · أيّ لون آخر = مكان تخزين قابل للضغط</p>
         </div>
         <div>
           <label className="block text-[10px] text-stone-600 mb-1">العرض (سم)</label>
@@ -263,6 +264,7 @@ export function EditZoneForm({ zone, busy, onCancel, onSave }) {
                 style={{ backgroundColor: c }} />
             ))}
           </div>
+          <p className="text-[9px] text-stone-500 mt-1">الرصاصي = عنصر هيكلي ثابت (جدار/طاولة/خشب) غير قابل للضغط · أيّ لون آخر = مكان تخزين قابل للضغط</p>
         </div>
         <div>
           <label className="block text-[10px] text-stone-600 mb-1">العرض (سم)</label>

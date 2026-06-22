@@ -431,7 +431,9 @@ export async function fetchBoxesForShelf(shelf_id) {
   return supabase.from('boxes').select('*, items(*)').eq('shelf_id', shelf_id).is('deleted_at', null).order('box_index');
 }
 
-export const PRESET_COLORS = ['#D85A30', '#185FA5', '#27500A', '#633806', '#7C3AED', '#0891B2', '#BE185D', '#65A30D'];
+// لون العناصر الهيكليّة (جدران/طاولات/خشب): رصاصي = ثابت وغير قابل للضغط
+export const STRUCTURE_COLOR = '#9CA3AF';
+export const PRESET_COLORS = ['#D85A30', '#185FA5', '#27500A', '#633806', '#7C3AED', '#0891B2', '#BE185D', '#65A30D', STRUCTURE_COLOR];
 
 export const PRESET_POSITIONS = [
   { label: 'يمين-علوي',  pos_top: 6,  pos_right: 4,    pos_left: null, pos_width: 18, pos_height: 42 },
