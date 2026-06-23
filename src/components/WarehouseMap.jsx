@@ -52,6 +52,10 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [editingOutsideItem, setEditingOutsideItem] = useState(null);
   // وضع تحرير المخطّط (سحب/تكبير الغرف ثم القفل) — للمؤسّس فقط
   const [layoutEditMode, setLayoutEditMode] = useState(false);
+  // الرسم: شكل رُسم للتوّ وننتظر اختيار نوعه (جدار/مكتب/تخزين) — نِسب مئويّة
+  const [drawnRect, setDrawnRect] = useState(null);
+  // الشكل المرسوم المعلّق لمساحة تخزين (يُوضع فيها بعد ملء نموذج المساحة)
+  const [pendingDrawRect, setPendingDrawRect] = useState(null);
 
   const zones = data.zones || [];
 
@@ -59,18 +63,44 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     return data.boxes.filter(b => b.code.startsWith(letter + '-')).length;
   }
 
-  async function handleAddZone(values) {
+  // إنشاء مساحة/عنصر — مع وضعه اختيارياً في مستطيل مرسوم (rect نِسب مئويّة)
+  async function handleAddZone(values, rect = null) {
     if (zones.find(z => z.letter === values.letter.toUpperCase())) {
       flash('هذا الحرف موجود — اختر حرفاً آخر', 'error');
       return;
     }
     setBusy(true);
-    const { error } = await rpcAddZone(activeWarehouse.id, values);
+    const { data: newZoneId, error } = await rpcAddZone(activeWarehouse.id, values);
+    if (!error && newZoneId && rect) {
+      // ضع العنصر تماماً حيث رسمه المؤسّس
+      const { error: posErr } = await rpcUpdateZone(
+        { id: newZoneId },
+        { pos_top: rect.top, pos_left: rect.left, pos_right: null, pos_width: rect.width, pos_height: rect.height }
+      );
+      if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط موضعه: ' + posErr.message, 'error');
+    }
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
-    flash(`✅ تمت إضافة مساحة ${values.letter.toUpperCase()}`);
+    const kind = values.color === STRUCTURE_COLOR ? 'عنصر' : 'مساحة';
+    flash(`✅ تمت إضافة ${kind} ${values.letter.toUpperCase()}`);
     setShowAddZone(false);
+    setPendingDrawRect(null);
     await onRefresh();
+  }
+
+  // إنشاء عنصر هيكلي (جدار/مكتب) رصاصي بلا أرفف في الشكل المرسوم
+  async function createStructure(rect, name) {
+    const used = new Set(zones.map(z => z.letter));
+    let letter = '';
+    for (let i = 65; i <= 90; i++) {
+      const c = String.fromCharCode(i);
+      if (!used.has(c)) { letter = c; break; }
+    }
+    if (!letter) return flash('نفدت الحروف المتاحة — احذف عنصراً غير مستخدم أوّلاً', 'error');
+    await handleAddZone(
+      { letter, name, color: STRUCTURE_COLOR, width_cm: 100, height_cm: 100, depth_cm: 30, shelves_count: 0 },
+      rect
+    );
   }
 
   async function handleUpdateZone(zone, patch) {
@@ -255,29 +285,80 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
 
         {showAddZone && viewMode === 'map' && (
           <FormModal
-            title="+ مساحة تخزين جديدة"
-            onClose={() => setShowAddZone(false)}
+            title={pendingDrawRect ? '+ مساحة تخزين (في الشكل المرسوم)' : '+ مساحة تخزين جديدة'}
+            onClose={() => { setShowAddZone(false); setPendingDrawRect(null); }}
             maxWidth="max-w-lg"
           >
             <AddZoneForm
               busy={busy}
               existingLetters={zones.map(z => z.letter)}
-              onCancel={() => setShowAddZone(false)}
-              onSave={handleAddZone}
+              onCancel={() => { setShowAddZone(false); setPendingDrawRect(null); }}
+              onSave={(values) => handleAddZone(values, pendingDrawRect)}
             />
           </FormModal>
         )}
 
+        {/* بعد رسم شكل: اختيار نوعه */}
+        {drawnRect && viewMode === 'map' && (
+          <FormModal
+            title="ما الذي رسمته؟"
+            subtitle="اختر نوع الشكل ليُضاف إلى المخطّط"
+            onClose={() => setDrawnRect(null)}
+            maxWidth="max-w-sm"
+          >
+            <div className="grid gap-2">
+              <button
+                onClick={() => { const r = drawnRect; setDrawnRect(null); createStructure(r, 'جدار'); }}
+                disabled={busy}
+                className="flex items-center gap-3 p-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-right disabled:opacity-50">
+                <span className="text-xl">🧱</span>
+                <span className="flex-1">
+                  <span className="block text-sm font-bold dark:text-stone-200">جدار</span>
+                  <span className="block text-[11px] text-stone-500 dark:text-stone-400">عنصر هيكلي ثابت رصاصي — بلا أرفف</span>
+                </span>
+              </button>
+              <button
+                onClick={() => { const r = drawnRect; setDrawnRect(null); createStructure(r, 'مكتب'); }}
+                disabled={busy}
+                className="flex items-center gap-3 p-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-right disabled:opacity-50">
+                <span className="text-xl">🪑</span>
+                <span className="flex-1">
+                  <span className="block text-sm font-bold dark:text-stone-200">مكتب / طاولة</span>
+                  <span className="block text-[11px] text-stone-500 dark:text-stone-400">عنصر هيكلي ثابت رصاصي — بلا أرفف</span>
+                </span>
+              </button>
+              <button
+                onClick={() => { setPendingDrawRect(drawnRect); setDrawnRect(null); setShowAddZone(true); }}
+                disabled={busy}
+                className="flex items-center gap-3 p-3 rounded-lg border-2 border-brand-blue/60 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-right disabled:opacity-50">
+                <span className="text-xl">📦</span>
+                <span className="flex-1">
+                  <span className="block text-sm font-bold text-brand-navy dark:text-blue-200">مساحة تخزين</span>
+                  <span className="block text-[11px] text-stone-500 dark:text-stone-400">مكان مُلوّن بأرفف — يُخزَّن فيه فعليّاً</span>
+                </span>
+              </button>
+            </div>
+          </FormModal>
+        )}
+
         {viewMode === 'map' ? (
-          zones.length === 0 ? (
+          (zones.length === 0 && !(isFounder && layoutEditMode)) ? (
             <div className="text-center py-12 text-stone-400">
               <div className="text-3xl mb-2">📭</div>
               <p className="text-sm mb-2">هذا المستودع فارغ — لا توجد مساحات تخزين بعد</p>
-              {isFounder && !showAddZone && (
-                <button onClick={() => setShowAddZone(true)}
-                  className="mt-2 bg-amber-500 text-white text-xs px-4 py-2 rounded-lg hover:bg-amber-600">
-                  🏗 ابدأ ببناء أوّل مساحة
-                </button>
+              {isFounder && (
+                <div className="flex flex-col items-center gap-2 mt-2">
+                  {!showAddZone && (
+                    <button onClick={() => setShowAddZone(true)}
+                      className="bg-amber-500 text-white text-xs px-4 py-2 rounded-lg hover:bg-amber-600">
+                      🏗 ابدأ ببناء أوّل مساحة
+                    </button>
+                  )}
+                  <button onClick={() => setLayoutEditMode(true)}
+                    className="bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700/60 text-blue-900 dark:text-blue-200 text-xs px-4 py-2 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/60">
+                    ✏️ ارسم المخطّط (جدران ومكاتب ومساحات)
+                  </button>
+                </div>
               )}
             </div>
           ) : (
@@ -286,6 +367,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-3 mb-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
                   <span className="text-base">✏️</span>
                   <div className="flex-1 space-y-0.5">
+                    <p>• ✏️ <strong>ارسم</strong>: اسحب على أرضيّة فارغة لرسم شكل جديد، ثمّ اختر: جدار / مكتب (رصاصي هيكلي) أو مساحة تخزين (ملوّنة)</p>
                     <p>• <strong>اسحب</strong> أيّ غرفة لتحريكها · اسحب المقبض ◢ في زاويتها لتغيير حجمها</p>
                     <p>• اضغط ✏️ على الغرفة لتسميتها/تلوينها · اللون <strong>الرصاصي</strong> = هيكل ثابت (جدار/طاولة) · أيّ لون آخر = مكان تخزين</p>
                     <p>• عند الانتهاء اضغط <strong>«✅ اعتماد المخطّط»</strong> ليُقفل ويصبح ثابتاً</p>
@@ -306,6 +388,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onZoneDelete={(z) => setConfirming({ zone: z })}
                   onItemEdit={(it) => setEditingOutsideItem(it)}
                   onItemDelete={handleDeleteOutsideItem}
+                  onDrawComplete={(rect) => setDrawnRect(rect)}
                   onRefresh={onRefresh}
                   flash={flash}
                 />
@@ -512,9 +595,69 @@ function StatCard({ num, label, color = 'default', onClick }) {
 function WarehouseMapCanvas({
   zones, outsideItems, data, isFounder, busy, layoutEditMode,
   boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
-  onItemEdit, onItemDelete, onRefresh, flash
+  onItemEdit, onItemDelete, onDrawComplete, onRefresh, flash
 }) {
   const containerRef = useRef(null);
+
+  // ====== الرسم: في وضع التحرير، اسحب على أرضيّة فارغة لرسم شكل جديد ======
+  const canDraw = layoutEditMode && isFounder;
+  const [drawRect, setDrawRect] = useState(null); // الشكل قيد الرسم — نِسب مئويّة
+  const [isDrawing, setIsDrawing] = useState(false);
+  const drawRectRef = useRef(null);
+  const drawStartRef = useRef(null);
+  useEffect(() => { drawRectRef.current = drawRect; }, [drawRect]);
+
+  function pctFromClient(clientX, clientY) {
+    const r = containerRef.current?.getBoundingClientRect();
+    if (!r) return { x: 0, y: 0 };
+    return {
+      x: Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - r.top) / r.height) * 100))
+    };
+  }
+
+  function beginDraw(clientX, clientY) {
+    const p = pctFromClient(clientX, clientY);
+    drawStartRef.current = p;
+    setDrawRect({ left: p.x, top: p.y, width: 0, height: 0 });
+    setIsDrawing(true);
+  }
+
+  useEffect(() => {
+    if (!isDrawing) return;
+    function move(cx, cy) {
+      const s = drawStartRef.current;
+      if (!s) return;
+      const p = pctFromClient(cx, cy);
+      setDrawRect({
+        left: Math.min(s.x, p.x),
+        top: Math.min(s.y, p.y),
+        width: Math.abs(p.x - s.x),
+        height: Math.abs(p.y - s.y)
+      });
+    }
+    function onMM(e) { move(e.clientX, e.clientY); }
+    function onTM(e) { if (e.touches[0]) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); } }
+    function onUp() {
+      const rect = drawRectRef.current;
+      setIsDrawing(false);
+      setDrawRect(null);
+      drawStartRef.current = null;
+      // تجاهل النقرات الصغيرة — لا بدّ من مساحة معقولة لاعتبارها رسماً
+      if (rect && rect.width >= 4 && rect.height >= 4) onDrawComplete?.(rect);
+    }
+    window.addEventListener('mousemove', onMM);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onTM, { passive: false });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMM);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onTM);
+      window.removeEventListener('touchend', onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawing]);
 
   // حفظ موقع/حجم الغرفة بعد سحبها أو تكبيرها (وضع تحرير المخطّط)
   async function handleZoneGeometry(zone, rect) {
@@ -559,11 +702,28 @@ function WarehouseMapCanvas({
   return (
     <div
       ref={containerRef}
+      onMouseDown={canDraw ? (e) => { if (e.target === containerRef.current) { e.preventDefault(); beginDraw(e.clientX, e.clientY); } } : undefined}
+      onTouchStart={canDraw ? (e) => { if (e.target === containerRef.current && e.touches[0]) { beginDraw(e.touches[0].clientX, e.touches[0].clientY); } } : undefined}
+      style={{ cursor: canDraw ? 'crosshair' : undefined, touchAction: canDraw ? 'none' : undefined }}
       className="relative w-full max-w-3xl aspect-[4/6] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
-      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium">
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium pointer-events-none">
         الجدار الخلفي
       </div>
+
+      {/* مستطيل الرسم المؤقّت */}
+      {drawRect && (
+        <div
+          className="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 rounded-lg pointer-events-none z-40"
+          style={{ left: `${drawRect.left}%`, top: `${drawRect.top}%`, width: `${drawRect.width}%`, height: `${drawRect.height}%` }}
+        />
+      )}
+
+      {canDraw && (
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-blue-500 dark:text-blue-400 tracking-wide font-medium pointer-events-none z-30">
+          ✏️ اسحب على الفراغ لرسم شكل
+        </div>
+      )}
 
       {/* مساحات التخزين ثابتة تماماً — لا تتحرّك ولا تتقلّص إطلاقاً */}
       {zones.map(z => (

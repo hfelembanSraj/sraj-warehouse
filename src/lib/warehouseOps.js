@@ -25,6 +25,13 @@ export async function rpcDeleteWarehouse(wh_id) {
 }
 
 export async function rpcAddZone(wh_id, values) {
+  // عدد الأرفف: نحترم القيمة 0 صراحةً (للعناصر الهيكليّة: جدار/مكتب بلا أرفف)؛
+  // ونرجع للافتراضي 3 فقط عند الفراغ/القيمة غير الصالحة.
+  const rawShelves = values.shelves_count;
+  const shelves_count =
+    rawShelves === '' || rawShelves == null || Number.isNaN(Number(rawShelves))
+      ? 3
+      : Math.max(0, Number(rawShelves));
   return supabase.rpc('add_zone', {
     wh_id,
     zone_letter: values.letter.toUpperCase(),
@@ -33,7 +40,7 @@ export async function rpcAddZone(wh_id, values) {
     zone_width_cm: Number(values.width_cm) || 200,
     zone_height_cm: Number(values.height_cm) || 230,
     zone_depth_cm: Number(values.depth_cm) || 65,
-    shelves_count: Number(values.shelves_count) || 3
+    shelves_count
   });
 }
 
