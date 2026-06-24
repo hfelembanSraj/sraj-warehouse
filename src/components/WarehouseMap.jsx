@@ -83,7 +83,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         {
           pos_top: rect.top, pos_left: rect.left, pos_right: null,
           pos_width: rect.width, pos_height: rect.height,
-          points: rect.points || null
+          // نمرّر النقاط فقط حين تكون مضلّعاً فعليّاً (تبقى المستطيلات متوافقة قبل الترقية)
+          ...(Array.isArray(rect.points) ? { points: rect.points } : {})
         }
       );
       if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط موضعه: ' + posErr.message, 'error');
