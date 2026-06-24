@@ -77,10 +77,14 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     setBusy(true);
     const { data: newZoneId, error } = await rpcAddZone(activeWarehouse.id, values);
     if (!error && newZoneId && rect) {
-      // ضع العنصر تماماً حيث رسمه المؤسّس
+      // ضع العنصر تماماً حيث رسمه المؤسّس (مع شكل المضلّع إن وُجد)
       const { error: posErr } = await rpcUpdateZone(
         { id: newZoneId },
-        { pos_top: rect.top, pos_left: rect.left, pos_right: null, pos_width: rect.width, pos_height: rect.height }
+        {
+          pos_top: rect.top, pos_left: rect.left, pos_right: null,
+          pos_width: rect.width, pos_height: rect.height,
+          points: rect.points || null
+        }
       );
       if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط موضعه: ' + posErr.message, 'error');
     }
@@ -372,7 +376,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-3 mb-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
                   <span className="text-base">✏️</span>
                   <div className="flex-1 space-y-0.5">
-                    <p>• ✏️ <strong>ارسم</strong>: اسحب على أرضيّة فارغة لرسم شكل جديد، ثمّ اختر: جدار / مكتب (رصاصي هيكلي) أو مساحة تخزين (ملوّنة)</p>
+                    <p>• ✏️ <strong>ارسم شكلاً</strong>: اضغط الزرّ، ثمّ اضغط نقاطاً على الأرضيّة (تتّصل بخطوط)، وأغلق الشكل بالضغط على النقطة الأولى أو «أغلق الشكل»، ثمّ اختر: جدار / مكتب أو مساحة تخزين</p>
                     <p>• <strong>اسحب</strong> أيّ غرفة لتحريكها · اسحب المقبض ◢ في زاويتها لتغيير حجمها</p>
                     <p>• اضغط ✏️ على الغرفة لتسميتها/تلوينها · اللون <strong>الرصاصي</strong> = هيكل ثابت (جدار/طاولة) · أيّ لون آخر = مكان تخزين</p>
                     <p>• عند الانتهاء اضغط <strong>«✅ اعتماد المخطّط»</strong> ليُقفل ويصبح ثابتاً</p>
@@ -645,65 +649,68 @@ function WarehouseMapCanvas({
 }) {
   const containerRef = useRef(null);
 
-  // ====== الرسم: في وضع التحرير، اسحب على أرضيّة فارغة لرسم شكل جديد ======
+  // ====== الرسم بالخطوط: في وضع التحرير، اضغط لإضافة نقاط ثمّ أغلق الشكل ======
   const canDraw = layoutEditMode && isFounder;
-  const [drawRect, setDrawRect] = useState(null); // الشكل قيد الرسم — نِسب مئويّة
-  const [isDrawing, setIsDrawing] = useState(false);
-  const drawRectRef = useRef(null);
-  const drawStartRef = useRef(null);
-  useEffect(() => { drawRectRef.current = drawRect; }, [drawRect]);
+  const [polyActive, setPolyActive] = useState(false);
+  const [polyPoints, setPolyPoints] = useState([]); // [{x,y}] نِسب مئويّة على الأرضيّة
 
   function pctFromClient(clientX, clientY) {
-    const r = containerRef.current?.getBoundingClientRect();
-    if (!r) return { x: 0, y: 0 };
+    const el = containerRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    // نقيس نسبةً لصندوق الحشو (padding box) — وهو الإطار الذي تُموضَع عليه الغرف
+    // المطلقة بالنِّسب — حتى يقع الشكل تماماً حيث رُسم (الحدّ border-2 + الحشو px-4/py-8).
+    const left = r.left + el.clientLeft;
+    const top  = r.top  + el.clientTop;
+    const w = el.clientWidth  || r.width;
+    const h = el.clientHeight || r.height;
     return {
-      x: Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100)),
-      y: Math.max(0, Math.min(100, ((clientY - r.top) / r.height) * 100))
+      x: Math.max(0, Math.min(100, ((clientX - left) / w) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - top) / h) * 100))
     };
   }
 
-  function beginDraw(clientX, clientY) {
+  // تحويل نقاط الأرضيّة إلى شكل: مربّع إحاطة + نقاط نسبيّة لـ«الامتداد الحقيقي»
+  // (لا للمربّع المقصوص) حتى لا تنضغط الجدران الرفيعة. مع رفض الأشكال المتحلّلة.
+  function finishPolygon(pts) {
+    if (!pts || pts.length < 3) return;
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const truW = Math.max(...xs) - minX, truH = Math.max(...ys) - minY;
+    // مساحة المضلّع (shoelace) — لرفض الخطوط المستقيمة (مساحة ≈ 0)
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+    }
+    area = Math.abs(area) / 2;
+    if (area < 0.4 || (truW < 0.8 && truH < 0.8)) {
+      flash?.('الشكل صغير جداً أو خطّ مستقيم — ارسم مضلّعاً له مساحة', 'error');
+      setPolyActive(false);
+      setPolyPoints([]);
+      return;
+    }
+    // النقاط نسبةً للامتداد الحقيقي (لا للقيمة المقصوصة) لئلّا تنضغط
+    const rel = pts.map(p => ({
+      x: Math.round((truW > 0.01 ? (p.x - minX) / truW : 0) * 1000) / 10,
+      y: Math.round((truH > 0.01 ? (p.y - minY) / truH : 0) * 1000) / 10
+    }));
+    // مربّع الإحاطة بحدّ أدنى للسماكة حتى يبقى مرئيّاً وقابلاً للتفاعل
+    const w = Math.max(1.5, truW), h = Math.max(1.5, truH);
+    setPolyActive(false);
+    setPolyPoints([]);
+    onDrawComplete?.({ top: minY, left: minX, width: w, height: h, points: rel });
+  }
+
+  function handleFloorClick(clientX, clientY) {
     const p = pctFromClient(clientX, clientY);
-    drawStartRef.current = p;
-    setDrawRect({ left: p.x, top: p.y, width: 0, height: 0 });
-    setIsDrawing(true);
+    // الضغط قرب النقطة الأولى (مع ≥3 نقاط) يُغلق الشكل
+    if (polyPoints.length >= 3) {
+      const first = polyPoints[0];
+      if (Math.abs(p.x - first.x) < 3.5 && Math.abs(p.y - first.y) < 3.5) { finishPolygon(polyPoints); return; }
+    }
+    setPolyPoints(pts => [...pts, p]);
   }
-
-  useEffect(() => {
-    if (!isDrawing) return;
-    function move(cx, cy) {
-      const s = drawStartRef.current;
-      if (!s) return;
-      const p = pctFromClient(cx, cy);
-      setDrawRect({
-        left: Math.min(s.x, p.x),
-        top: Math.min(s.y, p.y),
-        width: Math.abs(p.x - s.x),
-        height: Math.abs(p.y - s.y)
-      });
-    }
-    function onMM(e) { move(e.clientX, e.clientY); }
-    function onTM(e) { if (e.touches[0]) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); } }
-    function onUp() {
-      const rect = drawRectRef.current;
-      setIsDrawing(false);
-      setDrawRect(null);
-      drawStartRef.current = null;
-      // تجاهل النقرات الصغيرة — لا بدّ من مساحة معقولة لاعتبارها رسماً
-      if (rect && rect.width >= 4 && rect.height >= 4) onDrawComplete?.(rect);
-    }
-    window.addEventListener('mousemove', onMM);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onTM, { passive: false });
-    window.addEventListener('touchend', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMM);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onTM);
-      window.removeEventListener('touchend', onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDrawing]);
 
   // حفظ موقع/حجم الغرفة بعد سحبها أو تكبيرها (وضع تحرير المخطّط)
   async function handleZoneGeometry(zone, rect) {
@@ -748,26 +755,58 @@ function WarehouseMapCanvas({
   return (
     <div
       ref={containerRef}
-      onMouseDown={canDraw ? (e) => { if (e.target === containerRef.current) { e.preventDefault(); beginDraw(e.clientX, e.clientY); } } : undefined}
-      onTouchStart={canDraw ? (e) => { if (e.target === containerRef.current && e.touches[0]) { beginDraw(e.touches[0].clientX, e.touches[0].clientY); } } : undefined}
-      style={{ cursor: canDraw ? 'crosshair' : undefined, touchAction: canDraw ? 'none' : undefined }}
       className="relative w-full max-w-3xl aspect-[4/6] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium pointer-events-none">
         الجدار الخلفي
       </div>
 
-      {/* مستطيل الرسم المؤقّت */}
-      {drawRect && (
-        <div
-          className="absolute border-2 border-dashed border-blue-500 bg-blue-500/10 rounded-lg pointer-events-none z-40"
-          style={{ left: `${drawRect.left}%`, top: `${drawRect.top}%`, width: `${drawRect.width}%`, height: `${drawRect.height}%` }}
-        />
+      {/* زرّ بدء الرسم بالخطوط */}
+      {canDraw && !polyActive && (
+        <button
+          onClick={() => { setPolyActive(true); setPolyPoints([]); }}
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 text-[11px] bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-blue-700 font-bold">
+          ✏️ ارسم شكلاً
+        </button>
       )}
 
-      {canDraw && (
-        <div className="absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-blue-500 dark:text-blue-400 tracking-wide font-medium pointer-events-none z-30">
-          ✏️ اسحب على الفراغ لرسم شكل
+      {/* طبقة الرسم بالخطوط — تلتقط الضغطات لإضافة نقاط */}
+      {polyActive && (
+        <div
+          className="absolute inset-0 z-50 cursor-crosshair"
+          style={{ touchAction: 'none' }}
+          onPointerUp={(e) => handleFloorClick(e.clientX, e.clientY)}>
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {polyPoints.length >= 2 && (
+              <polygon
+                points={polyPoints.map(p => `${p.x},${p.y}`).join(' ')}
+                fill="rgba(37,99,235,0.12)" stroke="#2563eb" strokeWidth="1.5"
+                strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+            )}
+            {polyPoints.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.8 : 1.2}
+                fill={i === 0 ? '#1d4ed8' : '#3b82f6'} stroke="#fff" strokeWidth="0.5"
+                vectorEffect="non-scaling-stroke" />
+            ))}
+          </svg>
+          {/* أزرار التحكّم */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 flex gap-2 z-10" onPointerUp={(e) => e.stopPropagation()}>
+            <button onClick={() => finishPolygon(polyPoints)} disabled={polyPoints.length < 3}
+              className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-green-700 font-bold disabled:opacity-40">
+              ✅ أغلق الشكل
+            </button>
+            <button onClick={() => setPolyPoints(pts => pts.slice(0, -1))} disabled={polyPoints.length === 0}
+              className="text-[11px] bg-white text-stone-700 border border-stone-300 px-3 py-1.5 rounded-lg shadow hover:bg-stone-100 disabled:opacity-40">
+              ↶ تراجع
+            </button>
+            <button onClick={() => { setPolyActive(false); setPolyPoints([]); }}
+              className="text-[11px] bg-white text-red-600 border border-red-300 px-3 py-1.5 rounded-lg shadow hover:bg-red-50">
+              ✕ إلغاء
+            </button>
+          </div>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-blue-700 dark:text-blue-300 bg-white/85 dark:bg-stone-800/85 px-3 py-1 rounded-full font-medium text-center">
+            اضغط لإضافة نقطة · اضغط النقطة الأولى أو «أغلق الشكل» للإنهاء ({polyPoints.length})
+          </div>
         </div>
       )}
 
@@ -920,6 +959,11 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     onChange: (r) => onGeometry?.(zone, r)
   });
   const rect = editing ? pos : (displayRect || fallbackRect);
+  // شكل المضلّع (إن وُجد) — يُقصّ بالنسب المئويّة داخل مربّع الإحاطة. خارج وضع
+  // التحرير فقط، حتى يبقى مقبضا التحريك/التكبير على المربّع الكامل متاحَين.
+  const polyClip = Array.isArray(zone.points) && zone.points.length >= 3
+    ? `polygon(${zone.points.map(p => `${p.x}% ${p.y}%`).join(', ')})`
+    : undefined;
   const style = {
     top:    `${rect.top}%`,
     left:   `${rect.left}%`,
@@ -932,7 +976,8 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     transition: mode ? 'none' : 'top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease',
     zIndex: mode ? 50 : undefined,
     cursor: editing ? (mode === 'move' ? 'grabbing' : 'grab') : undefined,
-    touchAction: editing ? 'none' : undefined
+    touchAction: editing ? 'none' : undefined,
+    clipPath: editing ? undefined : polyClip
   };
   const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
   const showShelves = shelvesToShow.length > 0;

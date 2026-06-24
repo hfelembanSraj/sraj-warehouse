@@ -56,7 +56,10 @@ export async function rpcUpdateZone(z, patch) {
     z_pos_left: 'pos_left' in patch ? patch.pos_left : z.pos_left,
     z_pos_right: 'pos_right' in patch ? patch.pos_right : z.pos_right,
     z_pos_width: patch.pos_width ?? null,
-    z_pos_height: patch.pos_height ?? null
+    z_pos_height: patch.pos_height ?? null,
+    // نقاط المضلّع: تُكتب مباشرةً. عند التحريك/التكبير (بلا points في patch)
+    // نُعيد إرسال نقاط المساحة الحاليّة حتى لا تُمحى ويعود الشكل مستطيلاً.
+    z_points: 'points' in patch ? patch.points : (z.points ?? null)
   });
 }
 

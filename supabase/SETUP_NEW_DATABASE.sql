@@ -356,6 +356,7 @@ CREATE TABLE IF NOT EXISTS zones (
   width_cm NUMERIC DEFAULT 200, height_cm NUMERIC DEFAULT 230, depth_cm NUMERIC DEFAULT 65,
   pos_top NUMERIC DEFAULT 6, pos_left NUMERIC DEFAULT NULL, pos_right NUMERIC DEFAULT 4,
   pos_width NUMERIC DEFAULT 18, pos_height NUMERIC DEFAULT 42,
+  points JSONB DEFAULT NULL,
   display_order INTEGER DEFAULT 0, deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(warehouse_id, letter)
 );
@@ -464,7 +465,8 @@ CREATE OR REPLACE FUNCTION public.update_zone(
   z_id UUID, z_name TEXT DEFAULT NULL, z_color TEXT DEFAULT NULL,
   z_width_cm NUMERIC DEFAULT NULL, z_height_cm NUMERIC DEFAULT NULL, z_depth_cm NUMERIC DEFAULT NULL,
   z_pos_top NUMERIC DEFAULT NULL, z_pos_left NUMERIC DEFAULT NULL, z_pos_right NUMERIC DEFAULT NULL,
-  z_pos_width NUMERIC DEFAULT NULL, z_pos_height NUMERIC DEFAULT NULL)
+  z_pos_width NUMERIC DEFAULT NULL, z_pos_height NUMERIC DEFAULT NULL,
+  z_points JSONB DEFAULT NULL)
 RETURNS VOID AS $$
 BEGIN
   IF NOT public.is_founder(auth.uid()) THEN RAISE EXCEPTION 'محظور: للمؤسّس فقط'; END IF;
@@ -472,7 +474,8 @@ BEGIN
     width_cm=COALESCE(z_width_cm,width_cm), height_cm=COALESCE(z_height_cm,height_cm),
     depth_cm=COALESCE(z_depth_cm,depth_cm), pos_top=COALESCE(z_pos_top,pos_top),
     pos_left=z_pos_left, pos_right=z_pos_right,
-    pos_width=COALESCE(z_pos_width,pos_width), pos_height=COALESCE(z_pos_height,pos_height)
+    pos_width=COALESCE(z_pos_width,pos_width), pos_height=COALESCE(z_pos_height,pos_height),
+    points=z_points
   WHERE id = z_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -877,6 +880,7 @@ RETURNS JSON AS $$
             'width_cm', z.width_cm, 'height_cm', z.height_cm, 'depth_cm', z.depth_cm,
             'pos_top', z.pos_top, 'pos_left', z.pos_left, 'pos_right', z.pos_right,
             'pos_width', z.pos_width, 'pos_height', z.pos_height, 'display_order', z.display_order,
+            'points', z.points,
             'shelves', COALESCE((
               SELECT json_agg(sh ORDER BY (sh->>'shelf_index')::int) FROM (
                 SELECT json_build_object('id', s.id, 'shelf_index', s.shelf_index, 'label', s.label,
