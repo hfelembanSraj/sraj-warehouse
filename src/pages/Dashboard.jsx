@@ -171,6 +171,27 @@ export default function Dashboard() {
         ...(itemsUnassignedR.data || []),
         ...(itemsOutsideR.data || [])
       ];
+      // المستخدمون: المؤسّس يرى كل المسجّلين (بإيميلاتهم) مع عضويّتهم في المستودع
+      // النشط (إن وُجدت)؛ غير المؤسّس يرى أعضاء مستودعه فقط.
+      let users = usersR.data || [];
+      if (isFounder) {
+        const [profilesR, membersR] = await Promise.all([
+          supabase.from('profiles').select('*').order('created_at', { ascending: true }),
+          supabase.from('user_warehouses').select('*').eq('warehouse_id', warehouseId)
+        ]);
+        users = (profilesR.data || []).map(p => {
+          const m = (membersR.data || []).find(mm => mm.user_id === p.id);
+          return {
+            id: m?.id || null,
+            user_id: p.id,
+            warehouse_id: warehouseId,
+            role: m?.role || 'user',
+            permissions: m?.permissions || {},
+            approved: m?.approved ?? null,
+            profiles: p
+          };
+        });
+      }
       setData({
         boxes: boxesR.data || [],
         items: allItems,
@@ -179,7 +200,7 @@ export default function Dashboard() {
         donated: donatedR.data || [],
         log: logR.data || [],
         requests: requestsR.data || [],
-        users: usersR.data || [],
+        users,
         zones: layoutR.data?.zones || []
       });
     } catch (e) {

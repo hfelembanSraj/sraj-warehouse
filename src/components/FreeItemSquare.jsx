@@ -29,9 +29,12 @@ function resolveBelow(rect, obstacles) {
 
 export default function FreeItemSquare({
   item, containerRef, isFounder,
-  onEdit, onDelete, onDropped, onResized,
-  minTopPct = 0, obstacles = []
+  onEdit, onDelete, onDropped, onResized, onView,
+  editMode = false, minTopPct = 0, obstacles = []
 }) {
+  // التحريك والتكبير والتعديل/الحذف: في وضع التعديل فقط (للمؤسّس). خارج وضع
+  // التعديل: ضغطة تفتح بطاقة عرض الغرض (لكل المستخدمين).
+  const canEdit = isFounder && editMode;
   const [pos, setPos] = useState({
     top:    item.pos_top    ?? Math.max(minTopPct, 40),
     left:   item.pos_left   ?? 40,
@@ -41,6 +44,7 @@ export default function FreeItemSquare({
   const [mode, setMode] = useState(null);   // 'move' | 'resize' | null
   const stRef = useRef(null);
   const healedRef = useRef(false);
+  const tapRef = useRef(null);              // لكشف النقرة (tap) على اللمس لفتح العرض
 
   useEffect(() => {
     if (!mode) {
@@ -67,7 +71,7 @@ export default function FreeItemSquare({
   }, [mode, obstacles, pos.left, pos.top, pos.width, pos.height, item, onDropped]);
 
   function begin(kind, clientX, clientY) {
-    if (!isFounder) return;
+    if (!canEdit) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     stRef.current = {
@@ -114,7 +118,7 @@ export default function FreeItemSquare({
       }
     }
     function onMove(e) { handleMove(e.clientX, e.clientY); }
-    function onTM(e)   { if (e.touches[0]) handleMove(e.touches[0].clientX, e.touches[0].clientY); }
+    function onTM(e)   { if (e.touches[0]) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); } }
     function onUp() {
       const m = mode;
       setMode(null);
@@ -142,19 +146,40 @@ export default function FreeItemSquare({
     left:   `${pos.left}%`,
     width:  `${pos.width}%`,
     height: `${pos.height}%`,
-    cursor: isFounder ? (mode === 'move' ? 'grabbing' : 'grab') : 'default',
-    zIndex: mode ? 40 : 25
+    cursor: canEdit ? (mode === 'move' ? 'grabbing' : 'grab') : (onView ? 'pointer' : 'default'),
+    zIndex: mode ? 40 : 25,
+    // في وضع التعديل: امنع تمرير الصفحة أثناء السحب باللمس
+    touchAction: canEdit ? 'none' : undefined
   };
 
   return (
     <div
       style={style}
-      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); }}
-      onTouchStart={(e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); }}
+      onMouseDown={canEdit ? (e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); } : undefined}
+      onTouchStart={
+        canEdit
+          ? (e) => { e.preventDefault(); const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); }
+          : (onView ? (e) => { const t = e.touches[0]; if (t) tapRef.current = { x: t.clientX, y: t.clientY }; } : undefined)
+      }
+      onTouchEnd={
+        !canEdit && onView
+          ? (e) => {
+              const s = tapRef.current; tapRef.current = null;
+              const t = e.changedTouches[0];
+              // افتح العرض فقط إن كانت نقرة (حركة بسيطة) لا تمريراً
+              if (s && t && Math.abs(t.clientX - s.x) < 12 && Math.abs(t.clientY - s.y) < 12) {
+                e.preventDefault(); e.stopPropagation(); onView();
+              }
+            }
+          : undefined
+      }
+      onClick={!canEdit && onView ? (e) => { e.stopPropagation(); onView(); } : undefined}
       className={`group rounded-md border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/40 shadow-md hover:shadow-lg transition select-none overflow-hidden ${
         mode ? 'ring-2 ring-amber-600 ring-offset-1' : ''
       }`}
-      title={`${item.name} (الكميّة: ${item.quantity}) — اسحب للتحريك · المقبض ◢ لتغيير الحجم`}
+      title={canEdit
+        ? `${item.name} (الكميّة: ${item.quantity}) — اسحب للتحريك · المقبض ◢ لتغيير الحجم`
+        : `${item.name} (الكميّة: ${item.quantity}) — اضغط للعرض`}
     >
       {item.photo_url ? (
         <img src={item.photo_url} alt={item.name} draggable={false}
@@ -170,7 +195,7 @@ export default function FreeItemSquare({
         ×{item.quantity}
       </div>
 
-      {isFounder && (
+      {canEdit && (
         <div className="absolute top-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
           <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className="w-5 h-5 rounded bg-white text-stone-700 text-[10px] hover:bg-stone-100 shadow flex items-center justify-center"
@@ -181,10 +206,10 @@ export default function FreeItemSquare({
         </div>
       )}
 
-      {isFounder && (
+      {canEdit && (
         <div
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('resize', e.clientX, e.clientY); }}
-          onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; if (t) begin('resize', t.clientX, t.clientY); }}
+          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); const t = e.touches[0]; if (t) begin('resize', t.clientX, t.clientY); }}
           className="absolute bottom-0 left-0 w-5 h-5 flex items-end justify-start cursor-nesw-resize z-10"
           title="اسحب لتغيير حجم الغرض"
         >

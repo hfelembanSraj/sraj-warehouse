@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, logActivity } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
@@ -120,6 +120,8 @@ export function AuthProvider({ children }) {
 
   async function signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // سجّل الدخول (يظهر في نشاط المستخدم بتبويب المستخدمين) — لا توقف الدخول إن فشل التسجيل
+    if (!error) { try { await logActivity('دخول', 'تسجيل دخول', '—'); } catch { /* تجاهل */ } }
     return { data, error };
   }
 

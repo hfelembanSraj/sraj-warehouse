@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase, logActivity } from '../lib/supabase';
 import { isOverdue, resolveItemLocation } from '../lib/helpers';
 import { FormModal } from './BuilderForms';
 
@@ -11,13 +10,11 @@ function loadXLSX() {
   return _xlsxPromise;
 }
 
-export default function ReportsTab({ data, onRefresh }) {
-  const { activeWarehouse, isFounder, can } = useAuth();
+export default function ReportsTab({ data }) {
+  const { activeWarehouse } = useAuth();
   const [filterText, setFilterText] = useState('');
   const [filterZone, setFilterZone] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
   // الجرد المقارن: المستخدم يُدخِل العدد الفعلي → يُحسَب الفرق مع النظام
   const [showAudit, setShowAudit] = useState(false);
   const [auditCounts, setAuditCounts] = useState({});  // {itemKey: actualCount}
@@ -237,119 +234,6 @@ export default function ReportsTab({ data, onRefresh }) {
     return { total: aggregatedItems.length, counted: counted.length, matching, missing, extra };
   }, [auditDifferences]);
 
-  // ====== تصدير CSV لـ Google Sheets ======
-  function exportToCSV() {
-    const rows = [
-      ['الأداة', 'المساحة', 'فئة المساحة', 'رمز الصندوق', 'الكميّة الإجماليّة', 'المتوفّر', 'المُخرَج', 'التالف', 'المدعوم']
-    ];
-    filteredItems.forEach(it => {
-      rows.push([it.name, it.zoneLetter, it.zoneName, it.boxCode, it.quantity, it.available, it.checkedOut, it.damaged, it.donated]);
-    });
-    const csv = '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Sraj-Report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  // ====== تنزيل قالب استيراد ======
-  async function downloadTemplate() {
-    const XLSX = await loadXLSX();
-    const sample = [
-      { 'اسم الأداة': 'حبال تجاذب', 'الكميّة': 4, 'المساحة': 'A', 'الوصف': 'حبال للفعاليات' },
-      { 'اسم الأداة': 'كاميرا تصوير', 'الكميّة': 1, 'المساحة': 'B', 'الوصف': '' }
-    ];
-    const ws = XLSX.utils.json_to_sheet(sample);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'أدوات');
-    XLSX.writeFile(wb, 'Sraj-Import-Template.xlsx');
-  }
-
-  // ====== استيراد Excel/CSV ======
-  async function handleImportFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const XLSX = await loadXLSX();
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws);
-
-      const successes = [];
-      const errors = [];
-
-      for (const [i, row] of rows.entries()) {
-        const name = String(row['اسم الأداة'] || row['name'] || '').trim();
-        const qty = parseInt(row['الكميّة'] || row['quantity'] || 1) || 1;
-        const zoneLetter = String(row['المساحة'] || row['zone'] || '').trim().toUpperCase();
-        const description = String(row['الوصف'] || row['description'] || '').trim();
-
-        if (!name) {
-          errors.push({ row: i + 2, reason: 'اسم الأداة فارغ' });
-          continue;
-        }
-
-        const zone = (data.zones || []).find(z => z.letter === zoneLetter);
-        if (!zone) {
-          errors.push({ row: i + 2, reason: `المساحة "${zoneLetter}" غير موجودة (الأداة: ${name})` });
-          continue;
-        }
-
-        // اقترح صندوقاً
-        const existingInZone = data.boxes.filter(b => b.code.startsWith(zoneLetter + '-'));
-        let targetBox = null;
-        for (const sh of zone.shelves) {
-          const onShelf = existingInZone.filter(b => b.code.startsWith(`${zoneLetter}-${sh.shelf_index}-`));
-          if (onShelf.length < (sh.max_boxes || 4)) {
-            const code = `${zoneLetter}-${sh.shelf_index}-${onShelf.length + 1}`;
-            // ابحث أو أنشئ
-            let { data: box } = await supabase.from('boxes').select('*').eq('warehouse_id', activeWarehouse.id).eq('code', code).is('deleted_at', null).maybeSingle();
-            if (!box) {
-              const { data: newBox } = await supabase.from('boxes')
-                .insert({ warehouse_id: activeWarehouse.id, code, shelf_id: sh.id, description: description || null })
-                .select().single();
-              box = newBox;
-            }
-            targetBox = box;
-            break;
-          }
-        }
-        if (!targetBox) {
-          errors.push({ row: i + 2, reason: `لا يوجد رف فارغ في مساحة ${zoneLetter} (الأداة: ${name})` });
-          continue;
-        }
-
-        const { error: insErr } = await supabase.from('items').insert({
-          box_id: targetBox.id, name, quantity: qty, status: 'ok'
-        });
-        if (insErr) {
-          errors.push({ row: i + 2, reason: insErr.message });
-          continue;
-        }
-
-        successes.push({ name, code: targetBox.code });
-      }
-
-      if (successes.length > 0) {
-        await logActivity('استيراد جماعي', `${successes.length} أداة`, `Excel · ${file.name}`);
-      }
-
-      setImportResult({ successes, errors });
-      await onRefresh?.();
-    } catch (err) {
-      setImportResult({ successes: [], errors: [{ row: '?', reason: 'فشل قراءة الملف: ' + err.message }] });
-    } finally {
-      setImporting(false);
-      e.target.value = '';
-    }
-  }
-
   return (
     <>
       {/* البار العلوي بالإحصائيّات الكليّة */}
@@ -379,22 +263,6 @@ export default function ReportsTab({ data, onRefresh }) {
               className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">
               📥 Excel
             </button>
-            <button onClick={exportToCSV}
-              className="text-[11px] bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium">
-              📊 CSV
-            </button>
-            {(isFounder || can('add')) && (
-              <>
-                <button onClick={downloadTemplate}
-                  className="text-[11px] border border-stone-300 px-3 py-1.5 rounded-lg hover:bg-stone-100">
-                  📄 تنزيل قالب
-                </button>
-                <label className="text-[11px] bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200 cursor-pointer font-medium">
-                  📤 استيراد Excel
-                  <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} disabled={importing} className="hidden" />
-                </label>
-              </>
-            )}
           </div>
         </div>
 
@@ -423,26 +291,6 @@ export default function ReportsTab({ data, onRefresh }) {
             <option value="donated">المدعوم فقط</option>
           </select>
         </div>
-
-        {/* نتائج الاستيراد */}
-        {importResult && (
-          <div className={`mb-3 p-3 rounded-lg text-xs ${importResult.errors.length === 0 ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
-            <p className="font-bold mb-1">
-              {importResult.successes.length > 0 && `✅ تمّ استيراد ${importResult.successes.length} أداة. `}
-              {importResult.errors.length > 0 && `⚠️ ${importResult.errors.length} خطأ.`}
-            </p>
-            {importResult.errors.length > 0 && (
-              <ul className="text-[10px] list-disc pr-4 max-h-32 overflow-y-auto">
-                {importResult.errors.slice(0, 20).map((e, i) => (
-                  <li key={i}>صف {e.row}: {e.reason}</li>
-                ))}
-                {importResult.errors.length > 20 && <li>... و {importResult.errors.length - 20} خطأ آخر</li>}
-              </ul>
-            )}
-            <button onClick={() => setImportResult(null)}
-              className="text-[10px] underline mt-1">إغلاق</button>
-          </div>
-        )}
 
         <div className="text-[11px] text-stone-500 mb-2">
           عرض {filteredItems.length} من {aggregatedItems.length} صنف

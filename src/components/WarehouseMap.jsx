@@ -5,6 +5,7 @@ import LocationPicker from './LocationPicker';
 import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import FreeItemSquare from './FreeItemSquare';
+import ImageLightbox from './ImageLightbox';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
@@ -50,6 +51,10 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [showAddOutside, setShowAddOutside] = useState(false);
   // مودال تعديل غرض خارج المساحات
   const [editingOutsideItem, setEditingOutsideItem] = useState(null);
+  // مودال عرض غرض خارج المساحات (قراءة فقط — لكل المستخدمين)
+  const [viewingOutsideItem, setViewingOutsideItem] = useState(null);
+  // تكبير صورة (يُشارك مكوّن ImageLightbox)
+  const [zoom, setZoom] = useState(null); // { url, caption }
   // وضع تحرير المخطّط (سحب/تكبير الغرف ثم القفل) — للمؤسّس فقط
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   // الرسم: شكل رُسم للتوّ وننتظر اختيار نوعه (جدار/مكتب/تخزين) — نِسب مئويّة
@@ -388,6 +393,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onZoneDelete={(z) => setConfirming({ zone: z })}
                   onItemEdit={(it) => setEditingOutsideItem(it)}
                   onItemDelete={handleDeleteOutsideItem}
+                  onItemView={(it) => setViewingOutsideItem(it)}
                   onDrawComplete={(rect) => setDrawnRect(rect)}
                   onRefresh={onRefresh}
                   flash={flash}
@@ -415,7 +421,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
 
               {outsideItems.length > 0 && (
                 <p className="text-center text-[10px] text-stone-500 dark:text-stone-400 mt-3">
-                  💡 <strong>{outsideItems.length}</strong> {outsideItems.length === 1 ? 'غرض' : 'أغراض'} خارج المساحات — اسحبها لتغيير موقعها · المقبض ◢ أو ✏️ تعديل لتغيير الحجم
+                  💡 <strong>{outsideItems.length}</strong> {outsideItems.length === 1 ? 'غرض' : 'أغراض'} خارج المساحات — اضغط أيّ غرض لعرضه{layoutEditMode ? ' · في وضع التعديل: اسحب للتحريك والمقبض ◢ للتحجيم' : ' · للتحريك/التحجيم ادخل «✏️ تحرير المخطّط»'}
                 </p>
               )}
             </>
@@ -509,6 +515,46 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         </FormModal>
       )}
 
+      {/* مودال عرض غرض خارج المساحات (قراءة فقط) */}
+      {viewingOutsideItem && (
+        <FormModal
+          title={viewingOutsideItem.name}
+          subtitle="غرض في منطقة التخزين المفتوحة"
+          onClose={() => setViewingOutsideItem(null)}
+          maxWidth="max-w-sm"
+        >
+          <div className="space-y-3">
+            {viewingOutsideItem.photo_url ? (
+              <img
+                src={viewingOutsideItem.photo_url}
+                alt={viewingOutsideItem.name}
+                onClick={() => setZoom({ url: viewingOutsideItem.photo_url, caption: viewingOutsideItem.name })}
+                className="w-full max-h-64 object-contain rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 cursor-zoom-in"
+                title="اضغط لتكبير الصورة"
+              />
+            ) : (
+              <div className="w-full h-32 rounded-lg border border-stone-200 dark:border-stone-700 bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center">
+                <span className="text-sm font-bold text-amber-900 dark:text-amber-100 text-center px-3">{viewingOutsideItem.name}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-stone-500 dark:text-stone-400">الكميّة</span>
+              <span className="font-bold dark:text-stone-200">{viewingOutsideItem.quantity}</span>
+            </div>
+            {can('add') && (
+              <button
+                onClick={() => { const it = viewingOutsideItem; setViewingOutsideItem(null); setEditingOutsideItem(it); }}
+                className="w-full bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 py-2 rounded-lg text-xs font-medium hover:bg-stone-200 dark:hover:bg-stone-700">
+                ✏️ تعديل هذا الغرض
+              </button>
+            )}
+          </div>
+        </FormModal>
+      )}
+
+      {/* تكبير الصورة */}
+      <ImageLightbox url={zoom?.url} caption={zoom?.caption} onClose={() => setZoom(null)} />
+
       {/* مودال قائمة عند النقر على بطاقة إحصائيّة */}
       {statModal === 'boxes' && (
         <FormModal title={`📦 جميع الصناديق (${totalBoxes})`} onClose={() => setStatModal(null)} maxWidth="max-w-3xl">
@@ -595,7 +641,7 @@ function StatCard({ num, label, color = 'default', onClick }) {
 function WarehouseMapCanvas({
   zones, outsideItems, data, isFounder, busy, layoutEditMode,
   boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
-  onItemEdit, onItemDelete, onDrawComplete, onRefresh, flash
+  onItemEdit, onItemDelete, onItemView, onDrawComplete, onRefresh, flash
 }) {
   const containerRef = useRef(null);
 
@@ -746,14 +792,17 @@ function WarehouseMapCanvas({
         />
       ))}
 
-      {/* الأغراض خارج المساحات — مخفيّة أثناء تحرير المخطّط لتجنّب التداخل مع سحب الغرف */}
-      {!layoutEditMode && outsideItems.map(it => (
+      {/* الأغراض خارج المساحات — ظاهرة دائماً؛ التحريك/التكبير في وضع التعديل فقط،
+          وخارجه ضغطة تفتح بطاقة العرض */}
+      {outsideItems.map(it => (
         <FreeItemSquare
           key={it.id}
           item={it}
           containerRef={containerRef}
           isFounder={isFounder}
+          editMode={layoutEditMode}
           obstacles={zoneObstacles}
+          onView={() => onItemView?.(it)}
           onEdit={() => onItemEdit(it)}
           onDelete={() => onItemDelete(it)}
           onDropped={handleItemDropped}

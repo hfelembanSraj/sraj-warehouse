@@ -42,15 +42,17 @@ export default function UsersTab({ data, onRefresh }) {
                 {visibleUsers.map(u => {
                   const isFounderRow = !!u.profiles?.is_founder;
                   return (
-                    <tr key={u.id} className={`border-t border-stone-100 dark:border-stone-800 dark:text-stone-200 ${isFounderRow ? 'bg-amber-50 dark:bg-amber-900/30' : ''}`}>
+                    <tr key={u.user_id} className={`border-t border-stone-100 dark:border-stone-800 dark:text-stone-200 ${isFounderRow ? 'bg-amber-50 dark:bg-amber-900/30' : ''}`}>
                       <td className="p-2 text-center">
                         {u.profiles?.full_name || '—'}
                         {isFounderRow && <span className="mr-1" title="المؤسّس">👑</span>}
                       </td>
                       <td className="p-2 text-center text-stone-600 dark:text-stone-300">{u.profiles?.email || '—'}</td>
-                      <td className="p-2 text-center">{isFounderRow ? 'المؤسّس' : (USER_ROLES[u.role] || u.role)}</td>
+                      <td className="p-2 text-center">
+                        {isFounderRow ? 'المؤسّس' : (u.id ? (USER_ROLES[u.role] || u.role) : <span className="text-stone-400 dark:text-stone-500">غير منتسب لهذا المستودع</span>)}
+                      </td>
                       <td className="p-2 text-center text-stone-600 dark:text-stone-300 text-[10px]">
-                        {isFounderRow ? 'كل الصلاحيات (محميّة)' : getPermSummary(u.permissions)}
+                        {isFounderRow ? 'كل الصلاحيات (محميّة)' : (u.id ? getPermSummary(u.permissions) : '—')}
                       </td>
                       <td className="p-2 text-center">
                         <div className="flex gap-1 justify-center flex-wrap">
@@ -61,13 +63,11 @@ export default function UsersTab({ data, onRefresh }) {
                           </button>
                           {isFounderRow ? (
                             <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium px-2 py-1">🛡 محميّ</span>
-                          ) : (
-                            u.role === 'user' && (
-                              <button onClick={() => setEditModal(u)}
-                                className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800 px-2 py-1 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50">
-                                تعديل الصلاحيات
-                              </button>
-                            )
+                          ) : isFounder && (
+                            <button onClick={() => setEditModal(u)}
+                              className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800 px-2 py-1 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50">
+                              {u.id ? 'تعديل الصلاحيات' : 'منح صلاحيات'}
+                            </button>
                           )}
                         </div>
                       </td>
@@ -120,7 +120,9 @@ function UserActivityModal({ user, onClose }) {
     'إضافة':   { bg: 'bg-blue-50 dark:bg-blue-900/30',    border: 'border-blue-200 dark:border-blue-800',    text: 'text-blue-800 dark:text-blue-300',    icon: '+' },
     'حذف':     { bg: 'bg-red-50 dark:bg-red-900/30',     border: 'border-red-200 dark:border-red-800',     text: 'text-red-800 dark:text-red-300',     icon: '🗑' },
     'إتلاف':   { bg: 'bg-rose-50 dark:bg-rose-900/30',    border: 'border-rose-200 dark:border-rose-800',    text: 'text-rose-800 dark:text-rose-300',    icon: '⚠' },
-    'دعم':     { bg: 'bg-amber-50 dark:bg-amber-900/30',   border: 'border-amber-200 dark:border-amber-800',   text: 'text-amber-800 dark:text-amber-300',   icon: '💝' }
+    'دعم':     { bg: 'bg-amber-50 dark:bg-amber-900/30',   border: 'border-amber-200 dark:border-amber-800',   text: 'text-amber-800 dark:text-amber-300',   icon: '💝' },
+    'دخول':    { bg: 'bg-emerald-50 dark:bg-emerald-900/30', border: 'border-emerald-200 dark:border-emerald-800', text: 'text-emerald-800 dark:text-emerald-300', icon: '🔑' },
+    'خروج':    { bg: 'bg-slate-50 dark:bg-slate-800/40',   border: 'border-slate-200 dark:border-slate-700',   text: 'text-slate-700 dark:text-slate-300',   icon: '🚪' }
   };
   function colorFor(action) {
     return actionColors[action] || { bg: 'bg-stone-50 dark:bg-stone-800', border: 'border-stone-200 dark:border-stone-700', text: 'text-stone-700 dark:text-stone-300', icon: '•' };
@@ -196,7 +198,9 @@ function UserActivityModal({ user, onClose }) {
 }
 
 function EditPermissionsModal({ user, onClose, onSaved }) {
+  const { activeWarehouse } = useAuth();
   const [perms, setPerms] = useState({ ...user.permissions });
+  const [role, setRole] = useState(user.role === 'whmanager' ? 'whmanager' : 'user');
   const [loading, setLoading] = useState(false);
 
   function toggle(key) { setPerms(p => ({ ...p, [key]: !p[key] })); }
@@ -204,8 +208,20 @@ function EditPermissionsModal({ user, onClose, onSaved }) {
   async function handleSave() {
     setLoading(true);
     try {
-      await supabase.from('user_warehouses').update({ permissions: perms }).eq('id', user.id);
-      await logActivity('تعديل صلاحيات', user.profiles?.full_name || 'مستخدم', '—');
+      if (user.id) {
+        // عضو موجود في هذا المستودع — حدّث صلاحياته ودوره
+        const { error } = await supabase.from('user_warehouses')
+          .update({ permissions: perms, role }).eq('id', user.id);
+        if (error) throw error;
+      } else {
+        // غير منتسب لهذا المستودع — أنشئ عضويّة (منح وصول + صلاحيات)
+        const { error } = await supabase.from('user_warehouses').upsert(
+          { user_id: user.user_id, warehouse_id: user.warehouse_id, role, permissions: perms, approved: true },
+          { onConflict: 'user_id,warehouse_id' }
+        );
+        if (error) throw error;
+      }
+      await logActivity('تعديل صلاحيات', user.profiles?.full_name || 'مستخدم', activeWarehouse?.name || '—');
       onSaved();
     } catch (e) {
       alert('حدث خطأ: ' + e.message);
@@ -225,8 +241,23 @@ function EditPermissionsModal({ user, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-stone-900 rounded-xl shadow-2xl max-w-md w-full p-5 animate-fade-in">
-        <h3 className="text-sm font-display font-bold mb-3 dark:text-stone-200">تعديل صلاحيات: {user.profiles?.full_name}</h3>
+        <h3 className="text-sm font-display font-bold mb-1 dark:text-stone-200">صلاحيات: {user.profiles?.full_name}</h3>
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3">في مستودع «{activeWarehouse?.name || '—'}»</p>
 
+        {/* الدور */}
+        <label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">الدور</label>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <button type="button" onClick={() => setRole('user')}
+            className={`text-xs py-2 rounded-lg border-2 transition ${role === 'user' ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 text-blue-900 dark:text-blue-200 font-bold' : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300'}`}>
+            مستخدم
+          </button>
+          <button type="button" onClick={() => setRole('whmanager')}
+            className={`text-xs py-2 rounded-lg border-2 transition ${role === 'whmanager' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500 text-purple-900 dark:text-purple-200 font-bold' : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300'}`}>
+            مدير مستودع
+          </button>
+        </div>
+
+        <label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">الصلاحيات</label>
         <div className="grid grid-cols-2 gap-2 mb-4">
           {items.map(i => (
             <label key={i.key} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs transition ${
