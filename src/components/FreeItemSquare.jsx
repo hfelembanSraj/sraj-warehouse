@@ -140,6 +140,16 @@ export default function FreeItemSquare({
     };
   }, [mode, pos.top, pos.left, pos.width, pos.height, item, onDropped, onResized, minTopPct]);
 
+  // التكديس: عدد الطبقات فوق الأساس (stack_index). 0 = غير مكدّس.
+  // نرسم «بطاقات» مزاحة للأعلى-اليمين عبر box-shadow لإيحاء التكديس.
+  const stack = Number(item.stack_index) || 0;
+  const stackTotal = stack + 1;
+  const stackShadow = stack > 0
+    ? [...Array(Math.min(stack, 4))].map((_, i) =>
+        `${(i + 1) * 4}px ${-(i + 1) * 5}px 0 0 ${['#eab366', '#d8954a', '#bd7733', '#9c5d22'][i] || '#9c5d22'}`
+      ).join(', ') + ', 6px -7px 14px -3px rgba(0,0,0,0.45)'
+    : undefined;
+
   const style = {
     position: 'absolute',
     top:    `${pos.top}%`,
@@ -148,6 +158,7 @@ export default function FreeItemSquare({
     height: `${pos.height}%`,
     cursor: canEdit ? (mode === 'move' ? 'grabbing' : 'grab') : (onView ? 'pointer' : 'default'),
     zIndex: mode ? 40 : 25,
+    boxShadow: stackShadow,
     // في وضع التعديل: امنع تمرير الصفحة أثناء السحب باللمس
     touchAction: canEdit ? 'none' : undefined
   };
@@ -194,6 +205,12 @@ export default function FreeItemSquare({
       <div className="absolute top-0.5 right-0.5 bg-amber-600 text-white text-[9px] font-bold px-1 py-0.5 rounded pointer-events-none">
         ×{item.quantity}
       </div>
+      {stack > 0 && (
+        <div className="absolute bottom-0.5 right-0.5 bg-purple-600 text-white text-[8px] font-bold px-1 py-0.5 rounded pointer-events-none shadow"
+          title={`مكدّس ${stackTotal} طبقات فوق بعض`}>
+          ⬆ {stackTotal}
+        </div>
+      )}
 
       {canEdit && (
         <div className="absolute top-0.5 left-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">

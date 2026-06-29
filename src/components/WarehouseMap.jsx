@@ -184,6 +184,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       quantity: Number(values.quantity) || 1,
       status: 'ok',
       photo_url: values.photo_url || null,
+      stack_index: Number(values.stack) || 0,
       pos_top: 80,
       pos_left: 40 + jitter,
       width_pct: 9,
@@ -204,6 +205,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       name: patch.name?.trim(),
       quantity: Number(patch.quantity) || 1,
       photo_url: patch.photo_url || null,
+      ...(patch.stack_index != null ? { stack_index: patch.stack_index } : {}),
       ...(patch.width_pct != null ? { width_pct: patch.width_pct } : {}),
       ...(patch.height_pct != null ? { height_pct: patch.height_pct } : {})
     }).eq('id', editingOutsideItem.id);
@@ -496,6 +498,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         >
           <NewItemForm
             busy={busy}
+            showStack
             onCancel={() => setShowAddOutside(false)}
             onSave={handleSubmitOutsideItem}
           />
@@ -514,6 +517,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
             item={editingOutsideItem}
             busy={busy}
             showSize={true}
+            showStack={true}
             onCancel={() => setEditingOutsideItem(null)}
             onSave={handleSaveOutsideEdit}
           />
@@ -580,14 +584,34 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   );
 }
 
+// حقل التكديس — كم قطعة فوق بعض (يُخزَّن كـ stack_index = العدد − 1)
+function StackLayersField({ layers, setLayers }) {
+  return (
+    <div>
+      <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">⬆ التكديس — كم واحد فوق بعض؟</label>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setLayers(l => Math.max(1, l - 1))}
+          className="w-9 h-9 rounded-lg border border-stone-300 dark:border-stone-600 text-lg font-bold hover:bg-stone-100 dark:hover:bg-stone-700 dark:text-stone-300">−</button>
+        <div className="flex-1 text-center">
+          <span className="text-base font-bold text-purple-700 dark:text-purple-300">{layers}</span>
+          <span className="text-[11px] text-stone-500 dark:text-stone-400 mr-1">{layers > 1 ? 'مكدّسة فوق بعض' : 'بدون تكديس'}</span>
+        </div>
+        <button type="button" onClick={() => setLayers(l => Math.min(8, l + 1))}
+          className="w-9 h-9 rounded-lg border border-stone-300 dark:border-stone-600 text-lg font-bold hover:bg-stone-100 dark:hover:bg-stone-700 dark:text-stone-300">+</button>
+      </div>
+    </div>
+  );
+}
+
 // نموذج تفاصيل غرض جديد (الاسم + الكميّة + صورة)
-function NewItemForm({ busy, onCancel, onSave }) {
+function NewItemForm({ busy, onCancel, onSave, showStack = false }) {
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [layers, setLayers] = useState(1);
   const isValid = name.trim().length > 0;
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (isValid) onSave({ name, quantity, photo_url: photoUrl }); }}
+    <form onSubmit={(e) => { e.preventDefault(); if (isValid) onSave({ name, quantity, photo_url: photoUrl, ...(showStack ? { stack: layers - 1 } : {}) }); }}
       className="space-y-3">
       <div>
         <label className="block text-xs text-stone-600 mb-1">اسم الغرض *</label>
@@ -600,6 +624,7 @@ function NewItemForm({ busy, onCancel, onSave }) {
         <input type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)}
           className="w-full px-3 py-2 border border-stone-300 rounded-lg text-xs" />
       </div>
+      {showStack && <StackLayersField layers={layers} setLayers={setLayers} />}
       <PhotoUploader
         value={photoUrl}
         onChange={setPhotoUrl}
@@ -1288,16 +1313,18 @@ function AllItemsList({ data, onItemClick, onRefresh, onAddItem }) {
 }
 
 // نموذج تعديل غرض من قائمة "كل الأغراض". showSize=true يُظهر اختيار حجم الغرض الخارجي على الخريطة
-function EditItemFormInline({ item, busy, onCancel, onSave, showSize = false }) {
+function EditItemFormInline({ item, busy, onCancel, onSave, showSize = false, showStack = false }) {
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity);
   const [photoUrl, setPhotoUrl] = useState(item.photo_url || null);
   const [widthPct, setWidthPct] = useState(Number(item.width_pct) || 12);
   const [heightPct, setHeightPct] = useState(Number(item.height_pct) || 12);
+  const [layers, setLayers] = useState((Number(item.stack_index) || 0) + 1);
   const dirty =
     name !== item.name ||
     Number(quantity) !== Number(item.quantity) ||
     photoUrl !== (item.photo_url || null) ||
+    (showStack && (layers - 1) !== (Number(item.stack_index) || 0)) ||
     (showSize && (widthPct !== (Number(item.width_pct) || 12) || heightPct !== (Number(item.height_pct) || 12)));
 
   // مقاسات جاهزة (نسبة من عرض/ارتفاع الأرضية) + تكبير/تصغير يدويّ ضمن الحدود
@@ -1306,7 +1333,7 @@ function EditItemFormInline({ item, busy, onCancel, onSave, showSize = false }) 
   const clampH = (v) => Math.max(5, Math.min(90, Math.round(v)));
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl, ...(showSize ? { width_pct: widthPct, height_pct: heightPct } : {}) }); }}
+    <form onSubmit={(e) => { e.preventDefault(); if (dirty && name.trim()) onSave({ name, quantity, photo_url: photoUrl, ...(showStack ? { stack_index: layers - 1 } : {}), ...(showSize ? { width_pct: widthPct, height_pct: heightPct } : {}) }); }}
       className="space-y-3">
       <div>
         <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">الاسم</label>
@@ -1318,6 +1345,7 @@ function EditItemFormInline({ item, busy, onCancel, onSave, showSize = false }) 
         <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
           className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
       </div>
+      {showStack && <StackLayersField layers={layers} setLayers={setLayers} />}
       {showSize && (
         <div>
           <label className="block text-xs text-stone-700 dark:text-stone-300 font-medium mb-1">حجم الغرض على الخريطة</label>
