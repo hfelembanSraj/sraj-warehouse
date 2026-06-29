@@ -9,6 +9,7 @@ import ImageLightbox from './ImageLightbox';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
+import { GRID_PRESETS, metersToPercentX, metersToPercentY, formatDim } from '../lib/gridConfig';
 
 // المساحات ثابتة لا تتحرّك أبداً؛ الأغراض الحرّة تُوضَع في أيّ مكان على
 // الأرضيّة (حتى أمام المساحات) — لا قيد على موقعها
@@ -61,8 +62,19 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [drawnRect, setDrawnRect] = useState(null);
   // الشكل المرسوم المعلّق لمساحة تخزين (يُوضع فيها بعد ملء نموذج المساحة)
   const [pendingDrawRect, setPendingDrawRect] = useState(null);
+  // محرّر الرسم: شبكة + التقاط (snap) + إظهار القياسات
+  const [gridEnabled, setGridEnabled] = useState(false);
+  const [gridSpacingMeters, setGridSpacingMeters] = useState(1);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [showMeasurements, setShowMeasurements] = useState(false);
 
   const zones = data.zones || [];
+
+  // تباعد الشبكة بالنِّسبة المئويّة لكل محور (المستودع غير مربّع)
+  const gridSpacingPctX = metersToPercentX(gridSpacingMeters, activeWarehouse);
+  const gridSpacingPctY = metersToPercentY(gridSpacingMeters, activeWarehouse);
+  const snapX = (gridEnabled && snapEnabled) ? gridSpacingPctX : null;
+  const snapY = (gridEnabled && snapEnabled) ? gridSpacingPctY : null;
 
   function boxCountForZone(letter) {
     return data.boxes.filter(b => b.code.startsWith(letter + '-')).length;
@@ -247,6 +259,38 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {viewMode === 'map' && (
+              <button onClick={() => setShowMeasurements(m => !m)}
+                className={showMeasurements
+                  ? "bg-indigo-600 text-white border border-indigo-700 text-xs px-3 py-2 rounded-lg hover:bg-indigo-700 font-bold shadow-sm"
+                  : "bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"}>
+                📏 المقاييس
+              </button>
+            )}
+            {isFounder && viewMode === 'map' && layoutEditMode && (
+              <>
+                <button onClick={() => setGridEnabled(g => !g)}
+                  className={gridEnabled
+                    ? "bg-indigo-600 text-white border border-indigo-700 text-xs px-3 py-2 rounded-lg hover:bg-indigo-700 font-bold shadow-sm"
+                    : "bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"}>
+                  📐 الشبكة
+                </button>
+                {gridEnabled && (
+                  <select value={gridSpacingMeters} onChange={e => setGridSpacingMeters(Number(e.target.value))}
+                    className="text-xs px-2 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 dark:text-stone-200">
+                    {GRID_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                )}
+                {gridEnabled && (
+                  <button onClick={() => setSnapEnabled(s => !s)}
+                    className={snapEnabled
+                      ? "bg-green-600 text-white border border-green-700 text-xs px-3 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm"
+                      : "bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"}>
+                    🧲 التقاط
+                  </button>
+                )}
+              </>
+            )}
             {isFounder && viewMode === 'map' && (
               <button onClick={() => setLayoutEditMode(e => !e)}
                 className={layoutEditMode
@@ -391,6 +435,13 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   zones={zones}
                   outsideItems={outsideItems}
                   data={data}
+                  activeWarehouse={activeWarehouse}
+                  gridEnabled={gridEnabled}
+                  gridSpacingPctX={gridSpacingPctX}
+                  gridSpacingPctY={gridSpacingPctY}
+                  snapX={snapX}
+                  snapY={snapY}
+                  showMeasurements={showMeasurements}
                   isFounder={isFounder}
                   busy={busy}
                   layoutEditMode={layoutEditMode}
@@ -671,7 +722,8 @@ function StatCard({ num, label, color = 'default', onClick }) {
 function WarehouseMapCanvas({
   zones, outsideItems, data, isFounder, busy, layoutEditMode,
   boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
-  onItemEdit, onItemDelete, onItemView, onDrawComplete, onRefresh, flash
+  onItemEdit, onItemDelete, onItemView, onDrawComplete, onRefresh, flash,
+  activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements
 }) {
   const containerRef = useRef(null);
 
@@ -783,6 +835,18 @@ function WarehouseMapCanvas({
       ref={containerRef}
       className="relative w-full max-w-3xl aspect-[4/6] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
+      {/* شبكة القياس — خلف كل شي، بلا تفاعل */}
+      {gridEnabled && gridSpacingPctX > 0 && gridSpacingPctY > 0 && (
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <pattern id="whGrid" width={gridSpacingPctX} height={gridSpacingPctY} patternUnits="userSpaceOnUse">
+              <path d={`M ${gridSpacingPctX} 0 L 0 0 0 ${gridSpacingPctY}`} fill="none" stroke="#94a3b8" strokeOpacity="0.45" strokeWidth="0.3" vectorEffect="non-scaling-stroke" />
+            </pattern>
+          </defs>
+          <rect width="100" height="100" fill="url(#whGrid)" />
+        </svg>
+      )}
+
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium pointer-events-none">
         الجدار الخلفي
       </div>
@@ -850,6 +914,10 @@ function WarehouseMapCanvas({
           isFounder={isFounder}
           busy={busy}
           editMode={layoutEditMode}
+          warehouse={activeWarehouse}
+          showMeasurements={showMeasurements}
+          snapX={snapX}
+          snapY={snapY}
           containerRef={containerRef}
           onGeometry={handleZoneGeometry}
           onEdit={() => onZoneEdit(z)}
@@ -866,6 +934,8 @@ function WarehouseMapCanvas({
           containerRef={containerRef}
           isFounder={isFounder}
           editMode={layoutEditMode}
+          snapX={snapX}
+          snapY={snapY}
           obstacles={zoneObstacles}
           onView={() => onItemView?.(it)}
           onEdit={() => onItemEdit(it)}
@@ -973,7 +1043,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -982,6 +1052,8 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     rect: displayRect || fallbackRect,
     containerRef,
     enabled: editing,
+    snapX: editing ? snapX : null,
+    snapY: editing ? snapY : null,
     onChange: (r) => onGeometry?.(zone, r)
   });
   const rect = editing ? pos : (displayRect || fallbackRect);
@@ -1023,6 +1095,11 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
               style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
               {zone.name}
             </div>
+            {showMeasurements && (
+              <div className="mt-0.5 text-[8px] font-bold text-stone-700 dark:text-stone-100 bg-white/80 dark:bg-stone-900/80 rounded px-1 leading-tight shadow-sm">
+                {formatDim(rect.width / 100 * (Number(warehouse?.width_m) || 4))} × {formatDim(rect.height / 100 * (Number(warehouse?.depth_m) || 4))}
+              </div>
+            )}
           </div>
 
           {!isDecor && (showShelves ? (

@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
+import { snapValue } from './gridConfig';
 
 // محرّك سحب/تكبير عامّ بالنِّسب المئويّة فوق حاوية محدّدة (containerRef).
 // rect: { top, left, width, height } نِسب مئويّة. enabled: هل التفاعل مفعّل.
 // onChange(rect): يُستدعى عند إفلات السحب/التكبير بالموضع/الحجم النهائي.
 // مقبض التكبير في الزاوية السفليّة-اليسرى (الحافّة اليمنى مثبّتة) — متوافق مع FreeItemSquare.
-export default function useDragResize({ rect, containerRef, enabled, onChange, minW = 6, maxW = 100, minH = 6, maxH = 100 }) {
+export default function useDragResize({ rect, containerRef, enabled, onChange, minW = 6, maxW = 100, minH = 6, maxH = 100, snapX = null, snapY = null }) {
   const [pos, setPos] = useState(rect);
   const [mode, setMode] = useState(null); // 'move' | 'resize' | null
   const stRef = useRef(null);
@@ -37,12 +38,13 @@ export default function useDragResize({ rect, containerRef, enabled, onChange, m
       const dxPct = ((cx - s.startX) / s.r.width) * 100;
       const dyPct = ((cy - s.startY) / s.r.height) * 100;
       if (mode === 'move') {
-        const left = Math.max(0, Math.min(100 - s.startW, s.startLeft + dxPct));
-        const top = Math.max(0, Math.min(100 - s.startH, s.startTop + dyPct));
+        // التقاط الموضع النهائي المطلق (لا الإزاحة) ثم الحصر بالحدود
+        const left = Math.max(0, Math.min(100 - s.startW, snapValue(s.startLeft + dxPct, snapX)));
+        const top = Math.max(0, Math.min(100 - s.startH, snapValue(s.startTop + dyPct, snapY)));
         setPos(p => ({ ...p, left, top }));
       } else {
-        const width = Math.max(minW, Math.min(maxW, s.startW - dxPct));
-        const height = Math.max(minH, Math.min(maxH, s.startH + dyPct));
+        const width = Math.max(minW, Math.min(maxW, snapValue(s.startW - dxPct, snapX)));
+        const height = Math.max(minH, Math.min(maxH, snapValue(s.startH + dyPct, snapY)));
         const rightEdge = s.startLeft + s.startW;
         const left = Math.max(0, rightEdge - width);
         setPos(p => ({ ...p, width, height, left }));
@@ -67,7 +69,7 @@ export default function useDragResize({ rect, containerRef, enabled, onChange, m
       window.removeEventListener('touchend', onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [mode, snapX, snapY]);
 
   return { pos, mode, begin };
 }
