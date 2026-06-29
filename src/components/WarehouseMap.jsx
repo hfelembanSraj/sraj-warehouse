@@ -5,11 +5,12 @@ import LocationPicker from './LocationPicker';
 import PhotoUploader from './PhotoUploader';
 import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, FormModal, useFlash } from './BuilderForms';
 import FreeItemSquare from './FreeItemSquare';
+import WallStrokeOverlay from './WallStrokeOverlay';
 import ImageLightbox from './ImageLightbox';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
-import { GRID_PRESETS, metersToPercentX, metersToPercentY, formatDim } from '../lib/gridConfig';
+import { GRID_PRESETS, metersToPercentX, metersToPercentY, formatDim, snapValue } from '../lib/gridConfig';
 
 // المساحات ثابتة لا تتحرّك أبداً؛ الأغراض الحرّة تُوضَع في أيّ مكان على
 // الأرضيّة (حتى أمام المساحات) — لا قيد على موقعها
@@ -780,8 +781,27 @@ function WarehouseMapCanvas({
     onDrawComplete?.({ top: minY, left: minX, width: w, height: h, points: rel });
   }
 
+  // خطّ مفتوح (جدار/منحنى): نفس التطبيع لكن بلا رفض المساحة، ونعلّم النقطة الأولى open
+  function finishLine(pts) {
+    if (!pts || pts.length < 2) { flash?.('ارسم نقطتين على الأقل للجدار', 'error'); return; }
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const truW = Math.max(...xs) - minX, truH = Math.max(...ys) - minY;
+    if (truW < 0.8 && truH < 0.8) { flash?.('الخطّ قصير جداً', 'error'); setPolyActive(false); setPolyPoints([]); return; }
+    // علامة open على النقطة الأولى = خطّ مفتوح (تبقى داخل JSONB ولا تُحذف عند الحفظ)
+    const rel = pts.map((p, i) => ({
+      x: Math.round((truW > 0.01 ? (p.x - minX) / truW : 0) * 1000) / 10,
+      y: Math.round((truH > 0.01 ? (p.y - minY) / truH : 0) * 1000) / 10,
+      ...(i === 0 ? { open: true } : {})
+    }));
+    setPolyActive(false);
+    setPolyPoints([]);
+    onDrawComplete?.({ top: minY, left: minX, width: Math.max(1.5, truW), height: Math.max(1.5, truH), points: rel });
+  }
+
   function handleFloorClick(clientX, clientY) {
-    const p = pctFromClient(clientX, clientY);
+    const raw = pctFromClient(clientX, clientY);
+    const p = { x: snapValue(raw.x, snapX), y: snapValue(raw.y, snapY) };
     // الضغط قرب النقطة الأولى (مع ≥3 نقاط) يُغلق الشكل
     if (polyPoints.length >= 3) {
       const first = polyPoints[0];
@@ -884,6 +904,11 @@ function WarehouseMapCanvas({
             <button onClick={() => finishPolygon(polyPoints)} disabled={polyPoints.length < 3}
               className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-green-700 font-bold disabled:opacity-40">
               ✅ أغلق الشكل
+            </button>
+            <button onClick={() => finishLine(polyPoints)} disabled={polyPoints.length < 2}
+              className="text-[11px] bg-stone-700 text-white px-3 py-1.5 rounded-lg shadow hover:bg-stone-800 font-bold disabled:opacity-40"
+              title="أنهِ النقاط كجدار/خطّ مفتوح يتبع الشكل">
+              📏 أنهِ كجدار
             </button>
             <button onClick={() => setPolyPoints(pts => pts.slice(0, -1))} disabled={polyPoints.length === 0}
               className="text-[11px] bg-white text-stone-700 border border-stone-300 px-3 py-1.5 rounded-lg shadow hover:bg-stone-100 disabled:opacity-40">
@@ -1059,7 +1084,10 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
   const rect = editing ? pos : (displayRect || fallbackRect);
   // شكل المضلّع (إن وُجد) — يُقصّ بالنسب المئويّة داخل مربّع الإحاطة. خارج وضع
   // التحرير فقط، حتى يبقى مقبضا التحريك/التكبير على المربّع الكامل متاحَين.
-  const polyClip = Array.isArray(zone.points) && zone.points.length >= 3
+  // جدار مفتوح (خطّ/منحنى): يُرسَم كخطّ بدل قصّ مساحة مملوءة
+  const isOpenWall = isDecor && Array.isArray(zone.points) && zone.points[0]?.open;
+  const wallStroke = isOpenWall && !editing;   // اعرض كخطّ خارج وضع التحرير فقط
+  const polyClip = (!isOpenWall && Array.isArray(zone.points) && zone.points.length >= 3)
     ? `polygon(${zone.points.map(p => `${p.x}% ${p.y}%`).join(', ')})`
     : undefined;
   const style = {
@@ -1067,10 +1095,10 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     left:   `${rect.left}%`,
     width:  `${rect.width}%`,
     height: `${rect.height}%`,
-    borderColor: zone.color,
+    borderColor: wallStroke ? 'transparent' : zone.color,
     backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
-    backgroundColor: isDecor ? `${zone.color}66` : undefined,
-    boxShadow: `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`,
+    backgroundColor: wallStroke ? 'transparent' : (isDecor ? `${zone.color}66` : undefined),
+    boxShadow: wallStroke ? 'none' : `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`,
     transition: mode ? 'none' : 'top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease',
     zIndex: mode ? 50 : undefined,
     cursor: editing ? (mode === 'move' ? 'grabbing' : 'grab') : undefined,
@@ -1084,7 +1112,8 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     <div style={style}
       onMouseDown={editing ? (e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); } : undefined}
       onTouchStart={editing ? (e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); } : undefined}
-      className={`absolute border-2 rounded-xl flex flex-col group overflow-hidden ${editing ? 'ring-2 ring-blue-500 ring-offset-1 select-none' : (isDecor ? '' : 'transition-transform hover:scale-[1.02]')}`}>
+      className={`absolute border-2 rounded-xl flex flex-col group ${wallStroke ? '' : 'overflow-hidden'} ${editing ? 'ring-2 ring-blue-500 ring-offset-1 select-none' : (isDecor ? '' : 'transition-transform hover:scale-[1.02]')}`}>
+      {wallStroke && <WallStrokeOverlay points={zone.points} color={zone.color} thickness={3} />}
       <button onClick={(editing || isDecor) ? undefined : onClick} className={`flex-1 relative flex flex-col w-full ${(editing || isDecor) ? '' : 'hover:brightness-95 transition'}`}>
         <div className="h-1.5 w-full" style={{ backgroundColor: zone.color, opacity: 0.85 }}></div>
 
