@@ -853,7 +853,8 @@ function WarehouseMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-3xl aspect-[4/6] bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
+      style={{ aspectRatio: `${Number(activeWarehouse?.width_m) || 4} / ${Number(activeWarehouse?.depth_m) || 6}` }}
+      className="relative w-full max-w-3xl bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
       {/* شبكة القياس — خلف كل شي، بلا تفاعل */}
       {gridEnabled && gridSpacingPctX > 0 && gridSpacingPctY > 0 && (
