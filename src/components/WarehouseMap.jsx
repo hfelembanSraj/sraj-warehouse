@@ -70,7 +70,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   // محرّر الرسم: شبكة + التقاط (snap) + تعامد + إظهار القياسات
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridSpacingMeters, setGridSpacingMeters] = useState(1);
-  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapEnabled, setSnapEnabled] = useState(false);
   const [ortho, setOrtho] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(false);
   // تحرير نقاط شكل قائم (⬡)
@@ -517,9 +517,9 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                       {GRID_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
                   )}
-                  {gridEnabled && (
-                    <EditorToolButton active={snapEnabled} onClick={() => setSnapEnabled(s => !s)}>🧲 التقاط</EditorToolButton>
-                  )}
+                  <EditorToolButton active={snapEnabled}
+                    title="التقاط مغناطيسي للشبكة ولرؤوس الأشكال — أطفئه لرسم حرّ تماماً"
+                    onClick={() => setSnapEnabled(s => !s)}>🧲 التقاط</EditorToolButton>
                   <EditorToolButton active={ortho} title="تقييد خطوط المضلّع/الجدار أفقيّاً ورأسيّاً وبزاوية 45°"
                     onClick={() => setOrtho(o => !o)}>∟ تعامد</EditorToolButton>
                   <span className="w-px h-5 bg-stone-300 dark:bg-stone-600 mx-1" />
@@ -554,6 +554,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onItemView={(it) => setViewingOutsideItem(it)}
                   activeTool={activeTool}
                   ortho={ortho}
+                  vertexSnap={snapEnabled}
                   onToolCancel={() => setActiveTool(null)}
                   onShapeDrawn={handleShapeDrawn}
                   vertexZoneId={vertexEditZoneId}
@@ -843,7 +844,7 @@ function WarehouseMapCanvas({
   boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
   onItemEdit, onItemDelete, onItemView, onRefresh, flash,
   activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements,
-  activeTool, ortho, onToolCancel, onShapeDrawn,
+  activeTool, ortho, vertexSnap, onToolCancel, onShapeDrawn,
   vertexZoneId, onVertexEdit, onVertexClose, pushUndo
 }) {
   const containerRef = useRef(null);
@@ -920,7 +921,7 @@ function WarehouseMapCanvas({
     <div
       ref={containerRef}
       style={{ aspectRatio: `${Number(activeWarehouse?.width_m) || 4} / ${Number(activeWarehouse?.depth_m) || 6}` }}
-      className="relative w-full max-w-3xl bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
+      className="relative w-full max-w-6xl bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
     >
       {/* شبكة القياس — خلف كل شي، بلا تفاعل */}
       {gridEnabled && gridSpacingPctX > 0 && gridSpacingPctY > 0 && (
@@ -948,7 +949,7 @@ function WarehouseMapCanvas({
           snapX={snapX}
           snapY={snapY}
           ortho={ortho}
-          targets={snapTargets}
+          targets={vertexSnap ? snapTargets : []}
           onFinish={onShapeDrawn}
           onCancel={onToolCancel}
           flash={flash}
@@ -963,7 +964,7 @@ function WarehouseMapCanvas({
           zone={vertexZone}
           snapX={snapX}
           snapY={snapY}
-          targets={vertexTargets}
+          targets={vertexSnap ? vertexTargets : []}
           busy={busy}
           onSave={(geom) => handleSavePoints(vertexZone, geom)}
           onClose={onVertexClose}
@@ -1120,20 +1121,24 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
   const fallbackRect = { top: zone.pos_top ?? 0, left: zone.pos_left ?? 0, width: zone.pos_width ?? 18, height: zone.pos_height ?? 42 };
-  const { pos, mode, begin } = useDragResize({
-    rect: displayRect || fallbackRect,
-    containerRef,
-    enabled: editing,
-    snapX: editing ? snapX : null,
-    snapY: editing ? snapY : null,
-    onChange: (r) => onGeometry?.(zone, r)
-  });
-  const rect = editing ? pos : (displayRect || fallbackRect);
   // جدار مفتوح (خطّ/مسار): يُرسَم كخطّ دائماً — وفي وضع التحرير يظهر إطار
   // متقطّع على مربّع إحاطته ليسهل سحبه. المضلّع المغلق يُقصّ على طبقة داخليّة
   // (لا على الحاوية) فيبقى شكله ظاهراً أثناء التحرير مع بقاء المقابض والأزرار.
   const isOpenWall = Array.isArray(zone.points) && zone.points[0]?.open;
   const hasPoly = !isOpenWall && Array.isArray(zone.points) && zone.points.length >= 3;
+  // حدود التحجيم: الجدران والأشكال الحرّة تُصغَّر بحريّة (لا حدّ 6% كالمساحات)
+  const minDim = isOpenWall ? 1 : (hasPoly ? 2 : 6);
+  const { pos, mode, begin } = useDragResize({
+    rect: displayRect || fallbackRect,
+    containerRef,
+    enabled: editing,
+    minW: minDim,
+    minH: minDim,
+    snapX: editing ? snapX : null,
+    snapY: editing ? snapY : null,
+    onChange: (r) => onGeometry?.(zone, r)
+  });
+  const rect = editing ? pos : (displayRect || fallbackRect);
   const polyClip = hasPoly
     ? `polygon(${zone.points.map(p => `${p.x}% ${p.y}%`).join(', ')})`
     : undefined;

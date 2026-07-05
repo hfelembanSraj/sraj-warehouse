@@ -61,7 +61,8 @@ export default function MapDrawLayer({
 
   function addPoint(p) {
     const now = Date.now();
-    if (lastPt && nearPoint(p, lastPt, 1.0)) {
+    // سماحية ضيّقة جداً (0.35%) حتى يمكن رسم أضلاع قصيرة بحريّة
+    if (lastPt && nearPoint(p, lastPt, 0.35)) {
       // نقرتان في نفس المكان خلال 400مل = إنهاء (double-click)
       if (now - lastClickRef.current < 400) return finishShape();
       lastClickRef.current = now;
