@@ -7,22 +7,24 @@ import { AddZoneForm, AddBoxForm, EditZoneForm, ConfirmDelete, StatusToast, Form
 import FreeItemSquare from './FreeItemSquare';
 import WallStrokeOverlay from './WallStrokeOverlay';
 import ImageLightbox from './ImageLightbox';
+import MapDrawLayer from './MapDrawLayer';
+import VertexEditLayer from './VertexEditLayer';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
-import { GRID_PRESETS, metersToPercentX, metersToPercentY, formatDim, snapValue } from '../lib/gridConfig';
+import { GRID_PRESETS, metersToPercentX, metersToPercentY, formatDim } from '../lib/gridConfig';
+import { naturalZoneRect, absPointsOfZone } from '../lib/mapDraw';
 
 // المساحات ثابتة لا تتحرّك أبداً؛ الأغراض الحرّة تُوضَع في أيّ مكان على
 // الأرضيّة (حتى أمام المساحات) — لا قيد على موقعها
 
-// المستطيل الطبيعي للمساحة (من قاعدة البيانات) كنسب مئويّة
-function naturalZoneRect(zone) {
-  const left = zone.pos_left ?? (100 - (zone.pos_right ?? 0) - (zone.pos_width ?? 18));
+// لقطة هندسة مساحة (للتراجع ↶): الموضع + الحجم + النقاط كما في القاعدة
+function geomSnapshot(z) {
   return {
-    left,
-    top:    zone.pos_top    ?? 0,
-    width:  zone.pos_width  ?? 18,
-    height: zone.pos_height ?? 42
+    id: z.id,
+    pos_top: z.pos_top ?? null, pos_left: z.pos_left ?? null, pos_right: z.pos_right ?? null,
+    pos_width: z.pos_width ?? null, pos_height: z.pos_height ?? null,
+    points: z.points ?? null
   };
 }
 
@@ -59,15 +61,22 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [zoom, setZoom] = useState(null); // { url, caption }
   // وضع تحرير المخطّط (سحب/تكبير الغرف ثم القفل) — للمؤسّس فقط
   const [layoutEditMode, setLayoutEditMode] = useState(false);
+  // أداة الرسم النشطة: 'rect' مستطيل | 'poly' مضلّع | 'wall' جدار | null
+  const [activeTool, setActiveTool] = useState(null);
   // الرسم: شكل رُسم للتوّ وننتظر اختيار نوعه (جدار/مكتب/تخزين) — نِسب مئويّة
   const [drawnRect, setDrawnRect] = useState(null);
   // الشكل المرسوم المعلّق لمساحة تخزين (يُوضع فيها بعد ملء نموذج المساحة)
   const [pendingDrawRect, setPendingDrawRect] = useState(null);
-  // محرّر الرسم: شبكة + التقاط (snap) + إظهار القياسات
+  // محرّر الرسم: شبكة + التقاط (snap) + تعامد + إظهار القياسات
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridSpacingMeters, setGridSpacingMeters] = useState(1);
   const [snapEnabled, setSnapEnabled] = useState(true);
+  const [ortho, setOrtho] = useState(true);
   const [showMeasurements, setShowMeasurements] = useState(false);
+  // تحرير نقاط شكل قائم (⬡)
+  const [vertexEditZoneId, setVertexEditZoneId] = useState(null);
+  // مكدس التراجع لجلسة التحرير (تحريك/تحجيم/تعديل نقاط/إنشاء)
+  const [undoStack, setUndoStack] = useState([]);
 
   const zones = data.zones || [];
 
@@ -76,6 +85,58 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const gridSpacingPctY = metersToPercentY(gridSpacingMeters, activeWarehouse);
   const snapX = (gridEnabled && snapEnabled) ? gridSpacingPctX : null;
   const snapY = (gridEnabled && snapEnabled) ? gridSpacingPctY : null;
+
+  // عند إغلاق وضع التحرير: نظّف الأداة ومحرّر النقاط ومكدس التراجع
+  useEffect(() => {
+    if (!layoutEditMode) { setActiveTool(null); setVertexEditZoneId(null); setUndoStack([]); }
+  }, [layoutEditMode]);
+
+  // تراجع ↶ عن آخر تغيير في المخطّط (تحريك/تحجيم/شكل/إنشاء عنصر)
+  async function handleUndo() {
+    if (busy || undoStack.length === 0) return;
+    const entry = undoStack[undoStack.length - 1];
+    setBusy(true);
+    let error = null;
+    if (entry.kind === 'geom') {
+      const g = entry.prev;
+      const live = zones.find(z => z.id === g.id);
+      const patch = {
+        pos_top: g.pos_top, pos_left: g.pos_left, pos_right: g.pos_right,
+        pos_width: g.pos_width, pos_height: g.pos_height
+      };
+      // أرسل النقاط فقط عند الحاجة (كانت أو صارت مضلّعاً) — توافقاً مع ما قبل ترقية 20
+      if (g.points != null || live?.points != null) patch.points = g.points;
+      ({ error } = await rpcUpdateZone({ id: g.id, pos_left: g.pos_left, pos_right: g.pos_right }, patch));
+    } else if (entry.kind === 'create') {
+      ({ error } = await rpcDeleteZone(entry.zoneId));
+    }
+    setBusy(false);
+    if (error) return flash('فشل التراجع: ' + error.message, 'error');
+    setUndoStack(s => s.slice(0, -1));
+    flash('↶ تمّ التراجع');
+    await onRefresh();
+  }
+
+  // Ctrl+Z أثناء تحرير المخطّط (خارج الرسم وتحرير النقاط — لكلٍّ تراجعه الخاص)
+  useEffect(() => {
+    if (!layoutEditMode) return;
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !activeTool && !vertexEditZoneId) {
+        e.preventDefault();
+        handleUndo();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutEditMode, undoStack, busy, activeTool, vertexEditZoneId, zones]);
+
+  // شكل اكتمل رسمه: الجدار يُنشأ فوراً؛ المستطيل/المضلّع يمرّ بمودال اختيار النوع
+  function handleShapeDrawn(geom, tool) {
+    if (tool === 'wall') { createStructure(geom, 'جدار'); return; }
+    setActiveTool(null);
+    setDrawnRect(geom);
+  }
 
   function boxCountForZone(letter) {
     return data.boxes.filter(b => b.code.startsWith(letter + '-')).length;
@@ -104,6 +165,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     }
     setBusy(false);
     if (error) return flash('فشل: ' + error.message, 'error');
+    if (newZoneId && rect) setUndoStack(s => [...s, { kind: 'create', zoneId: newZoneId }]);
     const kind = values.color === STRUCTURE_COLOR ? 'عنصر' : 'مساحة';
     flash(`✅ تمت إضافة ${kind} ${values.letter.toUpperCase()}`);
     setShowAddZone(false);
@@ -111,19 +173,45 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     await onRefresh();
   }
 
-  // إنشاء عنصر هيكلي (جدار/مكتب) رصاصي بلا أرفف في الشكل المرسوم
+  // إنشاء عنصر هيكلي (جدار/مكتب) رصاصي بلا أرفف في الشكل المرسوم.
+  // الحرف يُولَّد تلقائيّاً (A..Z ثم W2..W99) مع إعادة المحاولة عند تعارض حرف.
   async function createStructure(rect, name) {
     const used = new Set(zones.map(z => z.letter));
-    let letter = '';
+    const candidates = [];
     for (let i = 65; i <= 90; i++) {
       const c = String.fromCharCode(i);
-      if (!used.has(c)) { letter = c; break; }
+      if (!used.has(c)) candidates.push(c);
     }
-    if (!letter) return flash('نفدت الحروف المتاحة — احذف عنصراً غير مستخدم أوّلاً', 'error');
-    await handleAddZone(
-      { letter, name, color: STRUCTURE_COLOR, width_cm: 100, height_cm: 100, depth_cm: 30, shelves_count: 0 },
-      rect
-    );
+    for (let n = 2; n <= 99; n++) {
+      const c = `W${n}`;
+      if (!used.has(c)) candidates.push(c);
+    }
+    setBusy(true);
+    let zoneId = null, lastErr = null;
+    for (const letter of candidates.slice(0, 30)) {
+      const { data: id, error } = await rpcAddZone(activeWarehouse.id, {
+        letter, name, color: STRUCTURE_COLOR,
+        width_cm: 100, height_cm: 100, depth_cm: 30, shelves_count: 0
+      });
+      if (!error && id) { zoneId = id; break; }
+      lastErr = error;
+      // تعارض حرف (duplicate/unique) → جرّب الحرف التالي؛ غير ذلك خطأ حقيقي
+      if (error && !/duplicate|unique/i.test(error.message || '')) break;
+    }
+    if (!zoneId) {
+      setBusy(false);
+      return flash('فشل إنشاء العنصر: ' + (lastErr?.message || 'تعذّر توليد حرف متاح'), 'error');
+    }
+    const { error: posErr } = await rpcUpdateZone({ id: zoneId }, {
+      pos_top: rect.top, pos_left: rect.left, pos_right: null,
+      pos_width: rect.width, pos_height: rect.height,
+      ...(Array.isArray(rect.points) ? { points: rect.points } : {})
+    });
+    setBusy(false);
+    setUndoStack(s => [...s, { kind: 'create', zoneId }]);
+    if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط شكله: ' + posErr.message, 'error');
+    else flash(`✅ أُضيف ${name} — «↶ تراجع» يحذفه`);
+    await onRefresh();
   }
 
   async function handleUpdateZone(zone, patch) {
@@ -268,30 +356,6 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 📏 المقاييس
               </button>
             )}
-            {isFounder && viewMode === 'map' && layoutEditMode && (
-              <>
-                <button onClick={() => setGridEnabled(g => !g)}
-                  className={gridEnabled
-                    ? "bg-indigo-600 text-white border border-indigo-700 text-xs px-3 py-2 rounded-lg hover:bg-indigo-700 font-bold shadow-sm"
-                    : "bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"}>
-                  📐 الشبكة
-                </button>
-                {gridEnabled && (
-                  <select value={gridSpacingMeters} onChange={e => setGridSpacingMeters(Number(e.target.value))}
-                    className="text-xs px-2 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 dark:text-stone-200">
-                    {GRID_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                )}
-                {gridEnabled && (
-                  <button onClick={() => setSnapEnabled(s => !s)}
-                    className={snapEnabled
-                      ? "bg-green-600 text-white border border-green-700 text-xs px-3 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm"
-                      : "bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700"}>
-                    🧲 التقاط
-                  </button>
-                )}
-              </>
-            )}
             {isFounder && viewMode === 'map' && (
               <button onClick={() => setLayoutEditMode(e => !e)}
                 className={layoutEditMode
@@ -424,11 +488,46 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-3 mb-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
                   <span className="text-base">✏️</span>
                   <div className="flex-1 space-y-0.5">
-                    <p>• ✏️ <strong>ارسم شكلاً</strong>: اضغط الزرّ، ثمّ اضغط نقاطاً على الأرضيّة (تتّصل بخطوط)، وأغلق الشكل بالضغط على النقطة الأولى أو «أغلق الشكل»، ثمّ اختر: جدار / مكتب أو مساحة تخزين</p>
-                    <p>• <strong>اسحب</strong> أيّ غرفة لتحريكها · اسحب المقبض ◢ في زاويتها لتغيير حجمها</p>
-                    <p>• اضغط ✏️ على الغرفة لتسميتها/تلوينها · اللون <strong>الرصاصي</strong> = هيكل ثابت (جدار/طاولة) · أيّ لون آخر = مكان تخزين</p>
+                    <p>• اختر أداة رسم: <strong>⬜ مستطيل</strong> (اسحب على الأرضيّة) · <strong>⬠ مضلّع</strong> (نقاط ثم إغلاق) · <strong>🧱 جدار</strong> (نقاط المسار — يُنشأ فور الإنهاء)</p>
+                    <p>• <strong>اسحب</strong> أيّ عنصر لتحريكه · المقبض ◢ للتحجيم · <strong>⬡</strong> لتعديل نقاط شكله بدقّة</p>
+                    <p>• اللون <strong>الرصاصي</strong> = هيكل ثابت (جدار/طاولة) · أيّ لون آخر = مكان تخزين · <strong>↶</strong> يتراجع عن آخر تغيير</p>
                     <p>• عند الانتهاء اضغط <strong>«✅ اعتماد المخطّط»</strong> ليُقفل ويصبح ثابتاً</p>
                   </div>
+                </div>
+              )}
+              {isFounder && layoutEditMode && (
+                <div className="flex items-center gap-1.5 flex-wrap mb-3 bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700 rounded-xl px-2.5 py-2">
+                  <EditorToolButton active={activeTool === 'rect'} title="اسحب على الأرضيّة لرسم مستطيل"
+                    onClick={() => { setVertexEditZoneId(null); setActiveTool(t => t === 'rect' ? null : 'rect'); }}>
+                    ⬜ مستطيل
+                  </EditorToolButton>
+                  <EditorToolButton active={activeTool === 'poly'} title="اضغط نقاطاً على الأرضيّة ثم أغلق الشكل"
+                    onClick={() => { setVertexEditZoneId(null); setActiveTool(t => t === 'poly' ? null : 'poly'); }}>
+                    ⬠ مضلّع
+                  </EditorToolButton>
+                  <EditorToolButton active={activeTool === 'wall'} title="اضغط نقاط مسار الجدار — يُنشأ مباشرةً عند الإنهاء"
+                    onClick={() => { setVertexEditZoneId(null); setActiveTool(t => t === 'wall' ? null : 'wall'); }}>
+                    🧱 جدار
+                  </EditorToolButton>
+                  <span className="w-px h-5 bg-stone-300 dark:bg-stone-600 mx-1" />
+                  <EditorToolButton active={gridEnabled} onClick={() => setGridEnabled(g => !g)}>📐 الشبكة</EditorToolButton>
+                  {gridEnabled && (
+                    <select value={gridSpacingMeters} onChange={e => setGridSpacingMeters(Number(e.target.value))}
+                      className="text-[11px] px-2 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 dark:text-stone-200">
+                      {GRID_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  )}
+                  {gridEnabled && (
+                    <EditorToolButton active={snapEnabled} onClick={() => setSnapEnabled(s => !s)}>🧲 التقاط</EditorToolButton>
+                  )}
+                  <EditorToolButton active={ortho} title="تقييد خطوط المضلّع/الجدار أفقيّاً ورأسيّاً وبزاوية 45°"
+                    onClick={() => setOrtho(o => !o)}>∟ تعامد</EditorToolButton>
+                  <span className="w-px h-5 bg-stone-300 dark:bg-stone-600 mx-1" />
+                  <button onClick={handleUndo} disabled={busy || undoStack.length === 0}
+                    className="text-[11px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 disabled:opacity-40 font-medium"
+                    title="تراجع عن آخر تغيير (Ctrl+Z)">
+                    ↶ تراجع{undoStack.length > 0 ? ` (${undoStack.length})` : ''}
+                  </button>
                 </div>
               )}
               <div className="flex justify-center">
@@ -453,7 +552,14 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onItemEdit={(it) => setEditingOutsideItem(it)}
                   onItemDelete={handleDeleteOutsideItem}
                   onItemView={(it) => setViewingOutsideItem(it)}
-                  onDrawComplete={(rect) => setDrawnRect(rect)}
+                  activeTool={activeTool}
+                  ortho={ortho}
+                  onToolCancel={() => setActiveTool(null)}
+                  onShapeDrawn={handleShapeDrawn}
+                  vertexZoneId={vertexEditZoneId}
+                  onVertexEdit={(z) => { setActiveTool(null); setVertexEditZoneId(z.id); }}
+                  onVertexClose={() => setVertexEditZoneId(null)}
+                  pushUndo={(e) => setUndoStack(s => [...s, e])}
                   onRefresh={onRefresh}
                   flash={flash}
                 />
@@ -719,108 +825,68 @@ function StatCard({ num, label, color = 'default', onClick }) {
   return <div className={baseClass}>{inner}</div>;
 }
 
+// زرّ أداة في شريط محرّر المخطّط
+function EditorToolButton({ active, onClick, title, children }) {
+  return (
+    <button onClick={onClick} title={title}
+      className={active
+        ? 'text-[11px] px-3 py-1.5 rounded-lg border border-indigo-700 bg-indigo-600 text-white font-bold shadow-sm'
+        : 'text-[11px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 font-medium'}>
+      {children}
+    </button>
+  );
+}
+
 // ====== لوحة خريطة المستودع: مساحات + أغراض خارج المساحات (قابلة للسحب) ======
 function WarehouseMapCanvas({
   zones, outsideItems, data, isFounder, busy, layoutEditMode,
   boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
-  onItemEdit, onItemDelete, onItemView, onDrawComplete, onRefresh, flash,
-  activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements
+  onItemEdit, onItemDelete, onItemView, onRefresh, flash,
+  activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements,
+  activeTool, ortho, onToolCancel, onShapeDrawn,
+  vertexZoneId, onVertexEdit, onVertexClose, pushUndo
 }) {
   const containerRef = useRef(null);
-
-  // ====== الرسم بالخطوط: في وضع التحرير، اضغط لإضافة نقاط ثمّ أغلق الشكل ======
   const canDraw = layoutEditMode && isFounder;
-  const [polyActive, setPolyActive] = useState(false);
-  const [polyPoints, setPolyPoints] = useState([]); // [{x,y}] نِسب مئويّة على الأرضيّة
 
-  function pctFromClient(clientX, clientY) {
-    const el = containerRef.current;
-    if (!el) return { x: 0, y: 0 };
-    const r = el.getBoundingClientRect();
-    // نقيس نسبةً لصندوق الحشو (padding box) — وهو الإطار الذي تُموضَع عليه الغرف
-    // المطلقة بالنِّسب — حتى يقع الشكل تماماً حيث رُسم (الحدّ border-2 + الحشو px-4/py-8).
-    const left = r.left + el.clientLeft;
-    const top  = r.top  + el.clientTop;
-    const w = el.clientWidth  || r.width;
-    const h = el.clientHeight || r.height;
-    return {
-      x: Math.max(0, Math.min(100, ((clientX - left) / w) * 100)),
-      y: Math.max(0, Math.min(100, ((clientY - top) / h) * 100))
-    };
-  }
+  // رؤوس الالتقاط: زوايا الأرضيّة + رؤوس كل الأشكال القائمة
+  const snapTargets = useMemo(() => {
+    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+    zones.forEach(z => absPointsOfZone(naturalZoneRect(z), z.points).forEach(p => t.push(p)));
+    return t;
+  }, [zones]);
 
-  // تحويل نقاط الأرضيّة إلى شكل: مربّع إحاطة + نقاط نسبيّة لـ«الامتداد الحقيقي»
-  // (لا للمربّع المقصوص) حتى لا تنضغط الجدران الرفيعة. مع رفض الأشكال المتحلّلة.
-  function finishPolygon(pts) {
-    if (!pts || pts.length < 3) return;
-    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const truW = Math.max(...xs) - minX, truH = Math.max(...ys) - minY;
-    // مساحة المضلّع (shoelace) — لرفض الخطوط المستقيمة (مساحة ≈ 0)
-    let area = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const j = (i + 1) % pts.length;
-      area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
-    }
-    area = Math.abs(area) / 2;
-    if (area < 0.4 || (truW < 0.8 && truH < 0.8)) {
-      flash?.('الشكل صغير جداً أو خطّ مستقيم — ارسم مضلّعاً له مساحة', 'error');
-      setPolyActive(false);
-      setPolyPoints([]);
-      return;
-    }
-    // النقاط نسبةً للامتداد الحقيقي (لا للقيمة المقصوصة) لئلّا تنضغط
-    const rel = pts.map(p => ({
-      x: Math.round((truW > 0.01 ? (p.x - minX) / truW : 0) * 1000) / 10,
-      y: Math.round((truH > 0.01 ? (p.y - minY) / truH : 0) * 1000) / 10
-    }));
-    // مربّع الإحاطة بحدّ أدنى للسماكة حتى يبقى مرئيّاً وقابلاً للتفاعل
-    const w = Math.max(1.5, truW), h = Math.max(1.5, truH);
-    setPolyActive(false);
-    setPolyPoints([]);
-    onDrawComplete?.({ top: minY, left: minX, width: w, height: h, points: rel });
-  }
+  const vertexZone = vertexZoneId ? zones.find(z => z.id === vertexZoneId) : null;
+  // أثناء تحرير نقاط شكل: التقط لرؤوس بقيّة الأشكال (لا لرؤوس الشكل نفسه)
+  const vertexTargets = useMemo(() => {
+    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+    zones.filter(z => z.id !== vertexZoneId)
+      .forEach(z => absPointsOfZone(naturalZoneRect(z), z.points).forEach(p => t.push(p)));
+    return t;
+  }, [zones, vertexZoneId]);
 
-  // خطّ مفتوح (جدار/منحنى): نفس التطبيع لكن بلا رفض المساحة، ونعلّم النقطة الأولى open
-  function finishLine(pts) {
-    if (!pts || pts.length < 2) { flash?.('ارسم نقطتين على الأقل للجدار', 'error'); return; }
-    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const truW = Math.max(...xs) - minX, truH = Math.max(...ys) - minY;
-    if (truW < 0.8 && truH < 0.8) { flash?.('الخطّ قصير جداً', 'error'); setPolyActive(false); setPolyPoints([]); return; }
-    // علامة open على النقطة الأولى = خطّ مفتوح (تبقى داخل JSONB ولا تُحذف عند الحفظ)
-    const rel = pts.map((p, i) => ({
-      x: Math.round((truW > 0.01 ? (p.x - minX) / truW : 0) * 1000) / 10,
-      y: Math.round((truH > 0.01 ? (p.y - minY) / truH : 0) * 1000) / 10,
-      ...(i === 0 ? { open: true } : {})
-    }));
-    setPolyActive(false);
-    setPolyPoints([]);
-    onDrawComplete?.({ top: minY, left: minX, width: Math.max(1.5, truW), height: Math.max(1.5, truH), points: rel });
-  }
-
-  function handleFloorClick(clientX, clientY) {
-    const raw = pctFromClient(clientX, clientY);
-    const p = { x: snapValue(raw.x, snapX), y: snapValue(raw.y, snapY) };
-    // الضغط قرب النقطة الأولى (مع ≥3 نقاط) يُغلق الشكل
-    if (polyPoints.length >= 3) {
-      const first = polyPoints[0];
-      if (Math.abs(p.x - first.x) < 3.5 && Math.abs(p.y - first.y) < 3.5) { finishPolygon(polyPoints); return; }
-    }
-    setPolyPoints(pts => [...pts, p]);
+  // حفظ نقاط شكل بعد تحريرها (⬡)
+  async function handleSavePoints(zone, geom) {
+    pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
+    const { error } = await rpcUpdateZone(zone, {
+      pos_top: geom.top, pos_left: geom.left, pos_right: null,
+      pos_width: geom.width, pos_height: geom.height, points: geom.points
+    });
+    if (error) return flash?.('فشل حفظ الشكل: ' + error.message, 'error');
+    flash?.('✅ حُفظ الشكل — «↶ تراجع» يعيده');
+    onVertexClose?.();
+    onRefresh?.();
   }
 
   // حفظ موقع/حجم الغرفة بعد سحبها أو تكبيرها (وضع تحرير المخطّط)
   async function handleZoneGeometry(zone, rect) {
-    try {
-      await rpcUpdateZone(zone, {
-        pos_top: rect.top, pos_left: rect.left, pos_right: null,
-        pos_width: rect.width, pos_height: rect.height
-      });
-      onRefresh?.();
-    } catch (err) {
-      flash?.('فشل حفظ المخطّط: ' + err.message, 'error');
-    }
+    pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
+    const { error } = await rpcUpdateZone(zone, {
+      pos_top: rect.top, pos_left: rect.left, pos_right: null,
+      pos_width: rect.width, pos_height: rect.height
+    });
+    if (error) return flash?.('فشل حفظ المخطّط: ' + error.message, 'error');
+    onRefresh?.();
   }
   // مستطيلات المساحات كعوائق — الغرض الحرّ ممنوع أن يتداخل معها إطلاقاً
   const zoneObstacles = useMemo(() => zones.map(z => naturalZoneRect(z)), [zones]);
@@ -872,58 +938,37 @@ function WarehouseMapCanvas({
         الجدار الخلفي
       </div>
 
-      {/* زرّ بدء الرسم بالخطوط */}
-      {canDraw && !polyActive && (
-        <button
-          onClick={() => { setPolyActive(true); setPolyPoints([]); }}
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-30 text-[11px] bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-blue-700 font-bold">
-          ✏️ ارسم شكلاً
-        </button>
+      {/* طبقة الرسم التفاعليّة (مستطيل/مضلّع/جدار) */}
+      {canDraw && activeTool && (
+        <MapDrawLayer
+          key={activeTool}
+          containerRef={containerRef}
+          warehouse={activeWarehouse}
+          tool={activeTool}
+          snapX={snapX}
+          snapY={snapY}
+          ortho={ortho}
+          targets={snapTargets}
+          onFinish={onShapeDrawn}
+          onCancel={onToolCancel}
+          flash={flash}
+        />
       )}
 
-      {/* طبقة الرسم بالخطوط — تلتقط الضغطات لإضافة نقاط */}
-      {polyActive && (
-        <div
-          className="absolute inset-0 z-50 cursor-crosshair"
-          style={{ touchAction: 'none' }}
-          onPointerUp={(e) => handleFloorClick(e.clientX, e.clientY)}>
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-            {polyPoints.length >= 2 && (
-              <polygon
-                points={polyPoints.map(p => `${p.x},${p.y}`).join(' ')}
-                fill="rgba(37,99,235,0.12)" stroke="#2563eb" strokeWidth="1.5"
-                strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
-            )}
-            {polyPoints.map((p, i) => (
-              <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.8 : 1.2}
-                fill={i === 0 ? '#1d4ed8' : '#3b82f6'} stroke="#fff" strokeWidth="0.5"
-                vectorEffect="non-scaling-stroke" />
-            ))}
-          </svg>
-          {/* أزرار التحكّم */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 flex gap-2 z-10" onPointerUp={(e) => e.stopPropagation()}>
-            <button onClick={() => finishPolygon(polyPoints)} disabled={polyPoints.length < 3}
-              className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-green-700 font-bold disabled:opacity-40">
-              ✅ أغلق الشكل
-            </button>
-            <button onClick={() => finishLine(polyPoints)} disabled={polyPoints.length < 2}
-              className="text-[11px] bg-stone-700 text-white px-3 py-1.5 rounded-lg shadow hover:bg-stone-800 font-bold disabled:opacity-40"
-              title="أنهِ النقاط كجدار/خطّ مفتوح يتبع الشكل">
-              📏 أنهِ كجدار
-            </button>
-            <button onClick={() => setPolyPoints(pts => pts.slice(0, -1))} disabled={polyPoints.length === 0}
-              className="text-[11px] bg-white text-stone-700 border border-stone-300 px-3 py-1.5 rounded-lg shadow hover:bg-stone-100 disabled:opacity-40">
-              ↶ تراجع
-            </button>
-            <button onClick={() => { setPolyActive(false); setPolyPoints([]); }}
-              className="text-[11px] bg-white text-red-600 border border-red-300 px-3 py-1.5 rounded-lg shadow hover:bg-red-50">
-              ✕ إلغاء
-            </button>
-          </div>
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-blue-700 dark:text-blue-300 bg-white/85 dark:bg-stone-800/85 px-3 py-1 rounded-full font-medium text-center">
-            اضغط لإضافة نقطة · اضغط النقطة الأولى أو «أغلق الشكل» للإنهاء ({polyPoints.length})
-          </div>
-        </div>
+      {/* محرّر نقاط شكل قائم (⬡) */}
+      {canDraw && !activeTool && vertexZone && (
+        <VertexEditLayer
+          containerRef={containerRef}
+          warehouse={activeWarehouse}
+          zone={vertexZone}
+          snapX={snapX}
+          snapY={snapY}
+          targets={vertexTargets}
+          busy={busy}
+          onSave={(geom) => handleSavePoints(vertexZone, geom)}
+          onClose={onVertexClose}
+          flash={flash}
+        />
       )}
 
       {/* مساحات التخزين ثابتة تماماً — لا تتحرّك ولا تتقلّص إطلاقاً */}
@@ -948,6 +993,7 @@ function WarehouseMapCanvas({
           onGeometry={handleZoneGeometry}
           onEdit={() => onZoneEdit(z)}
           onDelete={() => onZoneDelete(z)}
+          onEditPoints={() => onVertexEdit?.(z)}
         />
       ))}
 
@@ -1069,7 +1115,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1083,12 +1129,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     onChange: (r) => onGeometry?.(zone, r)
   });
   const rect = editing ? pos : (displayRect || fallbackRect);
-  // شكل المضلّع (إن وُجد) — يُقصّ بالنسب المئويّة داخل مربّع الإحاطة. خارج وضع
-  // التحرير فقط، حتى يبقى مقبضا التحريك/التكبير على المربّع الكامل متاحَين.
-  // جدار مفتوح (خطّ/منحنى): يُرسَم كخطّ بدل قصّ مساحة مملوءة
-  const isOpenWall = isDecor && Array.isArray(zone.points) && zone.points[0]?.open;
-  const wallStroke = isOpenWall && !editing;   // اعرض كخطّ خارج وضع التحرير فقط
-  const polyClip = (!isOpenWall && Array.isArray(zone.points) && zone.points.length >= 3)
+  // جدار مفتوح (خطّ/مسار): يُرسَم كخطّ دائماً — وفي وضع التحرير يظهر إطار
+  // متقطّع على مربّع إحاطته ليسهل سحبه. المضلّع المغلق يُقصّ على طبقة داخليّة
+  // (لا على الحاوية) فيبقى شكله ظاهراً أثناء التحرير مع بقاء المقابض والأزرار.
+  const isOpenWall = Array.isArray(zone.points) && zone.points[0]?.open;
+  const hasPoly = !isOpenWall && Array.isArray(zone.points) && zone.points.length >= 3;
+  const polyClip = hasPoly
     ? `polygon(${zone.points.map(p => `${p.x}% ${p.y}%`).join(', ')})`
     : undefined;
   const style = {
@@ -1096,15 +1142,18 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     left:   `${rect.left}%`,
     width:  `${rect.width}%`,
     height: `${rect.height}%`,
-    borderColor: wallStroke ? 'transparent' : zone.color,
-    backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
-    backgroundColor: wallStroke ? 'transparent' : (isDecor ? `${zone.color}66` : undefined),
-    boxShadow: wallStroke ? 'none' : `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`,
     transition: mode ? 'none' : 'top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease',
     zIndex: mode ? 50 : undefined,
     cursor: editing ? (mode === 'move' ? 'grabbing' : 'grab') : undefined,
-    touchAction: editing ? 'none' : undefined,
-    clipPath: editing ? undefined : polyClip
+    touchAction: editing ? 'none' : undefined
+  };
+  // مظهر الجسم الداخلي (المقصوص للمضلّعات)
+  const bodyStyle = {
+    clipPath: polyClip,
+    borderColor: hasPoly ? 'transparent' : zone.color,
+    backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+    backgroundColor: isDecor ? `${zone.color}66` : undefined,
+    boxShadow: hasPoly ? undefined : `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
   };
   const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
   const showShelves = shelvesToShow.length > 0;
@@ -1113,8 +1162,11 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     <div style={style}
       onMouseDown={editing ? (e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); } : undefined}
       onTouchStart={editing ? (e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); } : undefined}
-      className={`absolute border-2 rounded-xl flex flex-col group ${wallStroke ? '' : 'overflow-hidden'} ${editing ? 'ring-2 ring-blue-500 ring-offset-1 select-none' : (isDecor ? '' : 'transition-transform hover:scale-[1.02]')}`}>
-      {wallStroke && <WallStrokeOverlay points={zone.points} color={zone.color} thickness={3} />}
+      className={`absolute group ${editing ? 'ring-2 ring-blue-500 ring-offset-1 select-none' : (isDecor ? '' : 'transition-transform hover:scale-[1.02]')}`}>
+      {isOpenWall && <WallStrokeOverlay points={zone.points} color={zone.color} thickness={3} />}
+      {isOpenWall && editing && <div className="absolute inset-0 border border-dashed border-blue-400/70 rounded" />}
+      {!isOpenWall && (
+      <div style={bodyStyle} className={`absolute inset-0 flex flex-col overflow-hidden ${hasPoly ? '' : 'border-2 rounded-xl'}`}>
       <button onClick={(editing || isDecor) ? undefined : onClick} className={`flex-1 relative flex flex-col w-full ${(editing || isDecor) ? '' : 'hover:brightness-95 transition'}`}>
         <div className="h-1.5 w-full" style={{ backgroundColor: zone.color, opacity: 0.85 }}></div>
 
@@ -1189,6 +1241,14 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
           </div>
         )}
       </button>
+      </div>
+      )}
+      {hasPoly && (
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polygon points={zone.points.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="none" stroke={zone.color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
 
       {isFounder && (
         <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
@@ -1200,6 +1260,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
             className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
             title="حذف"
           >🗑</button>
+          {editing && (
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEditPoints?.(); }} disabled={busy}
+              className="text-[10px] bg-white dark:bg-stone-800 border border-blue-300 dark:border-blue-700 w-6 h-6 rounded-md shadow-md text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 flex items-center justify-center"
+              title="تعديل نقاط الشكل"
+            >⬡</button>
+          )}
         </div>
       )}
 
