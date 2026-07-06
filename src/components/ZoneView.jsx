@@ -1024,6 +1024,28 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   const shelfBoxes = getShelfBoxes(shelf.shelf_index);
                   // أغراض "كامل" (≥100%) تُعرض كأشرطة بعرض الرفّ مرصوصة فوق بعضها؛ والباقي في صفّ الخانات
                   const shelfAllItems = shelfItems.filter(it => it.shelf_id === shelf.id);
+                  // قسم حرّ (مخطّط 🧰) خارج وضع التعديل: بطاقة مغلقة نظيفة —
+                  // بلا صناديق ظاهرة؛ الدخول يعرض كل محتوياته (كما طلب المؤسّس)
+                  if (sRect && !editMode) {
+                    return (
+                      <button
+                        key={shelf.id}
+                        onClick={() => onShelfClick?.(shelf)}
+                        className="absolute border-2 rounded-lg flex flex-col items-center justify-center gap-0.5 bg-stone-50 dark:bg-stone-800 hover:ring-2 hover:ring-blue-400 hover:scale-[1.01] transition cursor-pointer overflow-hidden"
+                        style={{ top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%`, borderColor: fresh.color }}
+                        title={`اضغط لدخول ${shelfDisplayName(shelf, shelves)}`}
+                      >
+                        <span className="text-sm leading-none">{shelf.pos?.kind ? kindIcon(shelf.pos.kind) : '➖'}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight text-center shadow-sm"
+                          style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+                          {shelfDisplayName(shelf, shelves)}
+                        </span>
+                        <span className="text-[9px] text-stone-500 dark:text-stone-400">
+                          {shelfBoxes.length} 📦{shelfAllItems.length > 0 ? ` · ${shelfAllItems.length} غرض` : ''}
+                        </span>
+                      </button>
+                    );
+                  }
                   const shelfFullItems = shelfAllItems.filter(it => Number(it.width_pct) >= 100);
                   const slotItems = shelfAllItems.filter(it => !(Number(it.width_pct) >= 100));
                   const maxBoxIdx = Math.max(0, ...shelfBoxes.map(b => b.box_index || 0), ...slotItems.map(it => it.box_index || 0));

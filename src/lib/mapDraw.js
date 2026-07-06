@@ -135,3 +135,28 @@ export function nearPoint(a, b, tol = 1.2) {
 export function midPoint(a, b) {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
+
+// «تقويم» شكل مرسوم باليد: كل ضلع يُسقَط على أقرب زاوية من عائلة 45°
+// (يُحسب بالأمتار)، فتصير الخطوط شبه المائلة مستقيمة تماماً. تُحفَظ خصائص
+// النقاط (open/label) كما هي.
+export function straightenPoints(absPts, warehouse) {
+  if (!Array.isArray(absPts) || absPts.length < 2) return absPts;
+  const wm = whWidthM(warehouse), dm = whDepthM(warehouse);
+  const out = [{ ...absPts[0] }];
+  for (let i = 1; i < absPts.length; i++) {
+    const prev = out[i - 1];
+    const cur = absPts[i];
+    const dx = ((cur.x - prev.x) / 100) * wm;
+    const dy = ((cur.y - prev.y) / 100) * dm;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-9) { out.push({ ...cur }); continue; }
+    const snapped = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+    const ndx = Math.cos(snapped) * len, ndy = Math.sin(snapped) * len;
+    out.push({
+      ...cur,
+      x: Math.max(0, Math.min(100, prev.x + (ndx / wm) * 100)),
+      y: Math.max(0, Math.min(100, prev.y + (ndy / dm) * 100))
+    });
+  }
+  return out;
+}

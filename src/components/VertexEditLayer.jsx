@@ -8,7 +8,8 @@ import { useState, useEffect, useRef } from 'react';
 import { snapValue, formatDim } from '../lib/gridConfig';
 import {
   pctFromClient, geometryFromAbsPoints, absPointsOfZone, polygonArea,
-  segmentMeters, snapToTargets, snapToSegments, midPoint, naturalZoneRect
+  segmentMeters, snapToTargets, snapToSegments, midPoint, naturalZoneRect,
+  orthoSnap, straightenPoints
 } from '../lib/mapDraw';
 
 export default function VertexEditLayer({
@@ -20,8 +21,16 @@ export default function VertexEditLayer({
   const [pts, setPts] = useState(initialRef.current);
   const [history, setHistory] = useState([]);  // لقطات للتراجع المحلّي
   const [dragIdx, setDragIdx] = useState(null);
+  const [orthoOn, setOrthoOn] = useState(false); // ∟ سحب النقطة بزوايا مستقيمة
   const dirty = history.length > 0;
   const minPts = isOpen ? 2 : 3;
+
+  // 📐 تقويم الشكل كاملاً: كل الأضلاع تُسقَط على 0/45/90° دفعة واحدة
+  function handleStraighten() {
+    pushHistory();
+    setPts(straightenPoints(pts, warehouse));
+    flash?.('📐 قُوِّم الشكل — «💾 حفظ الشكل» لتثبيته أو ↶ للتراجع');
+  }
 
   function pushHistory() { setHistory(h => [...h, pts]); }
 
@@ -40,7 +49,16 @@ export default function VertexEditLayer({
       if (e.cancelable) e.preventDefault();
       let p = pctFromClient(containerRef.current, c.clientX, c.clientY);
       const hit = snapToTargets(p, targets) || snapToSegments(p, segments, warehouse);
-      p = hit ? { x: hit.x, y: hit.y } : { x: snapValue(p.x, snapX), y: snapValue(p.y, snapY) };
+      if (hit) {
+        p = { x: hit.x, y: hit.y };
+      } else {
+        // ∟ التعامد: قيّد النقطة المسحوبة نسبةً لجارتها السابقة (خط مستقيم)
+        if (orthoOn) {
+          const prev = dragIdx > 0 ? pts[dragIdx - 1] : (!isOpen ? pts[pts.length - 1] : null);
+          if (prev) p = orthoSnap(prev, p, warehouse).point;
+        }
+        p = { x: snapValue(p.x, snapX), y: snapValue(p.y, snapY) };
+      }
       setPts(a => a.map((q, i) => (i === dragIdx ? p : q)));
     }
     function up() { setDragIdx(null); }
@@ -55,7 +73,7 @@ export default function VertexEditLayer({
       window.removeEventListener('touchend', up);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragIdx, snapX, snapY, targets, segments]);
+  }, [dragIdx, snapX, snapY, targets, segments, orthoOn, pts, isOpen]);
 
   function insertAt(i, p) {
     pushHistory();
@@ -154,6 +172,18 @@ export default function VertexEditLayer({
         <button onClick={handleSave} disabled={!dirty || busy}
           className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-green-700 font-bold disabled:opacity-40">
           {busy ? '...' : '💾 حفظ الشكل'}
+        </button>
+        <button onClick={handleStraighten}
+          className="text-[11px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-indigo-700 font-bold"
+          title="تقويم كل الأضلاع دفعة واحدة (0/45/90°) — الخطوط المائلة بيدك تصير مستقيمة تماماً">
+          📐 قوّم الشكل
+        </button>
+        <button onClick={() => setOrthoOn(o => !o)}
+          className={orthoOn
+            ? 'text-[11px] bg-indigo-600 text-white border border-indigo-700 px-3 py-1.5 rounded-lg shadow font-bold'
+            : 'text-[11px] bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-600 px-3 py-1.5 rounded-lg shadow hover:bg-stone-100 dark:hover:bg-stone-700'}
+          title="أثناء سحب نقطة: قيّدها بزوايا مستقيمة نسبةً لجارتها">
+          ∟ تعامد
         </button>
         <button
           onClick={() => setHistory(h => { if (h.length === 0) return h; setPts(h[h.length - 1]); return h.slice(0, -1); })}
