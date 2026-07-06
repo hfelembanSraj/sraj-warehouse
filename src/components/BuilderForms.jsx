@@ -150,7 +150,8 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
   const [width_cm, setWidth] = useState(200);
   const [height_cm, setHeight] = useState(230);
   const [depth_cm, setDepth] = useState(65);
-  const [shelves_count, setShelvesCount] = useState(3);
+  // المساحة تُنشأ فارغة تماماً افتراضيّاً — المؤسّس يرسم أرففها وأقسامها بنفسه (🧰)
+  const [shelves_count, setShelvesCount] = useState(0);
   const isValid = letter.trim().length === 1 && name.trim().length > 0;
 
   return (
@@ -194,8 +195,8 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">عدد الأرفف</label>
-          <input type="number" min="1" value={shelves_count} onChange={e => setShelvesCount(e.target.value)}
+          <label className="block text-[10px] text-stone-600 mb-1">عدد الأرفف (0 = فارغة، ترسمها بنفسك)</label>
+          <input type="number" min="0" value={shelves_count} onChange={e => setShelvesCount(e.target.value)}
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
       </div>

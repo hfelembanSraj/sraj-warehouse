@@ -19,10 +19,17 @@ export default function MapDrawLayer({
   const [pts, setPts] = useState([]);          // نقاط مثبّتة (مطلقة ٪)
   const [cursor, setCursor] = useState(null);  // معاينة حيّة {x,y,hit}
   const [dragStart, setDragStart] = useState(null); // بداية سحب المستطيل
+  // أبعاد مكتوبة (بالمتر) — نقرة واحدة تضع مستطيلاً بهذا المقاس بالضبط
+  const [dimW, setDimW] = useState('');
+  const [dimH, setDimH] = useState('');
   const lastClickRef = useRef(0);
   const isRect = tool === 'rect';
   const isWall = tool === 'wall';
   const lastPt = pts[pts.length - 1] || null;
+  const whW = Number(warehouse?.width_m) || 4;
+  const whD = Number(warehouse?.depth_m) || 4;
+  const fixedW = Number(dimW) > 0 ? (Number(dimW) / whW) * 100 : null;
+  const fixedH = Number(dimH) > 0 ? (Number(dimH) / whD) * 100 : null;
 
   // معالجة نقطة خام: التقاط رأس ← حافّة جدار (لصق) ← تعامد ← شبكة
   function processPoint(raw, anchor) {
@@ -85,7 +92,16 @@ export default function MapDrawLayer({
     if (!s || !c) return;
     const left = Math.min(s.x, c.x), top = Math.min(s.y, c.y);
     const width = Math.abs(s.x - c.x), height = Math.abs(s.y - c.y);
-    if (width < 0.8 && height < 0.8) return;   // مجرّد نقرة — تجاهل
+    if (width < 0.8 && height < 0.8) {
+      // نقرة بلا سحب: إن كُتبت الأبعاد، ضع مستطيلاً بمقاسها بالضبط (مركزه النقرة)
+      if (fixedW && fixedH) {
+        const w = Math.min(100, fixedW), h = Math.min(100, fixedH);
+        const l = Math.max(0, Math.min(100 - w, c.x - w / 2));
+        const t = Math.max(0, Math.min(100 - h, c.y - h / 2));
+        onFinish({ top: t, left: l, width: w, height: h }, tool);
+      }
+      return;
+    }
     if (width < 0.8 || height < 0.8) return flash?.('المستطيل رفيع جداً — اسحب قطريّاً', 'error');
     onFinish({ top, left, width, height }, tool);
   }
@@ -93,6 +109,8 @@ export default function MapDrawLayer({
   // لوحة المفاتيح: Esc إلغاء · Enter إنهاء · Backspace حذف آخر نقطة
   useEffect(() => {
     function onKey(e) {
+      // لا تتدخّل أثناء الكتابة في حقول الأبعاد
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         if (pts.length > 0 || dragStart) { setPts([]); setDragStart(null); setCursor(null); }
@@ -123,7 +141,9 @@ export default function MapDrawLayer({
   } : null;
 
   const hints = {
-    rect: 'اسحب على الأرضيّة لرسم مستطيل — تظهر أبعاده مباشرةً',
+    rect: (fixedW && fixedH)
+      ? `نقرة واحدة تضع مستطيلاً ${dimW}×${dimH}م مكانها — أو اسحب لرسم حرّ`
+      : 'اسحب لرسم مستطيل — أو اكتب العرض×الطول بالأعلى ثم انقر مكانه',
     poly: `اضغط لإضافة نقطة · نقرة مزدوجة أو النقطة الأولى للإغلاق (${pts.length})`,
     wall: `اضغط نقاط المسار · النقطة الأولى تُغلقه · نقرة مزدوجة أو Enter تنهيه مفتوحاً (${pts.length})${totalM > 0 ? ' · الطول: ' + formatDim(totalM) : ''}`
   };
@@ -209,8 +229,20 @@ export default function MapDrawLayer({
       )}
 
       {/* أزرار التحكّم */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10"
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10 items-center"
         onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+        {isRect && (
+          <span className="flex items-center gap-1 bg-white/95 dark:bg-stone-800/95 rounded-lg px-2 py-1 shadow border border-stone-300 dark:border-stone-600">
+            <input type="number" inputMode="decimal" min="0" step="0.1" value={dimW}
+              onChange={(e) => setDimW(e.target.value)} placeholder="العرض"
+              className="w-14 text-[11px] px-1 py-0.5 border border-stone-300 dark:border-stone-600 rounded bg-white dark:bg-stone-900 dark:text-stone-200 text-center" />
+            <span className="text-[10px] text-stone-500 dark:text-stone-400">×</span>
+            <input type="number" inputMode="decimal" min="0" step="0.1" value={dimH}
+              onChange={(e) => setDimH(e.target.value)} placeholder="الطول"
+              className="w-14 text-[11px] px-1 py-0.5 border border-stone-300 dark:border-stone-600 rounded bg-white dark:bg-stone-900 dark:text-stone-200 text-center" />
+            <span className="text-[10px] text-stone-500 dark:text-stone-400">م</span>
+          </span>
+        )}
         {!isRect && (
           <>
             <button onClick={() => finishShape()} disabled={pts.length < (isWall ? 2 : 3)}
