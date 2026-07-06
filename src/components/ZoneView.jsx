@@ -104,6 +104,9 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
   // ضمان وجود الزون من بيانات حديثة
   const fresh = (data.zones || []).find(z => z.id === zone.id) || zone;
   const shelves = fresh?.shelves || [];
+  // مكان منظّم بمساحات داخليّة (🚪): تُخفى واجهة الأرفف الفارغة كي لا تبدو «مساحة ثانية»
+  const hasChildZones = (data.zones || []).some(z => z.parent_zone_id === fresh.id);
+  const showRackFace = !(hasChildZones && shelves.length === 0);
   const zoneLetter = fresh.letter;
   const zoneBoxes = data.boxes.filter(b => b.code.startsWith(zoneLetter + '-'));
   const allItems = [];
@@ -983,7 +986,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
         )}
 
         {/* زرّ التقسيم الحرّ — وضع التعديل فقط */}
-        {zoneViewMode === 'rack' && editMode && isFounder && (
+        {zoneViewMode === 'rack' && editMode && isFounder && showRackFace && (
           <div className="flex justify-center mb-2">
             <button onClick={() => setInteriorOpen(true)}
               className="text-[11px] px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-bold shadow-sm">
@@ -992,8 +995,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         )}
 
-        {/* العرض الأمامي للأرفف */}
-        {zoneViewMode === 'rack' && (
+        {/* العرض الأمامي للأرفف — يُخفى إن كان المكان منظّماً بمساحات داخليّة بلا أرفف */}
+        {zoneViewMode === 'rack' && showRackFace && (
         <div className="flex justify-center mb-3">
           <div className="w-full max-w-md bg-stone-100 dark:bg-stone-800 rounded-lg p-4">
             <div
