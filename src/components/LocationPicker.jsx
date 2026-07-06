@@ -187,23 +187,34 @@ export default function LocationPicker({
 }
 
 // ====== الخطوة 1: اختيار المساحة (خريطة المستودع كاملة) ======
+// تُعرض مساحات التخزين فقط (لا العناصر الهيكليّة الرصاصيّة)، بأشكالها
+// الحقيقيّة وأبعاد المستودع الفعليّة، والمساحات الداخليّة كأزرار أسفلها.
 function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
-  if (zones.length === 0) {
+  const STRUCTURE = '#9CA3AF';
+  const storage = zones.filter(z => (z.color || '').toUpperCase() !== STRUCTURE);
+  const topLevel = storage.filter(z => !z.parent_zone_id);
+  const inner = storage.filter(z => z.parent_zone_id);
+  if (storage.length === 0) {
     return (
       <div className="text-center py-8 text-stone-500">
         <div className="text-3xl mb-2">📭</div>
-        <p className="text-sm">لا توجد مساحات في هذا المستودع. أنشئ مساحة أوّلاً.</p>
+        <p className="text-sm">لا توجد مساحات تخزين في هذا المستودع. أنشئ مساحة أوّلاً.</p>
       </div>
     );
   }
   return (
     <>
       <div className="bg-stone-50 rounded-xl p-2 mb-2 border border-stone-200">
-        <div className="relative w-full max-w-xl mx-auto aspect-square bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl border-2 border-dashed border-stone-300 px-3 py-7">
+        <div className="relative w-full max-w-xl mx-auto bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl border-2 border-dashed border-stone-300 px-3 py-7"
+          style={{ aspectRatio: `${Number(activeWarehouse?.width_m) || 4} / ${Number(activeWarehouse?.depth_m) || 4}` }}>
           <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 font-medium tracking-widest">الجدار الخلفي</div>
 
-          {zones.map(z => {
+          {topLevel.map(z => {
             const status = getZoneStatus(z);
+            // الشكل الحرّ (المضلّع) يُقصّ كما على الخريطة
+            const clip = (Array.isArray(z.points) && z.points.length >= 3 && !z.points[0]?.open)
+              ? `polygon(${z.points.map(p => `${p.x}% ${p.y}%`).join(', ')})`
+              : undefined;
             const style = {
               top:    z.pos_top    != null ? `${z.pos_top}%`    : undefined,
               bottom: (z.pos_top == null && z.pos_height != null) ? `${100 - z.pos_height - 6}%` : undefined,
@@ -214,7 +225,8 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
               borderColor: z.color,
               backgroundColor: status.full ? '#f3f4f6' : z.color + '15',
               cursor: status.full ? 'not-allowed' : 'pointer',
-              opacity: status.full ? 0.55 : 1
+              opacity: status.full ? 0.55 : 1,
+              clipPath: clip
             };
             return (
               <button
@@ -246,6 +258,24 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
           </div>
         </div>
       </div>
+      {inner.length > 0 && (
+        <div className="mb-2">
+          <p className="text-[10px] text-stone-500 mb-1 font-medium">🚪 مساحات داخليّة (داخل دولاب/مكان):</p>
+          <div className="flex flex-wrap gap-1.5">
+            {inner.map(z => {
+              const status = getZoneStatus(z);
+              const parent = zones.find(p => p.id === z.parent_zone_id);
+              return (
+                <button key={z.id} disabled={status.full} onClick={() => onPick(z)}
+                  className="text-[11px] px-3 py-1.5 rounded-lg border-2 font-medium transition hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ borderColor: z.color, color: z.color, backgroundColor: z.color + '12' }}>
+                  <b>{z.letter}</b> — {z.name}{parent ? ` (داخل ${parent.letter})` : ''} · {status.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <p className="text-[11px] text-stone-500 text-center">اضغط على مساحة (المساحات الرماديّة ممتلئة ولا يمكن اختيارها)</p>
     </>
   );

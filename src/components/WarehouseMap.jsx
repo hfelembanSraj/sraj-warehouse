@@ -1111,6 +1111,7 @@ function WarehouseMapCanvas({
           zoneShelves={z.shelves || []}
           zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
           zoneItems={(data.items || []).filter(it => it.box_id == null && it.shelf_id != null && it.zone_id === z.id)}
+          childZones={allZones.filter(c => c.parent_zone_id === z.id)}
           onClick={() => onZoneClick(z)}
           isFounder={isFounder}
           busy={busy}
@@ -1251,7 +1252,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, plainBg = false, neighborEdges = null, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1301,6 +1302,9 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
   };
   const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
   const showShelves = shelvesToShow.length > 0;
+  // نسخة مصغّرة مطابقة للداخل: أقسام حرّة (pos) و/أو مساحات داخليّة بمواضعها الحقيقيّة
+  const freeShelves = (zoneShelves || []).filter(s => s.pos);
+  const miniLayout = childZones.length > 0 || freeShelves.length > 0;
 
   return (
     <div style={style}
@@ -1338,7 +1342,41 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
             )}
           </div>
 
-          {!isDecor && (showShelves ? (
+          {!isDecor && (miniLayout ? (
+            // نسخة مصغّرة من الداخل — الأقسام والمساحات الداخليّة بمواضعها
+            <div className="flex-1 relative">
+              {freeShelves.map(s => {
+                const r = s.pos;
+                if (r.kind === 'divider') {
+                  return (
+                    <div key={s.id} className="absolute pointer-events-none"
+                      style={{ top: `${r.top}%`, left: `${r.left}%`, width: `${r.width}%`, height: `${r.height}%` }}>
+                      <WallStrokeOverlay points={r.points || [{ x: 0, y: 50 }, { x: 100, y: 50 }]} color={zone.color} thickness={2} />
+                    </div>
+                  );
+                }
+                const clip = (Array.isArray(r.points) && r.points.length >= 3 && !r.points[0]?.open)
+                  ? `polygon(${r.points.map(p => `${p.x}% ${p.y}%`).join(', ')})` : undefined;
+                return (
+                  <div key={s.id} className="absolute border border-dashed rounded-[2px] pointer-events-none"
+                    style={{ top: `${r.top}%`, left: `${r.left}%`, width: `${r.width}%`, height: `${r.height}%`,
+                      borderColor: zone.color + '99', backgroundColor: zone.color + '15', clipPath: clip }} />
+                );
+              })}
+              {childZones.map(c => {
+                const r = naturalZoneRect(c);
+                const clip = (Array.isArray(c.points) && c.points.length >= 3 && !c.points[0]?.open)
+                  ? `polygon(${c.points.map(p => `${p.x}% ${p.y}%`).join(', ')})` : undefined;
+                return (
+                  <div key={c.id} className="absolute border rounded-[2px] flex items-center justify-center pointer-events-none"
+                    style={{ top: `${r.top}%`, left: `${r.left}%`, width: `${r.width}%`, height: `${r.height}%`,
+                      borderColor: c.color, backgroundColor: c.color + '22', clipPath: clip }}>
+                    <span className="text-[7px] font-bold leading-none" style={{ color: c.color }}>{c.letter}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : showShelves ? (
             <div className="flex-1 flex flex-row gap-[3px] items-stretch">
               {shelvesToShow.map((sh) => {
                 const shelfBoxes = zoneBoxes.filter(b => b.code.split('-')[1] === String(sh.shelf_index));
