@@ -198,30 +198,56 @@ function UserActivityModal({ user, onClose }) {
 }
 
 function EditPermissionsModal({ user, onClose, onSaved }) {
-  const { activeWarehouse } = useAuth();
+  const { activeWarehouse, warehouses, isFounder } = useAuth();
   const [perms, setPerms] = useState({ ...user.permissions });
   const [role, setRole] = useState(user.role === 'whmanager' ? 'whmanager' : 'user');
   const [loading, setLoading] = useState(false);
+  // المستودع الهدف: الصلاحيات لكل مستودع على حدة — والمؤسّس يمنح وصولاً لمستودعات إضافيّة
+  const [targetWh, setTargetWh] = useState(activeWarehouse);
+  const [membershipId, setMembershipId] = useState(user.id || null);
+  const [isNewGrant, setIsNewGrant] = useState(!user.id);
 
   function toggle(key) { setPerms(p => ({ ...p, [key]: !p[key] })); }
+
+  // تبديل المستودع الهدف: حمّل عضويّته الحاليّة فيه (إن وُجدت) أو ابدأ منحاً جديداً
+  async function pickWarehouse(whId) {
+    const wh = warehouses.find(w => w.id === whId) || activeWarehouse;
+    setTargetWh(wh);
+    if (wh.id === activeWarehouse?.id) {
+      setMembershipId(user.id || null);
+      setIsNewGrant(!user.id);
+      setPerms({ ...user.permissions });
+      setRole(user.role === 'whmanager' ? 'whmanager' : 'user');
+      return;
+    }
+    setLoading(true);
+    const { data } = await supabase.from('user_warehouses')
+      .select('id, role, permissions')
+      .eq('user_id', user.user_id).eq('warehouse_id', wh.id).maybeSingle();
+    setLoading(false);
+    setMembershipId(data?.id || null);
+    setIsNewGrant(!data);
+    setPerms(data?.permissions ? { ...data.permissions } : { view: true });
+    setRole(data?.role === 'whmanager' ? 'whmanager' : 'user');
+  }
 
   async function handleSave() {
     setLoading(true);
     try {
-      if (user.id) {
-        // عضو موجود في هذا المستودع — حدّث صلاحياته ودوره
+      if (membershipId) {
+        // عضويّة قائمة في المستودع الهدف — حدّث صلاحياتها ودورها
         const { error } = await supabase.from('user_warehouses')
-          .update({ permissions: perms, role }).eq('id', user.id);
+          .update({ permissions: perms, role }).eq('id', membershipId);
         if (error) throw error;
       } else {
-        // غير منتسب لهذا المستودع — أنشئ عضويّة (منح وصول + صلاحيات)
+        // منح وصول جديد للمستودع الهدف بصلاحيات محدّدة
         const { error } = await supabase.from('user_warehouses').upsert(
-          { user_id: user.user_id, warehouse_id: user.warehouse_id, role, permissions: perms, approved: true },
+          { user_id: user.user_id, warehouse_id: targetWh?.id || user.warehouse_id, role, permissions: perms, approved: true },
           { onConflict: 'user_id,warehouse_id' }
         );
         if (error) throw error;
       }
-      await logActivity('تعديل صلاحيات', user.profiles?.full_name || 'مستخدم', activeWarehouse?.name || '—');
+      await logActivity('تعديل صلاحيات', user.profiles?.full_name || 'مستخدم', targetWh?.name || '—');
       onSaved();
     } catch (e) {
       alert('حدث خطأ: ' + e.message);
@@ -242,7 +268,24 @@ function EditPermissionsModal({ user, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-stone-900 rounded-xl shadow-2xl max-w-md w-full p-5 animate-fade-in">
         <h3 className="text-sm font-display font-bold mb-1 dark:text-stone-200">صلاحيات: {user.profiles?.full_name}</h3>
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3">في مستودع «{activeWarehouse?.name || '—'}»</p>
+        {isFounder && warehouses.length > 1 ? (
+          <div className="mb-3">
+            <label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
+              المستودع (الصلاحيات لكل مستودع على حدة — اختر مستودعاً آخر لمنحه وصولاً إليه)
+            </label>
+            <select value={targetWh?.id || ''} onChange={e => pickWarehouse(e.target.value)} disabled={loading}
+              className="w-full text-xs px-2 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 dark:text-stone-200">
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+            {isNewGrant && (
+              <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1">
+                ⭐ منح جديد: هذا المستخدم غير منتسب لهذا المستودع — الحفظ يمنحه الوصول بالصلاحيات المحدّدة
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3">في مستودع «{targetWh?.name || '—'}»</p>
+        )}
 
         {/* الدور */}
         <label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">الدور</label>
