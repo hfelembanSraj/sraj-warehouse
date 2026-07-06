@@ -90,6 +90,16 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   // ∟ التعامد مطفأ افتراضيّاً — الرسم الحرّ هو الأصل (يفعَّل عند الحاجة فقط)
   const [ortho, setOrtho] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
+  // خلفيات الأشكال: ملوّنة أو سادة (تفضيل عرض — يُحفَظ في المتصفّح)
+  const [plainBg, setPlainBg] = useState(() => {
+    try { return localStorage.getItem('wm_plain_bg') === '1'; } catch { return false; }
+  });
+  function togglePlainBg() {
+    setPlainBg(p => {
+      try { localStorage.setItem('wm_plain_bg', p ? '0' : '1'); } catch { /* تجاهل */ }
+      return !p;
+    });
+  }
   // تحرير نقاط شكل قائم (⬡)
   const [vertexEditZoneId, setVertexEditZoneId] = useState(null);
   // مكدس التراجع لجلسة التحرير (تحريك/تحجيم/تعديل نقاط/إنشاء)
@@ -424,6 +434,13 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 📏 المقاييس
               </button>
             )}
+            {viewMode === 'map' && (
+              <button onClick={togglePlainBg}
+                title="تبديل خلفيات الأشكال بين الملوّنة والسادة (الحدود تبقى ملوّنة)"
+                className="bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs px-3 py-2 rounded-lg hover:bg-stone-200 dark:hover:bg-stone-700">
+                {plainBg ? '⬜ سادة' : '🎨 ملوّن'}
+              </button>
+            )}
             {isFounder && viewMode === 'map' && (
               <button onClick={() => setLayoutEditMode(e => !e)}
                 className={layoutEditMode
@@ -604,6 +621,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onVertexEdit={(z) => { setActiveTool(null); setVertexEditZoneId(z.id); }}
                   onVertexClose={() => setVertexEditZoneId(null)}
                   pushUndo={(e) => setUndoStack(s => [...s, e])}
+                  plainBg={plainBg}
                   onRefresh={onRefresh}
                   flash={flash}
                 />
@@ -888,7 +906,7 @@ function WarehouseMapCanvas({
   onItemEdit, onItemDelete, onItemView, onRefresh, flash,
   activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements,
   activeTool, ortho, vertexSnap, onToolCancel, onShapeDrawn,
-  vertexZoneId, onVertexEdit, onVertexClose, pushUndo
+  vertexZoneId, onVertexEdit, onVertexClose, pushUndo, plainBg
 }) {
   const containerRef = useRef(null);
   const canDraw = layoutEditMode && isFounder;
@@ -1064,6 +1082,7 @@ function WarehouseMapCanvas({
           onEditPoints={() => onVertexEdit?.(z)}
           onToggleName={() => handleToggleName(z)}
           onConvert={() => onZoneConvert?.(z)}
+          plainBg={plainBg}
         />
       ))}
 
@@ -1185,7 +1204,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, plainBg = false, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1223,12 +1242,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     cursor: editing ? (mode === 'move' ? 'grabbing' : 'grab') : undefined,
     touchAction: editing ? 'none' : undefined
   };
-  // مظهر الجسم الداخلي (المقصوص للمضلّعات)
+  // مظهر الجسم الداخلي (المقصوص للمضلّعات) — «سادة»: خلفيّة محايدة والحدود ملوّنة
   const bodyStyle = {
     clipPath: polyClip,
     borderColor: hasPoly ? 'transparent' : zone.color,
-    backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
-    backgroundColor: isDecor ? `${zone.color}66` : undefined,
+    backgroundImage: (isDecor || plainBg) ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+    backgroundColor: plainBg ? 'var(--tile-bg)' : (isDecor ? `${zone.color}66` : undefined),
     boxShadow: hasPoly ? undefined : `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
   };
   const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
