@@ -28,6 +28,24 @@ function geomSnapshot(z) {
   };
 }
 
+// إظهار اسم العنصر على الخريطة؟ العلامة label تُخزَّن على أوّل نقطة في points
+// (بلا ترقية جديدة). الافتراضي: الجدار المفتوح يُخفي، والبقيّة تُظهر.
+function zoneShowsName(z) {
+  const isOpen = Array.isArray(z.points) && z.points[0]?.open;
+  const flag = z.points?.[0]?.label;
+  return flag != null ? !!flag : !isOpen;
+}
+
+// نقاط الشكل مع ضبط علامة الاسم. مساحة بلا نقاط هندسيّة → نقطة علامة واحدة
+// فقط (لا تغيّر شكلها المستطيل — absPointsOfZone تتجاهل أقلّ من نقطتين).
+function labelFlagPoints(z, show) {
+  const pts = Array.isArray(z.points) && z.points.length >= 2
+    ? z.points.map(p => ({ ...p }))
+    : [{ x: 0, y: 0 }];
+  pts[0] = { ...pts[0], label: show ? 1 : 0 };
+  return pts;
+}
+
 export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh }) {
   const { can, isFounder, activeWarehouse, warehouseId } = useAuth();
   const [showAddZone, setShowAddZone] = useState(false);
@@ -910,6 +928,14 @@ function WarehouseMapCanvas({
     onRefresh?.();
   }
 
+  // تبديل إظهار اسم العنصر على الخريطة (👁) — يُحفَظ فوراً ويقبل التراجع
+  async function handleToggleName(zone) {
+    pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
+    const { error } = await rpcUpdateZone(zone, { points: labelFlagPoints(zone, !zoneShowsName(zone)) });
+    if (error) return flash?.('فشل: ' + error.message, 'error');
+    onRefresh?.();
+  }
+
   // حفظ موقع/حجم الغرفة بعد سحبها أو تكبيرها (وضع تحرير المخطّط)
   async function handleZoneGeometry(zone, rect) {
     pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
@@ -1028,6 +1054,7 @@ function WarehouseMapCanvas({
           onEdit={() => onZoneEdit(z)}
           onDelete={() => onZoneDelete(z)}
           onEditPoints={() => onVertexEdit?.(z)}
+          onToggleName={() => handleToggleName(z)}
         />
       ))}
 
@@ -1149,7 +1176,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1159,6 +1186,8 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
   // (لا على الحاوية) فيبقى شكله ظاهراً أثناء التحرير مع بقاء المقابض والأزرار.
   const isOpenWall = Array.isArray(zone.points) && zone.points[0]?.open;
   const hasPoly = !isOpenWall && Array.isArray(zone.points) && zone.points.length >= 3;
+  // إظهار الاسم (👁): علامة label على أوّل نقطة؛ الافتراضي: الجدار يخفي والبقيّة تُظهر
+  const showName = zone.points?.[0]?.label != null ? !!zone.points[0].label : !isOpenWall;
   // حدود التحجيم: الجدران والأشكال الحرّة تُصغَّر بحريّة (لا حدّ 6% كالمساحات)
   const minDim = isOpenWall ? 1 : (hasPoly ? 2 : 6);
   const { pos, mode, begin } = useDragResize({
@@ -1203,6 +1232,14 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
       className={`absolute group ${editing ? 'ring-2 ring-blue-500 ring-offset-1 select-none' : (isDecor ? '' : 'transition-transform hover:scale-[1.02]')}`}>
       {isOpenWall && <WallStrokeOverlay points={zone.points} color={zone.color} thickness={3} />}
       {isOpenWall && editing && <div className="absolute inset-0 border border-dashed border-blue-400/70 rounded" />}
+      {isOpenWall && showName && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 shadow-sm backdrop-blur leading-tight text-center"
+            style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+            {zone.name}
+          </span>
+        </div>
+      )}
       {!isOpenWall && (
       <div style={bodyStyle} className={`absolute inset-0 flex flex-col overflow-hidden ${hasPoly ? '' : 'border-2 rounded-xl'}`}>
       <button onClick={(editing || isDecor) ? undefined : onClick} className={`flex-1 relative flex flex-col w-full ${(editing || isDecor) ? '' : 'hover:brightness-95 transition'}`}>
@@ -1211,10 +1248,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
         <div className="relative flex-1 flex flex-col px-1.5 py-2 gap-1">
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none z-10">
             {!isDecor && <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>}
-            <div className="mt-1 leading-tight text-center font-semibold backdrop-blur rounded-full px-2 py-0.5 shadow-sm text-[10px]"
-              style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
-              {zone.name}
-            </div>
+            {showName && (
+              <div className="mt-1 leading-tight text-center font-semibold backdrop-blur rounded-full px-2 py-0.5 shadow-sm text-[10px]"
+                style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+                {zone.name}
+              </div>
+            )}
             {showMeasurements && (
               <div className="mt-0.5 text-[8px] font-bold text-stone-700 dark:text-stone-100 bg-white/80 dark:bg-stone-900/80 rounded px-1 leading-tight shadow-sm">
                 {formatDim(rect.width / 100 * (Number(warehouse?.width_m) || 4))} × {formatDim(rect.height / 100 * (Number(warehouse?.depth_m) || 4))}
@@ -1303,6 +1342,14 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
               className="text-[10px] bg-white dark:bg-stone-800 border border-blue-300 dark:border-blue-700 w-6 h-6 rounded-md shadow-md text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 flex items-center justify-center"
               title="تعديل نقاط الشكل"
             >⬡</button>
+          )}
+          {editing && isDecor && (
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onToggleName?.(); }} disabled={busy}
+              className={`text-[10px] w-6 h-6 rounded-md shadow-md flex items-center justify-center border ${showName
+                ? 'bg-indigo-600 border-indigo-700 text-white'
+                : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'}`}
+              title={showName ? 'إخفاء الاسم من الخريطة' : 'إظهار الاسم على الخريطة'}
+            >👁</button>
           )}
         </div>
       )}
