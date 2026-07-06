@@ -48,6 +48,24 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   // مكدس التراجع: تحريك/تحجيم/نوع (pos) وإنشاء (create)
   const [undoStack, setUndoStack] = useState([]);
 
+  // ↩ إلغاء كل تغييرات الجلسة (يفكّ المكدس) ثم يغلق المحرّر
+  async function handleCancelAll() {
+    if (busy) return;
+    if (undoStack.length === 0) { onClose?.(); return; }
+    if (!confirm(`إلغاء التعديل سيتراجع عن كل تغييرات هذه الجلسة (${undoStack.length}). متابعة؟`)) return;
+    setBusy(true);
+    for (let i = undoStack.length - 1; i >= 0; i--) {
+      const e = undoStack[i];
+      if (e.kind === 'pos') await rpcUpdateShelfPos(e.shelfId, e.prev);
+      else if (e.kind === 'create') await rpcDeleteShelf(e.shelfId);
+    }
+    setBusy(false);
+    setUndoStack([]);
+    flash?.('↩ أُلغيت كل تغييرات الجلسة');
+    onRefresh?.();
+    onClose?.();
+  }
+
   async function handleUndo() {
     if (busy || undoStack.length === 0) return;
     const e = undoStack[undoStack.length - 1];
@@ -197,6 +215,17 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
         <button onClick={handleUndo} disabled={busy || undoStack.length === 0}
           className={`${toolBtnCls(false)} disabled:opacity-40`} title="تراجع عن آخر تغيير (تحريك/تحجيم/نوع/إنشاء)">
           ↶ تراجع{undoStack.length > 0 ? ` (${undoStack.length})` : ''}
+        </button>
+        <span className="w-px h-5 bg-stone-300 dark:bg-stone-600 mx-1" />
+        <button onClick={onClose} disabled={busy}
+          className="text-[11px] px-3 py-1.5 rounded-lg border border-green-700 bg-green-600 text-white font-bold shadow-sm hover:bg-green-700 disabled:opacity-50"
+          title="اعتماد كل التغييرات وإغلاق المحرّر">
+          ✅ حفظ وإغلاق
+        </button>
+        <button onClick={handleCancelAll} disabled={busy}
+          className="text-[11px] px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50"
+          title="تراجع عن كل تغييرات الجلسة ثم إغلاق">
+          ↩ إلغاء التعديلات
         </button>
       </div>
 

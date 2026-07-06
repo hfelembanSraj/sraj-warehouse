@@ -148,6 +148,34 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     await onRefresh();
   }
 
+  // ↩ إلغاء التعديل: تراجع عن كل تغييرات الجلسة (يفكّ المكدس كاملاً) ثم يقفل
+  async function handleCancelAll() {
+    if (busy) return;
+    if (undoStack.length === 0) { setLayoutEditMode(false); return; }
+    if (!confirm(`إلغاء التعديل سيتراجع عن كل تغييرات هذه الجلسة (${undoStack.length} تغيير). متابعة؟`)) return;
+    setBusy(true);
+    for (let i = undoStack.length - 1; i >= 0; i--) {
+      const entry = undoStack[i];
+      if (entry.kind === 'geom') {
+        const g = entry.prev;
+        const live = zones.find(z => z.id === g.id);
+        const patch = {
+          pos_top: g.pos_top, pos_left: g.pos_left, pos_right: g.pos_right,
+          pos_width: g.pos_width, pos_height: g.pos_height
+        };
+        if (g.points != null || live?.points != null) patch.points = g.points;
+        await rpcUpdateZone({ id: g.id, pos_left: g.pos_left, pos_right: g.pos_right }, patch);
+      } else if (entry.kind === 'create') {
+        await rpcDeleteZone(entry.zoneId);
+      }
+    }
+    setBusy(false);
+    setUndoStack([]);
+    setLayoutEditMode(false);
+    flash('↩ أُلغيت كل تغييرات الجلسة');
+    await onRefresh();
+  }
+
   // Ctrl+Z أثناء تحرير المخطّط (خارج الرسم وتحرير النقاط — لكلٍّ تراجعه الخاص)
   useEffect(() => {
     if (!layoutEditMode) return;
@@ -452,7 +480,14 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 className={layoutEditMode
                   ? "bg-green-600 text-white border border-green-700 text-xs px-3 py-2 rounded-lg hover:bg-green-700 font-bold shadow-sm"
                   : "bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700/60 text-blue-900 dark:text-blue-200 text-xs px-3 py-2 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/60 font-medium"}>
-                {layoutEditMode ? '✅ اعتماد المخطّط (قفل)' : '✏️ تحرير المخطّط'}
+                {layoutEditMode ? '✅ حفظ واعتماد المخطّط' : '✏️ تحرير المخطّط'}
+              </button>
+            )}
+            {isFounder && viewMode === 'map' && layoutEditMode && (
+              <button onClick={handleCancelAll} disabled={busy}
+                className="bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 text-xs px-3 py-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 font-medium disabled:opacity-50"
+                title="تراجع عن كل تغييرات هذه الجلسة ثم إغلاق وضع التحرير">
+                ↩ إلغاء التعديلات{undoStack.length > 0 ? ` (${undoStack.length})` : ''}
               </button>
             )}
             {isFounder && viewMode === 'map' && (

@@ -41,6 +41,26 @@ export default function NestedZonesPanel({
     };
   }
 
+  // ↩ إلغاء كل تغييرات الجلسة في هذه اللوحة
+  async function handleCancelAll() {
+    if (busy || undoStack.length === 0) return;
+    if (!confirm(`سيتراجع عن كل تغييرات هذه الجلسة (${undoStack.length}). متابعة؟`)) return;
+    setBusy(true);
+    for (let i = undoStack.length - 1; i >= 0; i--) {
+      const e = undoStack[i];
+      if (e.kind === 'geom') {
+        const g = e.prev;
+        await rpcUpdateZone({ id: e.zoneId, pos_left: g.pos_left, pos_right: g.pos_right }, { ...g, points: g.points });
+      } else if (e.kind === 'create') {
+        await rpcDeleteZone(e.zoneId);
+      }
+    }
+    setBusy(false);
+    setUndoStack([]);
+    flash?.('↩ أُلغيت كل تغييرات الجلسة');
+    onRefresh?.();
+  }
+
   async function handleUndo() {
     if (busy || undoStack.length === 0) return;
     const e = undoStack[undoStack.length - 1];
@@ -257,6 +277,11 @@ export default function NestedZonesPanel({
             <button onClick={handleUndo} disabled={busy || undoStack.length === 0}
               className={`${toolBtnCls(false)} disabled:opacity-40`} title="تراجع عن آخر تغيير">
               ↶{undoStack.length > 0 ? ` (${undoStack.length})` : ''}
+            </button>
+            <button onClick={handleCancelAll} disabled={busy || undoStack.length === 0}
+              className="text-[11px] px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-40"
+              title="تراجع عن كل تغييرات هذه الجلسة">
+              ↩ إلغاء الكل
             </button>
             {children.length === 0 && (
               <button onClick={() => { setExpanded(false); setTool(null); }}
