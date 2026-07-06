@@ -10,6 +10,7 @@ import PhotoUploader from './PhotoUploader';
 import ImageLightbox from './ImageLightbox';
 import WarehouseMiniMap from './WarehouseMiniMap';
 import LocationPicker from './LocationPicker';
+import ZoneInteriorEditor, { defaultShelfRect, kindIcon } from './ZoneInteriorEditor';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
@@ -27,6 +28,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
   // وضع التعديل التفاعلي على الرفّ
   const [editMode, setEditMode] = useState(false);
+  // محرّر التقسيم الحرّ لداخل المكان (🧰) — أدراج/أرفف/خزائن بمواضع حرّة
+  const [interiorOpen, setInteriorOpen] = useState(false);
   // الصورة المعروضة مكبّرة (نافذة التكبير): { url, caption } أو null
   const [zoom, setZoom] = useState(null);
   // الإضافة بلا وضع التعديل: قائمة الإضافة + اختيار موقع لصندوق/غرض كبير جديد
@@ -949,12 +952,22 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           </div>
         )}
 
+        {/* زرّ التقسيم الحرّ — وضع التعديل فقط */}
+        {zoneViewMode === 'rack' && editMode && isFounder && (
+          <div className="flex justify-center mb-2">
+            <button onClick={() => setInteriorOpen(true)}
+              className="text-[11px] px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-bold shadow-sm">
+              🧰 تقسيم المكان الحرّ — ارسم أدراجاً وأرففاً وخزائن بأي أحجام
+            </button>
+          </div>
+        )}
+
         {/* العرض الأمامي للأرفف */}
         {zoneViewMode === 'rack' && (
         <div className="flex justify-center mb-3">
           <div className="w-full max-w-md bg-stone-100 dark:bg-stone-800 rounded-lg p-4">
             <div
-              className={`relative w-full border-4 rounded-md p-2 flex flex-col gap-1.5 ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white dark:bg-stone-900'}`}
+              className={`relative w-full border-4 rounded-md p-2 ${shelves.some(s => s.pos) ? '' : 'flex flex-col gap-1.5'} ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white dark:bg-stone-900'}`}
               style={{
                 aspectRatio: editMode ? `${fresh.width_cm}/${fresh.height_cm + 80}` : `${fresh.width_cm}/${fresh.height_cm}`,
                 borderColor: fresh.color
@@ -965,7 +978,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   لا توجد أرفف في هذه المساحة
                 </div>
               ) : (
-                shelves.map(shelf => {
+                shelves.map((shelf, shelfIdx) => {
+                  // التقسيم الحرّ: قسم له pos يُوضَع بموضعه؛ وإلا صفّ افتراضي متساوٍ
+                  const anyPositioned = shelves.some(s => s.pos);
+                  const sRect = anyPositioned ? (shelf.pos ?? defaultShelfRect(shelfIdx, shelves.length)) : null;
                   const shelfBoxes = getShelfBoxes(shelf.shelf_index);
                   // أغراض "كامل" (≥100%) تُعرض كأشرطة بعرض الرفّ مرصوصة فوق بعضها؛ والباقي في صفّ الخانات
                   const shelfAllItems = shelfItems.filter(it => it.shelf_id === shelf.id);
@@ -988,13 +1004,16 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                       onDragOver={(e) => { if (hasActiveSelection) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
                       onDragLeave={() => setDragOverShelfId(null)}
                       onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
-                      className={`flex-1 border-2 rounded p-1 flex flex-col gap-1 relative text-right transition ${
+                      className={`${sRect ? 'absolute' : 'flex-1 relative'} border-2 rounded p-1 flex flex-col gap-1 text-right transition ${
                         fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50 dark:bg-stone-800'
                       } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`}
-                      style={{ borderColor: isDropTarget ? '#2563eb' : fresh.color }}
+                      style={{
+                        borderColor: isDropTarget ? '#2563eb' : fresh.color,
+                        ...(sRect ? { top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%` } : {})
+                      }}
                     >
                       <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow-md pointer-events-none z-30" style={{ backgroundColor: fresh.color }}>
-                        {shelfDisplayName(shelf, shelves)}
+                        {shelf.pos?.kind ? kindIcon(shelf.pos.kind) + ' ' : ''}{shelfDisplayName(shelf, shelves)}
                       </span>
 
                       {/* أغراض "كامل" — كلٌّ شريط بعرض الرفّ، مرصوصة فوق بعضها كمستويات */}
@@ -1303,6 +1322,19 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
           onCancel={() => setConfirming(null)}
         />
       )}
+      {/* 🧰 محرّر التقسيم الحرّ لداخل المكان */}
+      {interiorOpen && (
+        <ZoneInteriorEditor
+          zone={fresh}
+          shelves={shelves}
+          boxCountForShelf={(s) => getShelfBoxes(s.shelf_index).length}
+          onClose={() => setInteriorOpen(false)}
+          onRefresh={onRefresh}
+          onDeleteShelf={(s) => setConfirming({ type: 'shelf', shelf: s })}
+          flash={flash}
+        />
+      )}
+
       {confirming?.type === 'shelf' && (
         <ConfirmDelete
           message={`سيُحذف الرف ${confirming.shelf.shelf_index} مع صناديقه. هل أنت متأكّد؟`}
