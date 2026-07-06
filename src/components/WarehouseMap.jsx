@@ -1118,7 +1118,7 @@ function WarehouseMapCanvas({
           zoneShelves={z.shelves || []}
           zoneBoxes={data.boxes.filter(b => b.code.startsWith(z.letter + '-'))}
           zoneItems={(data.items || []).filter(it => it.box_id == null && it.shelf_id != null && it.zone_id === z.id)}
-          childZones={allZones.filter(c => c.parent_zone_id === z.id)}
+          childZones={(data.zones || []).filter(c => c.parent_zone_id === z.id)}
           onClick={() => onZoneClick(z)}
           isFounder={isFounder}
           busy={busy}
