@@ -1017,6 +1017,17 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   // التقسيم الحرّ: قسم له pos يُوضَع بموضعه؛ وإلا صفّ افتراضي متساوٍ
                   const anyPositioned = shelves.some(s => s.pos);
                   const sRect = anyPositioned ? (shelf.pos ?? defaultShelfRect(shelfIdx, shelves.length)) : null;
+                  // قسم شكلي 🎨 — شكل جمالي فقط: بلا خانات ولا دخول
+                  if (shelf.pos?.kind === 'decor' && sRect) {
+                    const dPts = shelf.pos.points;
+                    const dClip = (Array.isArray(dPts) && dPts.length >= 3 && !dPts[0]?.open)
+                      ? `polygon(${dPts.map(p => `${p.x}% ${p.y}%`).join(', ')})` : undefined;
+                    return (
+                      <div key={shelf.id} className={`absolute pointer-events-none border ${dClip ? '' : 'rounded'}`}
+                        style={{ top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%`,
+                          borderColor: `${fresh.color}66`, backgroundColor: `${fresh.color}22`, clipPath: dClip }} />
+                    );
+                  }
                   // فاصل مرسوم (خطّ) — يُعرَض كخطّ فقط بلا خانات ولا شارة
                   if (shelf.pos?.kind === 'divider' && sRect) {
                     return (

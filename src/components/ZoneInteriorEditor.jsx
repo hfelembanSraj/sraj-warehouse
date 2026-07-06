@@ -18,6 +18,7 @@ export const SHELF_KINDS = [
   { key: 'shelf',   icon: '➖', label: 'رفّ' },
   { key: 'drawer',  icon: '🗄', label: 'درج' },
   { key: 'cabinet', icon: '🗃', label: 'خزانة كبيرة' },
+  { key: 'decor',   icon: '🎨', label: 'شكلية (بدون تخزين)' },
 ];
 export function kindIcon(kind) {
   if (kind === 'divider') return '🧱';
@@ -141,8 +142,8 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
     const { data: newId, error } = await rpcAddShelf(zone.id, {
       position: 'bottom',
       height_cm: Math.max(10, Math.round((rect.height / 100) * (Number(zone.height_cm) || 100))),
-      max_boxes: Math.max(1, Number(values.slots) || 4),
-      label: values.label
+      max_boxes: values.kind === 'decor' ? 1 : Math.max(1, Number(values.slots) || 4),
+      label: values.kind === 'decor' ? (values.label || 'شكل') : values.label
     });
     if (error || !newId) { setBusy(false); return flash?.('فشل: ' + (error?.message || 'تعذّر الإنشاء'), 'error'); }
     const { error: posErr } = await rpcUpdateShelfPos(newId, {
@@ -235,6 +236,7 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
 // قسم واحد داخل المحرّر: سحب/تحجيم + تبديل النوع + حذف + قياسات بالسنتيمتر
 function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy, boxCount, edges = null, onGeometry, onCycleKind, onDelete }) {
   const isDivider = shelf.pos?.kind === 'divider';
+  const isDecorKind = shelf.pos?.kind === 'decor';
   const pts = shelf.pos?.points;
   const isOpen = Array.isArray(pts) && pts[0]?.open;
   const hasPoly = !isOpen && Array.isArray(pts) && pts.length >= 3;
@@ -254,7 +256,7 @@ function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy
         zIndex: mode ? 40 : undefined,
         transition: mode ? 'none' : 'top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease',
         cursor: mode === 'move' ? 'grabbing' : 'grab', touchAction: 'none',
-        ...(strokeOnly || hasPoly ? {} : { borderColor: color })
+        ...(strokeOnly || hasPoly ? {} : { borderColor: color, ...(isDecorKind ? { backgroundColor: `${color}30` } : {}) })
       }}
       onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); }}
       onTouchStart={(e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); }}
@@ -278,7 +280,7 @@ function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy
       )}
       {!isDivider && (
         <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow pointer-events-none z-10 whitespace-nowrap" style={{ backgroundColor: color }}>
-          {icon} {shelfDisplayName(shelf, shelves)} · {boxCount} 📦
+          {icon} {isDecorKind ? (shelf.label || 'شكل') : `${shelfDisplayName(shelf, shelves)} · ${boxCount} 📦`}
         </span>
       )}
       <span className="absolute bottom-1 right-1.5 text-[9px] font-bold text-stone-500 dark:text-stone-400 pointer-events-none">
@@ -317,7 +319,7 @@ function NewCompartmentForm({ busy, onCancel, onSave }) {
     <form onSubmit={(e) => { e.preventDefault(); onSave({ kind, label: label.trim() || null, slots }); }} className="space-y-3">
       <div>
         <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">نوع القسم</label>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           {SHELF_KINDS.map(k => (
             <button key={k.key} type="button" onClick={() => setKind(k.key)}
               className={`py-2 rounded-lg text-[11px] font-bold border transition ${kind === k.key
@@ -328,16 +330,23 @@ function NewCompartmentForm({ busy, onCancel, onSave }) {
           ))}
         </div>
       </div>
+      {kind === 'decor' && (
+        <p className="text-[10px] text-stone-500 dark:text-stone-400">
+          🎨 جزء جمالي/زينة من المكان — يظهر بشكله فقط، بلا خانات ولا صناديق ولا دخول.
+        </p>
+      )}
       <div>
         <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">اسم القسم (اختياري)</label>
         <input value={label} onChange={e => setLabel(e.target.value)} placeholder="مثال: درج الأدوات الصغيرة" autoFocus
           className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
       </div>
-      <div>
-        <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">عدد خانات الصناديق</label>
-        <input type="number" min="1" max="20" value={slots} onChange={e => setSlots(parseInt(e.target.value) || 1)}
-          className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
-      </div>
+      {kind !== 'decor' && (
+        <div>
+          <label className="block text-xs text-stone-600 dark:text-stone-300 mb-1">عدد خانات الصناديق</label>
+          <input type="number" min="1" max="20" value={slots} onChange={e => setSlots(parseInt(e.target.value) || 1)}
+            className="w-full px-3 py-2 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 rounded-lg text-xs" />
+        </div>
+      )}
       <div className="flex gap-2 pt-2">
         <button type="submit" disabled={busy}
           className="flex-1 bg-brand-blue text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-800 disabled:opacity-50">
