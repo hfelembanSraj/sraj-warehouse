@@ -1043,22 +1043,36 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   // قسم حرّ (مخطّط 🧰) خارج وضع التعديل: بطاقة مغلقة نظيفة —
                   // بلا صناديق ظاهرة؛ الدخول يعرض كل محتوياته (كما طلب المؤسّس)
                   if (sRect && !editMode) {
+                    // شكل القسم الحرّ (المضلّع) يُقصّ كما رُسم — لا مستطيل افتراضي
+                    const cPts = shelf.pos?.points;
+                    const cClip = (Array.isArray(cPts) && cPts.length >= 3 && !cPts[0]?.open)
+                      ? `polygon(${cPts.map(p => `${p.x}% ${p.y}%`).join(', ')})` : undefined;
                     return (
                       <button
                         key={shelf.id}
                         onClick={() => onShelfClick?.(shelf)}
-                        className="absolute border-2 rounded-lg flex flex-col items-center justify-center gap-0.5 bg-stone-50 dark:bg-stone-800 hover:ring-2 hover:ring-blue-400 hover:scale-[1.01] transition cursor-pointer overflow-hidden"
-                        style={{ top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%`, borderColor: fresh.color }}
+                        className="absolute hover:scale-[1.01] transition cursor-pointer group"
+                        style={{ top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%` }}
                         title={`اضغط لدخول ${shelfDisplayName(shelf, shelves)}`}
                       >
-                        <span className="text-sm leading-none">{shelf.pos?.kind ? kindIcon(shelf.pos.kind) : '➖'}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight text-center shadow-sm"
-                          style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
-                          {shelfDisplayName(shelf, shelves)}
-                        </span>
-                        <span className="text-[9px] text-stone-500 dark:text-stone-400">
-                          {shelfBoxes.length} 📦{shelfAllItems.length > 0 ? ` · ${shelfAllItems.length} غرض` : ''}
-                        </span>
+                        <div className={`absolute inset-0 bg-stone-50 dark:bg-stone-800 ${cClip ? '' : 'border-2 rounded-lg'}`}
+                          style={{ clipPath: cClip, ...(cClip ? {} : { borderColor: fresh.color }) }} />
+                        {cClip && (
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <polygon points={cPts.map(p => `${p.x},${p.y}`).join(' ')}
+                              fill="none" stroke={fresh.color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                          </svg>
+                        )}
+                        <div className="relative w-full h-full flex flex-col items-center justify-center gap-0.5 group-hover:brightness-95">
+                          <span className="text-sm leading-none">{shelf.pos?.kind ? kindIcon(shelf.pos.kind) : '➖'}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight text-center shadow-sm"
+                            style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+                            {shelfDisplayName(shelf, shelves)}
+                          </span>
+                          <span className="text-[9px] text-stone-500 dark:text-stone-400">
+                            {shelfBoxes.length} 📦{shelfAllItems.length > 0 ? ` · ${shelfAllItems.length} غرض` : ''}
+                          </span>
+                        </div>
                       </button>
                     );
                   }
