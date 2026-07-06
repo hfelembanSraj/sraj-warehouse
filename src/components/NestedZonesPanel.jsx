@@ -297,7 +297,11 @@ export default function NestedZonesPanel({
         <div
           ref={containerRef}
           className="relative w-full max-w-md border-4 rounded-md bg-stone-50 dark:bg-stone-900"
-          style={{ aspectRatio: `${Number(parentZone.width_cm) || 100} / ${Number(parentZone.height_cm) || 100}`, borderColor: parentZone.color }}
+          style={{
+            aspectRatio: `${Number(parentZone.width_cm) || 100} / ${Number(parentZone.height_cm) || 100}`,
+            borderColor: parentZone.color,
+            maxWidth: `min(100%, calc(60vh * ${(Number(parentZone.width_cm) || 100) / (Number(parentZone.height_cm) || 100)}))`
+          }}
         >
           {canEdit && <CenterGuides />}
           {children.length === 0 && !tool && (

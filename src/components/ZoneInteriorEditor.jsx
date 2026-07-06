@@ -246,7 +246,12 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
       <div
         ref={containerRef}
         className="relative w-full border-4 rounded-md bg-white dark:bg-stone-900"
-        style={{ aspectRatio: `${Number(zone.width_cm) || 100} / ${Number(zone.height_cm) || 100}`, borderColor: zone.color }}
+        style={{
+          aspectRatio: `${Number(zone.width_cm) || 100} / ${Number(zone.height_cm) || 100}`,
+          borderColor: zone.color,
+          maxWidth: `min(100%, calc(68vh * ${(Number(zone.width_cm) || 100) / (Number(zone.height_cm) || 100)}))`,
+          margin: '0 auto'
+        }}
       >
         <CenterGuides />
         {shelves.map((s, i) => (

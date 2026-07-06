@@ -109,14 +109,14 @@ export function EditWarehouseForm({ initial, busy, onCancel, onSave }) {
     <div className="text-xs">
       <div className="grid grid-cols-2 gap-2 mb-2">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الاسم</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الاسم</label>
           <input value={name} onChange={e => setName(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الوصف</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الوصف</label>
           <input value={description} onChange={e => setDescription(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -171,18 +171,18 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
       <p className="text-[10px] text-stone-500 mb-2">حرف أو اسم — أحدهما يكفي، ولا إلزام بالاثنين. ما تكتبه هو ما يظهر على الخريطة.</p>
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الحرف (اختياري)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الحرف (اختياري)</label>
           <input value={letter} onChange={e => setLetter(e.target.value.slice(0, 3).toUpperCase())} maxLength={3}
             placeholder="تلقائي"
-            className="w-full px-2 py-1.5 border border-stone-300 rounded font-bold text-center" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded font-bold text-center" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الاسم التوضيحي (اختياري)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الاسم التوضيحي (اختياري)</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="مثال: عُدّة الفعاليات"
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">اللون</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">اللون</label>
           <div className="flex gap-1 flex-wrap">
             {PRESET_COLORS.map(c => (
               <button key={c} onClick={() => setColor(c)}
@@ -193,24 +193,24 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
           <p className="text-[9px] text-stone-500 mt-1">الرصاصي = عنصر هيكلي ثابت (جدار/طاولة/خشب) غير قابل للضغط · أيّ لون آخر = مكان تخزين قابل للضغط</p>
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العرض (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">العرض (سم)</label>
           <input type="number" value={width_cm} onChange={e => setWidth(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الارتفاع (سم)</label>
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العمق (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">العمق (سم)</label>
           <input type="number" value={depth_cm} onChange={e => setDepth(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">عدد الأرفف (0 = فارغة، ترسمها بنفسك)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">عدد الأرفف (0 = فارغة، ترسمها بنفسك)</label>
           <input type="number" min="0" value={shelves_count} onChange={e => setShelvesCount(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -265,12 +265,12 @@ export function EditZoneForm({ zone, busy, onCancel, onSave }) {
     <div className="text-xs space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الاسم</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الاسم</label>
           <input value={name} onChange={e => setName(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">اللون</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">اللون</label>
           <div className="flex gap-1 flex-wrap">
             {PRESET_COLORS.map(c => (
               <button key={c} onClick={() => setColor(c)}
@@ -281,22 +281,22 @@ export function EditZoneForm({ zone, busy, onCancel, onSave }) {
           <p className="text-[9px] text-stone-500 mt-1">الرصاصي = عنصر هيكلي ثابت (جدار/طاولة/خشب) غير قابل للضغط · أيّ لون آخر = مكان تخزين قابل للضغط</p>
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العرض (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">العرض (سم)</label>
           <input type="number" value={width_cm} onChange={e => setWidth(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الارتفاع (سم)</label>
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العمق (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">العمق (سم)</label>
           <input type="number" value={depth_cm} onChange={e => setDepth(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الموقع على خريطة المستودع</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الموقع على خريطة المستودع</label>
           <div className="flex gap-1 flex-wrap">
             {PRESET_POSITIONS.map((p, i) => (
               <button key={i} onClick={() => setPosition(p)}
@@ -337,7 +337,7 @@ export function AddShelfForm({ busy, onCancel, onSave, hasExistingShelves = true
 
       {hasExistingShelves && (
         <div className="mb-3">
-          <label className="block text-[10px] text-stone-600 mb-1">الموقع</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الموقع</label>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setPosition('top')}
               className={`text-xs py-2 rounded-lg border-2 transition flex items-center justify-center gap-1 ${
@@ -361,19 +361,19 @@ export function AddShelfForm({ busy, onCancel, onSave, hasExistingShelves = true
 
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">اسم الرف (اختياريّ — سيُسمّى تلقائياً حسب موقعه)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">اسم الرف (اختياريّ — سيُسمّى تلقائياً حسب موقعه)</label>
           <input value={label} onChange={e => setLabel(e.target.value)} placeholder="مثال: رف الأدوات الكبيرة"
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الارتفاع (سم)</label>
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">أقصى عدد صناديق</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">أقصى عدد صناديق</label>
           <input type="number" min="1" value={max_boxes} onChange={e => setMax(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -403,19 +403,19 @@ export function EditShelfForm({ shelf, busy, onCancel, onSave }) {
     <div className="text-xs">
       <div className="grid grid-cols-2 gap-2 mb-2">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">اسم الرف (اختياري)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">اسم الرف (اختياري)</label>
           <input value={label} onChange={e => setLabel(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الارتفاع (سم)</label>
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">أقصى صناديق</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">أقصى صناديق</label>
           <input type="number" value={max_boxes} onChange={e => setMax(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -444,20 +444,20 @@ export function AddBoxForm({ busy, onCancel, onSave }) {
       <h4 className="text-xs font-display font-bold text-blue-900 mb-3">+ صندوق جديد</h4>
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الوصف (اختياري)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الوصف (اختياري)</label>
           <input value={description} onChange={e => setDescription(e.target.value)}
             placeholder="مثال: حبال وأدوات تحكيم"
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العرض (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">العرض (سم)</label>
           <input type="number" value={width_cm} onChange={e => setWidth(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الارتفاع (سم)</label>
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
           <PhotoUploader
@@ -497,19 +497,19 @@ export function EditBoxForm({ box, busy, onCancel, onSave }) {
     <div className="text-xs">
       <div className="grid grid-cols-2 gap-2 mb-2">
         <div className="col-span-2">
-          <label className="block text-[10px] text-stone-600 mb-1">الوصف</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الوصف</label>
           <input value={description} onChange={e => setDescription(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">العرض (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">العرض (سم)</label>
           <input type="number" value={width_cm} onChange={e => setWidth(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الارتفاع (سم)</label>
+          <label className="block text-[10px] text-stone-600 dark:text-stone-300 mb-1">الارتفاع (سم)</label>
           <input type="number" value={height_cm} onChange={e => setHeight(e.target.value)}
-            className="w-full px-2 py-1.5 border border-stone-300 rounded" />
+            className="w-full px-2 py-1.5 border border-stone-300 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 rounded" />
         </div>
         <div className="col-span-2">
           <PhotoUploader

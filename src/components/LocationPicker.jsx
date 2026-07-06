@@ -112,25 +112,25 @@ export default function LocationPicker({
       {/* شريط اختيار المستودع — يظهر إن كان هناك أكثر من مستودع وليس مقفلاً على المساحة */}
       {warehouses.length > 1 && !lockZone && (
         <div className="mb-3">
-          <div className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2">
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-stone-600">📦 المستودع:</span>
+              <span className="text-stone-600 dark:text-stone-300">📦 المستودع:</span>
               <strong className="text-brand-navy">{currentWh?.name}</strong>
               {isCrossWh && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">↻ نقل بين المستودعات</span>}
             </div>
             <button onClick={() => setShowWhPicker(s => !s)} disabled={loadingWh}
-              className="text-[11px] bg-white border border-stone-300 px-2.5 py-1 rounded hover:bg-stone-100 font-medium">
+              className="text-[11px] bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-600 px-2.5 py-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 dark:bg-stone-800 font-medium">
               🔄 تبديل المستودع
             </button>
           </div>
           {showWhPicker && (
-            <div className="mt-2 bg-white border-2 border-brand-navy rounded-lg p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+            <div className="mt-2 bg-white dark:bg-stone-900 border-2 border-brand-navy rounded-lg p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
               {warehouses.map(wh => (
                 <button key={wh.id} onClick={() => switchWarehouse(wh)} disabled={loadingWh}
                   className={`text-right p-2.5 rounded-lg border-2 transition disabled:opacity-50 ${
                     wh.id === currentWh?.id
                       ? 'bg-brand-navy/10 border-brand-navy'
-                      : 'bg-white border-stone-200 hover:border-brand-navy hover:bg-stone-50'
+                      : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 hover:border-brand-navy hover:bg-stone-50'
                   }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-xl">📦</span>
@@ -204,8 +204,8 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
   }
   return (
     <>
-      <div className="bg-stone-50 rounded-xl p-2 mb-2 border border-stone-200">
-        <div className="relative w-full max-w-xl mx-auto bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl border-2 border-dashed border-stone-300 px-3 py-7"
+      <div className="bg-stone-50 dark:bg-stone-800/60 rounded-xl p-2 mb-2 border border-stone-200 dark:border-stone-700">
+        <div className="relative w-full max-w-xl mx-auto bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-xl border-2 border-dashed border-stone-300 dark:border-stone-600 px-3 py-7"
           style={{ aspectRatio: `${Number(activeWarehouse?.width_m) || 4} / ${Number(activeWarehouse?.depth_m) || 4}` }}>
           <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 font-medium tracking-widest">الجدار الخلفي</div>
 
@@ -223,7 +223,7 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
               width:  z.pos_width  != null ? `${z.pos_width}%`  : undefined,
               height: z.pos_height != null ? `${z.pos_height}%` : undefined,
               borderColor: z.color,
-              backgroundColor: status.full ? '#f3f4f6' : z.color + '15',
+              backgroundColor: status.full ? 'var(--tile-bg)' : z.color + '15',
               cursor: status.full ? 'not-allowed' : 'pointer',
               opacity: status.full ? 0.55 : 1,
               clipPath: clip
@@ -242,7 +242,7 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
                   </div>
                 )}
                 {z.name !== z.letter && (
-                  <div className="text-[10px] text-stone-700 mt-1 font-semibold text-center leading-tight px-1">
+                  <div className="text-[10px] text-stone-700 dark:text-stone-200 mt-1 font-semibold text-center leading-tight px-1">
                     {z.name}
                   </div>
                 )}
@@ -257,7 +257,7 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
             );
           })}
 
-          <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 font-medium">
+          <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-600 border-b-0 rounded-t-xl px-5 py-1 text-[10px] text-stone-600 dark:text-stone-300 font-medium">
             🚪 المدخل
           </div>
         </div>
@@ -301,7 +301,7 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
     <>
       {onBack && (
         <button onClick={onBack}
-          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 dark:border-stone-600 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 dark:bg-stone-800 inline-flex items-center gap-1">
           ← الرجوع لاختيار المساحة
         </button>
       )}
@@ -315,12 +315,12 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
           const occupiedCount = new Set([...shelfBoxes.map(b => b.box_index), ...shelfItems.map(it => it.box_index)]).size;
           const fullShelf = occupiedCount >= totalSlots;
           return (
-            <div key={sh.id} className="bg-stone-50 border-2 rounded-xl p-2.5" style={{ borderColor: zone.color + '50' }}>
+            <div key={sh.id} className="bg-stone-50 dark:bg-stone-800/60 border-2 rounded-xl p-2.5" style={{ borderColor: zone.color + '50' }}>
               <div className="flex items-center justify-between mb-2 text-xs">
                 <span className="font-display font-bold" style={{ color: zone.color }}>
                   📚 {shelfDisplayName(sh, shelves)}
                 </span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${fullShelf ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${fullShelf ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700 dark:text-stone-200'}`}>
                   {occupiedCount}/{totalSlots}
                   {fullShelf && ' · ممتلئ'}
                 </span>
@@ -339,7 +339,7 @@ function PositionPickerStep({ zone, data, onPick, onBack }) {
                           border: `1px solid ${zone.color}80`
                         }}>
                         <span className="font-bold truncate max-w-full">{box ? box.code : largeItem.name}</span>
-                        <span className="text-[8px] text-stone-700">{box ? 'مشغول' : 'غرض كبير'}</span>
+                        <span className="text-[8px] text-stone-700 dark:text-stone-200">{box ? 'مشغول' : 'غرض كبير'}</span>
                       </div>
                     );
                   }
@@ -412,13 +412,13 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
       <>
         {onBack && (
           <button onClick={onBack}
-            className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100">
+            className="text-[11px] mb-3 px-3 py-1 border border-stone-300 dark:border-stone-600 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700">
             ← الرجوع لاختيار المساحة
           </button>
         )}
         <div className="text-center py-6 space-y-2">
           <div className="text-3xl">📭</div>
-          <p className="text-sm text-stone-600">هذه المساحة بدون أرفف</p>
+          <p className="text-sm text-stone-600 dark:text-stone-300">هذه المساحة بدون أرفف</p>
           <p className="text-[11px] text-stone-500">ادخل المساحة وأضِف رفّاً أوّلاً، ثمّ ارجع لاختيار المكان</p>
         </div>
       </>
@@ -430,10 +430,10 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
     return (
       <>
         <button onClick={() => setPickingNewBoxPosition(false)} disabled={creating}
-          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 dark:border-stone-600 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 dark:bg-stone-800 inline-flex items-center gap-1">
           ← الرجوع
         </button>
-        <div className="text-[11px] text-stone-600 mb-2 text-center">
+        <div className="text-[11px] text-stone-600 dark:text-stone-300 mb-2 text-center">
           🆕 اختر الموقع الذي سيُنشَأ فيه الصندوق الجديد
         </div>
         <PositionPickerStep
@@ -444,9 +444,9 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
         />
         {creating && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-5 shadow-2xl">
+            <div className="bg-white dark:bg-stone-900 rounded-xl p-5 shadow-2xl">
               <div className="w-8 h-8 border-3 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-xs text-stone-600">جاري إنشاء الصندوق...</p>
+              <p className="text-xs text-stone-600 dark:text-stone-300">جاري إنشاء الصندوق...</p>
             </div>
           </div>
         )}
@@ -460,13 +460,13 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
       <>
         {onBack && (
           <button onClick={onBack}
-            className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+            className="text-[11px] mb-3 px-3 py-1 border border-stone-300 dark:border-stone-600 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 dark:bg-stone-800 inline-flex items-center gap-1">
             ← الرجوع لاختيار المساحة
           </button>
         )}
         <div className="text-center py-8 space-y-3 border-2 border-dashed border-amber-300 rounded-xl bg-amber-50/50">
           <div className="text-4xl">📭</div>
-          <p className="text-sm text-stone-700 font-medium">هذه المساحة بدون صناديق بعد</p>
+          <p className="text-sm text-stone-700 dark:text-stone-200 font-medium">هذه المساحة بدون صناديق بعد</p>
           <p className="text-[11px] text-stone-500">أنشئ صندوقاً في الموقع الذي تختاره واستخدمه</p>
           <button onClick={() => setPickingNewBoxPosition(true)}
             className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold shadow-md">
@@ -481,7 +481,7 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
     <>
       {onBack && (
         <button onClick={onBack}
-          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 rounded-lg hover:bg-stone-100 inline-flex items-center gap-1">
+          className="text-[11px] mb-3 px-3 py-1 border border-stone-300 dark:border-stone-600 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 dark:bg-stone-800 inline-flex items-center gap-1">
           ← الرجوع لاختيار المساحة
         </button>
       )}
@@ -492,9 +492,9 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
 
       {/* الرفّ المرئي الكامل — مطابق لشكل الـZoneView */}
       <div className="flex justify-center">
-        <div className="w-full max-w-md bg-stone-100 rounded-lg p-4">
+        <div className="w-full max-w-md bg-stone-100 dark:bg-stone-800 rounded-lg p-4">
           <div
-            className="relative w-full bg-white border-4 rounded-md p-2 flex flex-col gap-1.5"
+            className="relative w-full bg-white dark:bg-stone-900 border-4 rounded-md p-2 flex flex-col gap-1.5"
             style={{
               aspectRatio: `${zone.width_cm}/${zone.height_cm}`,
               borderColor: zone.color
@@ -507,7 +507,7 @@ function BoxPickerStep({ zone, data, onPick, onBack }) {
               const totalSlots = Math.max(shelf.max_boxes || 4, maxBoxIdx);
               return (
                 <div key={shelf.id}
-                  className="flex-1 bg-stone-50 border-2 rounded p-1 flex gap-1 relative"
+                  className="flex-1 bg-stone-50 dark:bg-stone-800/60 border-2 rounded p-1 flex gap-1 relative"
                   style={{ borderColor: zone.color }}
                 >
                   <span className="absolute top-0 right-0 text-white text-[9px] px-1.5 py-0.5 rounded-bl rounded-tr font-medium pointer-events-none"

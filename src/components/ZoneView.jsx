@@ -1004,7 +1004,10 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               className={`relative w-full border-4 rounded-md p-2 ${shelves.some(s => s.pos) ? '' : 'flex flex-col gap-1.5'} ${fresh.color === '#8B6F3F' ? 'wood-grain' : 'bg-white dark:bg-stone-900'}`}
               style={{
                 aspectRatio: editMode ? `${fresh.width_cm}/${fresh.height_cm + 80}` : `${fresh.width_cm}/${fresh.height_cm}`,
-                borderColor: fresh.color
+                borderColor: fresh.color,
+                // ملاءمة الشاشة: الواجهة كاملة ظاهرة مهما كان طول المكان
+                maxWidth: `min(100%, calc((100vh - 300px) * ${(Number(fresh.width_cm) || 100) / ((Number(fresh.height_cm) || 100) + (editMode ? 80 : 0))}))`,
+                margin: '0 auto'
               }}
             >
               {editMode && isFounder && <CenterGuides />}

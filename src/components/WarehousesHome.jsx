@@ -51,10 +51,15 @@ export default function WarehousesHome({ onEnterWarehouse, onRefresh }) {
         pieces: totalQty           // مجموع القطع (تفصيل اختياري)
       };
 
-      // وضع "صفحات": نحتاج التخطيط الكامل لرسم المعاينة
+      // وضع "صفحات": نحتاج التخطيط الكامل + الأغراض الحرّة لرسم معاينة مطابقة
       if (viewMode === 'pages') {
-        const { data: layout } = await fetchWarehouseLayout(wh.id);
-        layoutsResult[wh.id] = layout;
+        const [{ data: layout }, freeR] = await Promise.all([
+          fetchWarehouseLayout(wh.id),
+          supabase.from('items')
+            .select('id, name, pos_top, pos_left, width_pct, height_pct, photo_url')
+            .eq('warehouse_id', wh.id).is('box_id', null).is('zone_id', null).is('deleted_at', null)
+        ]);
+        layoutsResult[wh.id] = { ...(layout || {}), freeItems: freeR.data || [] };
       }
     }));
     setStats(statsResult);
@@ -306,10 +311,13 @@ function GridCard({ wh, stats, busy, editingId, totalCount, onEnter, onToggleEdi
 
 // بطاقة العرض على شكل صفحة بصورة مصغّرة عن المستودع
 function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onToggleEdit, onCancelEdit, onRename, onDelete }) {
-  const zones = layout?.zones || [];
+  // معاينة مطابقة للداخل: مساحات جذريّة فقط، بأشكالها وجدرانها وصورها + الأغراض الحرّة
+  const zones = (layout?.zones || []).filter(z => !z.parent_zone_id);
+  const freeItems = layout?.freeItems || [];
+  const STRUCTURE = '#9CA3AF';
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:shadow-lg transition shadow-sm">
-      <button onClick={onEnter} className="w-full text-right p-4 hover:bg-stone-50 transition">
+    <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden hover:shadow-lg transition shadow-sm">
+      <button onClick={onEnter} className="w-full text-right p-4 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition">
         {/* معلومات المستودع — في الأعلى */}
         <div className="flex items-start gap-2 mb-3">
           <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xl flex-shrink-0">📦</div>
@@ -327,34 +335,71 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
           <Stat label="أصناف" value={stats.items} />
         </div>
 
-        {/* الصورة المصغّرة عن المستودع — في الأسفل */}
-        <div className="bg-gradient-to-br from-stone-50 to-stone-100 rounded-xl p-3 mb-2 border border-stone-200">
-          <div className="relative aspect-square bg-white rounded border-2 border-dashed border-stone-300 px-2 py-5">
+        {/* الصورة المصغّرة عن المستودع — نسخة حقيقية مطابقة للداخل */}
+        <div className="bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-xl p-3 mb-2 border border-stone-200 dark:border-stone-800">
+          <div className="relative bg-white dark:bg-stone-900 rounded border-2 border-dashed border-stone-300 dark:border-stone-700 px-2 py-5"
+            style={{ aspectRatio: `${Number(wh.width_m) || 4} / ${Number(wh.depth_m) || 4}` }}>
             <div className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[7px] text-stone-400">الجدار الخلفي</div>
-            {zones.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-stone-300 text-[10px]">
+            {zones.length === 0 && freeItems.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center text-stone-300 dark:text-stone-600 text-[10px]">
                 📭 فارغ
               </div>
             ) : (
               zones.map(z => {
-                const style = {
+                const isOpenWall = Array.isArray(z.points) && z.points[0]?.open;
+                const hasPoly = !isOpenWall && Array.isArray(z.points) && z.points.length >= 3;
+                const isDecor = (z.color || '').toUpperCase() === STRUCTURE;
+                const rect = {
                   top:    z.pos_top    != null ? `${z.pos_top}%`    : undefined,
                   left:   z.pos_left   != null ? `${z.pos_left}%`   : undefined,
                   right:  z.pos_right  != null ? `${z.pos_right}%`  : undefined,
                   width:  z.pos_width  != null ? `${z.pos_width}%`  : undefined,
-                  height: z.pos_height != null ? `${z.pos_height}%` : undefined,
-                  borderColor: z.color,
-                  backgroundColor: z.color + '15'
+                  height: z.pos_height != null ? `${z.pos_height}%` : undefined
                 };
+                if (isOpenWall) {
+                  return (
+                    <div key={z.id} style={rect} className="absolute pointer-events-none">
+                      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+                        <path d={`M ${z.points[0].x} ${z.points[0].y} ` + z.points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}
+                          fill="none" stroke={z.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                      </svg>
+                    </div>
+                  );
+                }
+                const clip = hasPoly ? `polygon(${z.points.map(p => `${p.x}% ${p.y}%`).join(', ')})` : undefined;
                 return (
-                  <div key={z.id} style={style}
-                    className="absolute border-2 rounded p-0.5 flex flex-col items-center justify-center">
-                    <div className="text-[10px] font-display font-bold leading-none" style={{ color: z.color }}>{z.letter}</div>
+                  <div key={z.id} style={rect} className="absolute">
+                    <div className={`absolute inset-0 ${hasPoly ? '' : 'border rounded'}`}
+                      style={{
+                        clipPath: clip,
+                        borderColor: z.color,
+                        backgroundColor: isDecor ? `${z.color}55` : `${z.color}15`,
+                        ...(z.photo_url ? { backgroundImage: `url(${z.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+                      }} />
+                    {hasPoly && (
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points={z.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={z.color} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                      </svg>
+                    )}
+                    {!isDecor && !z.photo_url && !(z.name && z.name !== z.letter) && (
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-display font-bold pointer-events-none" style={{ color: z.color }}>{z.letter}</div>
+                    )}
                   </div>
                 );
               })
             )}
-            <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white border border-stone-300 border-b-0 rounded-t px-1.5 py-0.5 text-[7px] text-stone-600">المدخل</div>
+            {/* الأغراض الحرّة (خارج المساحات) — باينة من خارج المستودع */}
+            {freeItems.map(it => (
+              <div key={it.id}
+                className="absolute rounded-[2px] border border-amber-500/70 bg-amber-200/60 dark:bg-amber-700/40 overflow-hidden"
+                title={it.name}
+                style={{
+                  top: `${it.pos_top ?? 80}%`, left: `${it.pos_left ?? 45}%`,
+                  width: `${it.width_pct ?? 9}%`, height: `${it.height_pct ?? 9}%`,
+                  ...(it.photo_url ? { backgroundImage: `url(${it.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+                }} />
+            ))}
+            <div className="absolute -bottom-px left-1/2 -translate-x-1/2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 border-b-0 rounded-t px-1.5 py-0.5 text-[7px] text-stone-600 dark:text-stone-300">المدخل</div>
           </div>
         </div>
 
