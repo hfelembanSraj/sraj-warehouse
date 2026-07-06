@@ -12,6 +12,7 @@ import WarehouseMiniMap from './WarehouseMiniMap';
 import LocationPicker from './LocationPicker';
 import ZoneInteriorEditor, { defaultShelfRect, kindIcon } from './ZoneInteriorEditor';
 import WallStrokeOverlay from './WallStrokeOverlay';
+import NestedZonesPanel from './NestedZonesPanel';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
@@ -951,6 +952,34 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
               ))}
             </div>
           </div>
+        )}
+
+        {/* العودة إلى المساحة الأمّ (مساحة داخل مساحة) */}
+        {zoneViewMode === 'rack' && (() => {
+          const parent = (data.zones || []).find(z => z.id === fresh.parent_zone_id);
+          return parent ? (
+            <div className="flex justify-center mb-2">
+              <button onClick={() => onZoneSwitch?.(parent)}
+                className="text-[11px] px-4 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 font-bold shadow-sm">
+                ⬆ العودة إلى «{parent.letter} — {parent.name}»
+              </button>
+            </div>
+          ) : null;
+        })()}
+
+        {/* المساحات الداخليّة — «مساحة داخل مساحة» (دولاب فيه عدّة مستودعات) */}
+        {zoneViewMode === 'rack' && (
+          <NestedZonesPanel
+            parentZone={fresh}
+            allZones={data.zones || []}
+            boxes={data.boxes}
+            warehouseId={activeWarehouse?.id}
+            editMode={editMode}
+            isFounder={isFounder}
+            onEnter={(z) => onZoneSwitch?.(z)}
+            onRefresh={onRefresh}
+            flash={flash}
+          />
         )}
 
         {/* زرّ التقسيم الحرّ — وضع التعديل فقط */}

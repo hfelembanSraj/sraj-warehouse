@@ -105,7 +105,9 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   // مكدس التراجع لجلسة التحرير (تحريك/تحجيم/تعديل نقاط/إنشاء)
   const [undoStack, setUndoStack] = useState([]);
 
-  const zones = data.zones || [];
+  // الخريطة تعرض المساحات الجذريّة فقط — الداخليّة (مساحة داخل مساحة) تظهر داخل أمّها
+  const allZones = data.zones || [];
+  const zones = allZones.filter(z => !z.parent_zone_id);
 
   // تباعد الشبكة بالنِّسبة المئويّة لكل محور (المستودع غير مربّع)
   const gridSpacingPctX = metersToPercentX(gridSpacingMeters, activeWarehouse);
@@ -168,7 +170,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   async function handleConvertSave(values) {
     const src = convertingZone;
     if (!src) return;
-    if (zones.find(z => z.letter === values.letter.toUpperCase())) {
+    if (allZones.find(z => z.letter === values.letter.toUpperCase())) {
       return flash('هذا الحرف موجود — اختر حرفاً آخر', 'error');
     }
     setBusy(true);
@@ -205,7 +207,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
 
   // إنشاء مساحة/عنصر — مع وضعه اختيارياً في مستطيل مرسوم (rect نِسب مئويّة)
   async function handleAddZone(values, rect = null) {
-    if (zones.find(z => z.letter === values.letter.toUpperCase())) {
+    if (allZones.find(z => z.letter === values.letter.toUpperCase())) {
       flash('هذا الحرف موجود — اختر حرفاً آخر', 'error');
       return;
     }
@@ -244,7 +246,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   // إنشاء عنصر هيكلي (جدار/مكتب) رصاصي بلا أرفف في الشكل المرسوم.
   // الحرف يُولَّد تلقائيّاً (A..Z ثم W2..W99) مع إعادة المحاولة عند تعارض حرف.
   async function createStructure(rect, name) {
-    const used = new Set(zones.map(z => z.letter));
+    const used = new Set(allZones.map(z => z.letter));
     const candidates = [];
     for (let i = 65; i <= 90; i++) {
       const c = String.fromCharCode(i);
@@ -497,7 +499,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           >
             <AddZoneForm
               busy={busy}
-              existingLetters={zones.map(z => z.letter)}
+              existingLetters={allZones.map(z => z.letter)}
               onCancel={() => setShowAddZone(false)}
               onSave={(values) => handleAddZone(values)}
             />
@@ -514,7 +516,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           >
             <AddZoneForm
               busy={busy}
-              existingLetters={zones.map(z => z.letter)}
+              existingLetters={allZones.map(z => z.letter)}
               onCancel={() => setConvertingZone(null)}
               onSave={handleConvertSave}
             />

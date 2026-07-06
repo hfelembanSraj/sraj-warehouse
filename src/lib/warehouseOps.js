@@ -40,7 +40,9 @@ export async function rpcAddZone(wh_id, values) {
     zone_width_cm: Number(values.width_cm) || 200,
     zone_height_cm: Number(values.height_cm) || 230,
     zone_depth_cm: Number(values.depth_cm) || 65,
-    shelves_count
+    shelves_count,
+    // مساحة داخل مساحة (ترقية 22) — يُرسَل فقط عند الحاجة لتوافق ما قبلها
+    ...(values.parent_id ? { zone_parent: values.parent_id } : {})
   });
 }
 
