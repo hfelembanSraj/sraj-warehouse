@@ -1,12 +1,13 @@
 // ============================================================
-// ZoneInteriorEditor — التقسيم الحرّ لداخل مكان التخزين.
-// ارسم أقساماً (درج 🗄 / رفّ ➖ / خزانة كبيرة 🗃) بأي أحجام على واجهة
-// المكان، اسحبها وغيّر أحجامها بحريّة. كل قسم = رفّ (shelf) في القاعدة
-// بموضع pos JSONB {top,left,width,height,kind} — يتطلّب ترقية 21.
+// ZoneInteriorEditor — التقسيم الحرّ لداخل مكان التخزين، بنفس أدوات
+// الخريطة الخارجية: ⬜ مستطيل · ⬠ مضلّع · 🧱 فاصل/حدّ (خط) + تعامد
+// والتقاط. كل قسم = رفّ (shelf) بموضع pos JSONB
+// {top,left,width,height,kind,points?} — يتطلّب ترقية 21.
 // ============================================================
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { FormModal } from './BuilderForms';
 import MapDrawLayer from './MapDrawLayer';
+import WallStrokeOverlay from './WallStrokeOverlay';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddShelf, rpcUpdateShelfPos, rpcDeleteShelf } from '../lib/warehouseOps';
 import { shelfDisplayName } from '../lib/helpers';
@@ -17,6 +18,7 @@ export const SHELF_KINDS = [
   { key: 'cabinet', icon: '🗃', label: 'خزانة كبيرة' },
 ];
 export function kindIcon(kind) {
+  if (kind === 'divider') return '🧱';
   return SHELF_KINDS.find(k => k.key === kind)?.icon || '';
 }
 
@@ -27,11 +29,19 @@ export function defaultShelfRect(index, count) {
   return { top: index * (h + gap), left: 0, width: 100, height: h };
 }
 
+function toolBtnCls(active) {
+  return active
+    ? 'text-[11px] px-3 py-1.5 rounded-lg border border-indigo-700 bg-indigo-600 text-white font-bold shadow-sm'
+    : 'text-[11px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 font-medium';
+}
+
 export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, onClose, onRefresh, onDeleteShelf, flash }) {
   const containerRef = useRef(null);
   const [busy, setBusy] = useState(false);
-  const [drawing, setDrawing] = useState(false);
-  const [pendingRect, setPendingRect] = useState(null); // مستطيل مرسوم بانتظار التفاصيل
+  const [tool, setTool] = useState(null);          // 'rect' | 'poly' | 'wall' | null
+  const [ortho, setOrtho] = useState(false);
+  const [snapOn, setSnapOn] = useState(false);
+  const [pendingRect, setPendingRect] = useState(null); // شكل مرسوم بانتظار التفاصيل
 
   // «مستودع زائف» بأبعاد المكان بالمتر — فتظهر قياسات الرسم صحيحة (سم/م)
   const pseudoWh = {
@@ -39,11 +49,39 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
     depth_m: (Number(zone.height_cm) || 100) / 100
   };
 
+  // مواضع الأقسام الحاليّة (pos أو الافتراضي)
+  const rects = useMemo(
+    () => shelves.map((s, i) => s.pos ?? defaultShelfRect(i, shelves.length)),
+    [shelves]
+  );
+  // رؤوس/أضلاع الالتقاط: زوايا المكان + زوايا الأقسام (مع 🧲)
+  const targets = useMemo(() => {
+    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+    rects.forEach(r => {
+      t.push({ x: r.left, y: r.top }, { x: r.left + r.width, y: r.top },
+        { x: r.left + r.width, y: r.top + r.height }, { x: r.left, y: r.top + r.height });
+    });
+    return t;
+  }, [rects]);
+  const segments = useMemo(() => {
+    const segs = [];
+    rects.forEach(r => {
+      const c = [
+        { x: r.left, y: r.top }, { x: r.left + r.width, y: r.top },
+        { x: r.left + r.width, y: r.top + r.height }, { x: r.left, y: r.top + r.height }
+      ];
+      for (let i = 0; i < 4; i++) segs.push({ a: c[i], b: c[(i + 1) % 4] });
+    });
+    return segs;
+  }, [rects]);
+
   async function savePos(shelf, rect, kind) {
     setBusy(true);
     const { error } = await rpcUpdateShelfPos(shelf.id, {
       top: rect.top, left: rect.left, width: rect.width, height: rect.height,
-      kind: kind ?? shelf.pos?.kind ?? 'shelf'
+      kind: kind ?? shelf.pos?.kind ?? 'shelf',
+      // الشكل الحرّ (نقاط) يُحمَل كما هو عند التحريك/التحجيم
+      ...(shelf.pos?.points ? { points: shelf.pos.points } : {})
     });
     setBusy(false);
     if (error) return flash?.('فشل الحفظ: ' + error.message + (/(update_shelf_pos|schema)/i.test(error.message) ? ' — يلزم تطبيق ترقية 21' : ''), 'error');
@@ -51,10 +89,33 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   }
 
   function cycleKind(shelf, rect) {
+    if (shelf.pos?.kind === 'divider') return;
     const order = SHELF_KINDS.map(k => k.key);
     const cur = shelf.pos?.kind ?? 'shelf';
     const next = order[(order.indexOf(cur) + 1) % order.length];
     savePos(shelf, rect, next);
+  }
+
+  // شكل اكتمل رسمه: الفاصل (خط) يُنشأ فوراً؛ المستطيل/المضلّع يمرّ بنموذج التفاصيل
+  async function handleDrawn(geom, drawnTool) {
+    if (drawnTool === 'wall') {
+      setBusy(true);
+      const { data: newId, error } = await rpcAddShelf(zone.id, {
+        position: 'bottom', height_cm: 5, max_boxes: 1, label: 'فاصل'
+      });
+      if (error || !newId) { setBusy(false); return flash?.('فشل: ' + (error?.message || ''), 'error'); }
+      const { error: posErr } = await rpcUpdateShelfPos(newId, {
+        top: geom.top, left: geom.left, width: geom.width, height: geom.height,
+        kind: 'divider', points: geom.points
+      });
+      setBusy(false);
+      if (posErr) { await rpcDeleteShelf(newId); return flash?.('تعذّر حفظ الفاصل: ' + posErr.message, 'error'); }
+      flash?.('✅ أُضيف فاصل');
+      onRefresh?.();
+      return; // تبقى الأداة نشطة لرسم فواصل متتالية
+    }
+    setTool(null);
+    setPendingRect(geom);
   }
 
   async function handleCreate(values) {
@@ -69,7 +130,9 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
     });
     if (error || !newId) { setBusy(false); return flash?.('فشل: ' + (error?.message || 'تعذّر الإنشاء'), 'error'); }
     const { error: posErr } = await rpcUpdateShelfPos(newId, {
-      top: rect.top, left: rect.left, width: rect.width, height: rect.height, kind: values.kind
+      top: rect.top, left: rect.left, width: rect.width, height: rect.height,
+      kind: values.kind,
+      ...(Array.isArray(rect.points) ? { points: rect.points } : {})
     });
     setBusy(false);
     if (posErr) {
@@ -84,20 +147,17 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   return (
     <FormModal
       title={`🧰 تقسيم «${zone.letter} — ${zone.name}» من الداخل`}
-      subtitle="ارسم أقساماً بأي أحجام (درج/رفّ/خزانة) · اسحب القسم لتحريكه · المقبض ◢ للتحجيم"
+      subtitle="نفس أدوات الخريطة: ارسم أقساماً وفواصل بأي أشكال وأحجام · اسحب وحجّم بحريّة"
       onClose={onClose}
       maxWidth="max-w-4xl"
     >
-      <div className="flex items-center gap-2 flex-wrap mb-2">
-        <button onClick={() => setDrawing(d => !d)}
-          className={drawing
-            ? 'text-[11px] px-3 py-1.5 rounded-lg border border-indigo-700 bg-indigo-600 text-white font-bold shadow-sm'
-            : 'text-[11px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 font-medium'}>
-          ⬜ ارسم قسماً جديداً
-        </button>
-        <span className="text-[10px] text-stone-500 dark:text-stone-400">
-          زرّ النوع على القسم يبدّله (➖ رفّ ← 🗄 درج ← 🗃 خزانة) · 🗑 يحذف القسم وما فيه
-        </span>
+      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+        <button onClick={() => setTool(t => t === 'rect' ? null : 'rect')} className={toolBtnCls(tool === 'rect')} title="اسحب لرسم قسم مستطيل">⬜ مستطيل</button>
+        <button onClick={() => setTool(t => t === 'poly' ? null : 'poly')} className={toolBtnCls(tool === 'poly')} title="اضغط نقاطاً وأغلق الشكل — قسم بشكل حرّ">⬠ مضلّع</button>
+        <button onClick={() => setTool(t => t === 'wall' ? null : 'wall')} className={toolBtnCls(tool === 'wall')} title="خطّ فاصل/حدّ داخل المكان — يُنشأ فور الإنهاء">🧱 فاصل</button>
+        <span className="w-px h-5 bg-stone-300 dark:bg-stone-600 mx-1" />
+        <button onClick={() => setSnapOn(s => !s)} className={toolBtnCls(snapOn)} title="التقاط مغناطيسي لزوايا وحوافّ الأقسام">🧲 التقاط</button>
+        <button onClick={() => setOrtho(o => !o)} className={toolBtnCls(ortho)} title="تقييد الخطوط أفقيّاً/رأسيّاً/45°">∟ تعامد</button>
       </div>
 
       <div
@@ -122,26 +182,26 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
           />
         ))}
 
-        {drawing && (
+        {tool && (
           <MapDrawLayer
-            key="interior-rect"
+            key={tool}
             containerRef={containerRef}
             warehouse={pseudoWh}
-            tool="rect"
+            tool={tool}
             snapX={null}
             snapY={null}
-            ortho={false}
-            targets={[]}
-            segments={[]}
-            onFinish={(geom) => { setDrawing(false); setPendingRect(geom); }}
-            onCancel={() => setDrawing(false)}
+            ortho={ortho}
+            targets={snapOn ? targets : []}
+            segments={snapOn ? segments : []}
+            onFinish={handleDrawn}
+            onCancel={() => setTool(null)}
             flash={flash}
           />
         )}
       </div>
 
       <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-2">
-        كل تحريك/تحجيم يُحفَظ مباشرةً. أغلق النافذة لرؤية الأقسام بمواضعها في العرض الطبيعي.
+        كل تغيير يُحفَظ مباشرةً · زرّ النوع على القسم يبدّله (➖/🗄/🗃) · 🗑 يحذف القسم وما فيه · أغلق النافذة للعرض الطبيعي.
       </p>
 
       {pendingRect && (
@@ -156,38 +216,64 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
 
 // قسم واحد داخل المحرّر: سحب/تحجيم + تبديل النوع + حذف + قياسات بالسنتيمتر
 function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy, boxCount, onGeometry, onCycleKind, onDelete }) {
+  const isDivider = shelf.pos?.kind === 'divider';
+  const pts = shelf.pos?.points;
+  const isOpen = Array.isArray(pts) && pts[0]?.open;
+  const hasPoly = !isOpen && Array.isArray(pts) && pts.length >= 3;
   const { pos, mode, begin } = useDragResize({
-    rect, containerRef, enabled: true, minW: 4, minH: 4,
+    rect, containerRef, enabled: true, minW: isDivider ? 1 : 4, minH: isDivider ? 1 : 4,
     onChange: (r) => onGeometry(r)
   });
   const icon = kindIcon(shelf.pos?.kind) || '➖';
   const wCm = Math.round((pos.width / 100) * (Number(zone.width_cm) || 100));
   const hCm = Math.round((pos.height / 100) * (Number(zone.height_cm) || 100));
+  const strokeOnly = isDivider || isOpen;
   return (
     <div
       style={{
         top: `${pos.top}%`, left: `${pos.left}%`, width: `${pos.width}%`, height: `${pos.height}%`,
-        borderColor: color, zIndex: mode ? 40 : undefined,
+        zIndex: mode ? 40 : undefined,
         transition: mode ? 'none' : 'top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease',
-        cursor: mode === 'move' ? 'grabbing' : 'grab', touchAction: 'none'
+        cursor: mode === 'move' ? 'grabbing' : 'grab', touchAction: 'none',
+        ...(strokeOnly || hasPoly ? {} : { borderColor: color })
       }}
       onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); }}
       onTouchStart={(e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); }}
-      className="absolute border-2 rounded-md bg-stone-50 dark:bg-stone-800 group select-none"
+      className={`absolute group select-none ${strokeOnly || hasPoly ? '' : 'border-2 rounded-md bg-stone-50 dark:bg-stone-800'}`}
     >
-      <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow pointer-events-none z-10 whitespace-nowrap" style={{ backgroundColor: color }}>
-        {icon} {shelfDisplayName(shelf, shelves)} · {boxCount} 📦
-      </span>
+      {strokeOnly && (
+        <>
+          <WallStrokeOverlay points={pts || [{ x: 0, y: 50 }, { x: 100, y: 50 }]} color={color} thickness={3} />
+          <div className="absolute inset-0 border border-dashed border-blue-400/60 rounded" />
+        </>
+      )}
+      {hasPoly && (
+        <>
+          <div className="absolute inset-0 bg-stone-50 dark:bg-stone-800"
+            style={{ clipPath: `polygon(${pts.map(p => `${p.x}% ${p.y}%`).join(', ')})` }} />
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polygon points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+        </>
+      )}
+      {!isDivider && (
+        <span className="absolute -top-2.5 right-2 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow pointer-events-none z-10 whitespace-nowrap" style={{ backgroundColor: color }}>
+          {icon} {shelfDisplayName(shelf, shelves)} · {boxCount} 📦
+        </span>
+      )}
       <span className="absolute bottom-1 right-1.5 text-[9px] font-bold text-stone-500 dark:text-stone-400 pointer-events-none">
         {wCm}×{hCm}سم
       </span>
       <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition z-20">
-        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onCycleKind(pos); }} disabled={busy}
-          className="text-[11px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
-          title="تبديل النوع: رفّ ← درج ← خزانة">{icon}</button>
+        {!isDivider && (
+          <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onCycleKind(pos); }} disabled={busy}
+            className="text-[11px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
+            title="تبديل النوع: رفّ ← درج ← خزانة">{icon}</button>
+        )}
         <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
           className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
-          title="حذف القسم (وما فيه إلى سلّة المحذوفات)">🗑</button>
+          title={isDivider ? 'حذف الفاصل' : 'حذف القسم (وما فيه إلى سلّة المحذوفات)'}>🗑</button>
       </div>
       <div
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('resize', e.clientX, e.clientY); }}

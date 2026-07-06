@@ -11,6 +11,7 @@ import ImageLightbox from './ImageLightbox';
 import WarehouseMiniMap from './WarehouseMiniMap';
 import LocationPicker from './LocationPicker';
 import ZoneInteriorEditor, { defaultShelfRect, kindIcon } from './ZoneInteriorEditor';
+import WallStrokeOverlay from './WallStrokeOverlay';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
@@ -982,6 +983,15 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                   // التقسيم الحرّ: قسم له pos يُوضَع بموضعه؛ وإلا صفّ افتراضي متساوٍ
                   const anyPositioned = shelves.some(s => s.pos);
                   const sRect = anyPositioned ? (shelf.pos ?? defaultShelfRect(shelfIdx, shelves.length)) : null;
+                  // فاصل مرسوم (خطّ) — يُعرَض كخطّ فقط بلا خانات ولا شارة
+                  if (shelf.pos?.kind === 'divider' && sRect) {
+                    return (
+                      <div key={shelf.id} className="absolute pointer-events-none"
+                        style={{ top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%` }}>
+                        <WallStrokeOverlay points={shelf.pos.points || [{ x: 0, y: 50 }, { x: 100, y: 50 }]} color={fresh.color} thickness={3} />
+                      </div>
+                    );
+                  }
                   const shelfBoxes = getShelfBoxes(shelf.shelf_index);
                   // أغراض "كامل" (≥100%) تُعرض كأشرطة بعرض الرفّ مرصوصة فوق بعضها؛ والباقي في صفّ الخانات
                   const shelfAllItems = shelfItems.filter(it => it.shelf_id === shelf.id);
