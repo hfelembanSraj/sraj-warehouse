@@ -81,10 +81,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   // أداة الرسم النشطة: 'rect' مستطيل | 'poly' مضلّع | 'wall' جدار | null
   const [activeTool, setActiveTool] = useState(null);
-  // الرسم: شكل رُسم للتوّ وننتظر اختيار نوعه (جدار/مكتب/تخزين) — نِسب مئويّة
-  const [drawnRect, setDrawnRect] = useState(null);
-  // الشكل المرسوم المعلّق لمساحة تخزين (يُوضع فيها بعد ملء نموذج المساحة)
-  const [pendingDrawRect, setPendingDrawRect] = useState(null);
+  // تحويل عنصر هيكلي مرسوم إلى مكان تخزين (📦) — يحتفظ بشكله وموقعه
+  const [convertingZone, setConvertingZone] = useState(null);
   // محرّر الرسم: شبكة + التقاط (snap) + تعامد + إظهار القياسات
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridSpacingMeters, setGridSpacingMeters] = useState(1);
@@ -150,11 +148,45 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layoutEditMode, undoStack, busy, activeTool, vertexEditZoneId, zones]);
 
-  // شكل اكتمل رسمه: الجدار يُنشأ فوراً؛ المستطيل/المضلّع يمرّ بمودال اختيار النوع
+  // شكل اكتمل رسمه: يُنشأ فوراً كعنصر هيكلي (جدار/عنصر) — بلا مودال.
+  // زرّ 📦 على العنصر يحوّله لاحقاً لمكان تخزين بنفس شكله.
   function handleShapeDrawn(geom, tool) {
-    if (tool === 'wall') { createStructure(geom, 'جدار'); return; }
-    setActiveTool(null);
-    setDrawnRect(geom);
+    createStructure(geom, tool === 'wall' ? 'جدار' : 'عنصر');
+  }
+
+  // تحويل عنصر هيكلي إلى مكان تخزين: مساحة جديدة بنفس الشكل ثم حذف العنصر
+  async function handleConvertSave(values) {
+    const src = convertingZone;
+    if (!src) return;
+    if (zones.find(z => z.letter === values.letter.toUpperCase())) {
+      return flash('هذا الحرف موجود — اختر حرفاً آخر', 'error');
+    }
+    setBusy(true);
+    const { data: newZoneId, error } = await rpcAddZone(activeWarehouse.id, values);
+    if (error || !newZoneId) {
+      setBusy(false);
+      return flash('فشل: ' + (error?.message || 'تعذّر الإنشاء'), 'error');
+    }
+    // انسخ الشكل والموقع كما هما (مع إزالة علامة إخفاء الاسم — التخزين يُظهر اسمه)
+    const pts = Array.isArray(src.points) && src.points.length >= 2
+      ? src.points.map(({ label, ...p }) => ({ ...p }))
+      : null;
+    const r = naturalZoneRect(src);
+    const { error: posErr } = await rpcUpdateZone({ id: newZoneId }, {
+      pos_top: r.top, pos_left: r.left, pos_right: null,
+      pos_width: r.width, pos_height: r.height,
+      ...(pts ? { points: pts } : {})
+    });
+    if (posErr) {
+      await rpcDeleteZone(newZoneId);
+      setBusy(false);
+      return flash('تعذّر نقل الشكل: ' + posErr.message, 'error');
+    }
+    await rpcDeleteZone(src.id);
+    setBusy(false);
+    setConvertingZone(null);
+    flash(`✅ صار المكان تخزيناً: ${values.letter.toUpperCase()} — ${values.name}`);
+    await onRefresh();
   }
 
   function boxCountForZone(letter) {
@@ -185,9 +217,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         await rpcDeleteZone(newZoneId);
         setBusy(false);
         setShowAddZone(false);
-        setPendingDrawRect(null);
         await onRefresh();
-        return flash('لم يُحفَظ شكل المساحة — يلزم تطبيق ترقية 20 (migration_20) على قاعدة البيانات أولاً. أُلغي الإنشاء.', 'error');
+        return flash('لم يُحفَظ شكل المساحة: ' + posErr.message, 'error');
       }
       if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط موضعه: ' + posErr.message, 'error');
     }
@@ -197,7 +228,6 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
     const kind = values.color === STRUCTURE_COLOR ? 'عنصر' : 'مساحة';
     flash(`✅ تمت إضافة ${kind} ${values.letter.toUpperCase()}`);
     setShowAddZone(false);
-    setPendingDrawRect(null);
     await onRefresh();
   }
 
@@ -230,22 +260,25 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       setBusy(false);
       return flash('فشل إنشاء العنصر: ' + (lastErr?.message || 'تعذّر توليد حرف متاح'), 'error');
     }
+    // اسم العنصر المرسوم مخفيّ افتراضيّاً (label:0) — زرّ 👁 يُظهره عند الحاجة.
+    // مستطيل بلا شكل هندسي: نقطة علامة واحدة فقط (لا تغيّر شكله).
+    const pts = Array.isArray(rect.points)
+      ? rect.points.map((p, i) => (i === 0 ? { ...p, label: 0 } : p))
+      : [{ x: 0, y: 0, label: 0 }];
     const { error: posErr } = await rpcUpdateZone({ id: zoneId }, {
       pos_top: rect.top, pos_left: rect.left, pos_right: null,
       pos_width: rect.width, pos_height: rect.height,
-      ...(Array.isArray(rect.points) ? { points: rect.points } : {})
+      points: pts
     });
-    // فشل حفظ «الشكل» (غالباً ترقية 20 غير مُطبَّقة): ألغِ الإنشاء كلّه —
-    // لا نترك مربّعاً افتراضيّاً مكان الشكل الذي رسمه المؤسّس
-    if (posErr && Array.isArray(rect.points)) {
+    // فشل حفظ «الشكل»: ألغِ الإنشاء كلّه — لا نترك مربّعاً افتراضيّاً خاطئاً
+    if (posErr) {
       await rpcDeleteZone(zoneId);
       setBusy(false);
-      return flash('لم يُحفَظ الشكل المرسوم — يلزم تطبيق ترقية 20 (migration_20) على قاعدة البيانات أولاً. أُلغي الإنشاء.', 'error');
+      return flash('لم يُحفَظ الشكل المرسوم: ' + posErr.message + ' — أُلغي الإنشاء.', 'error');
     }
     setBusy(false);
     setUndoStack(s => [...s, { kind: 'create', zoneId }]);
-    if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط شكله: ' + posErr.message, 'error');
-    else flash(`✅ أُضيف ${name} — «↶ تراجع» يحذفه`);
+    flash(`✅ أُضيف ${name} — 📦 يحوّله لتخزين · «↶ تراجع» يحذفه`);
     await onRefresh();
   }
 
@@ -441,59 +474,33 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
 
         {showAddZone && viewMode === 'map' && (
           <FormModal
-            title={pendingDrawRect ? '+ مساحة تخزين (في الشكل المرسوم)' : '+ مساحة تخزين جديدة'}
-            onClose={() => { setShowAddZone(false); setPendingDrawRect(null); }}
+            title="+ مساحة تخزين جديدة"
+            onClose={() => setShowAddZone(false)}
             maxWidth="max-w-lg"
           >
             <AddZoneForm
               busy={busy}
               existingLetters={zones.map(z => z.letter)}
-              onCancel={() => { setShowAddZone(false); setPendingDrawRect(null); }}
-              onSave={(values) => handleAddZone(values, pendingDrawRect)}
+              onCancel={() => setShowAddZone(false)}
+              onSave={(values) => handleAddZone(values)}
             />
           </FormModal>
         )}
 
-        {/* بعد رسم شكل: اختيار نوعه */}
-        {drawnRect && viewMode === 'map' && (
+        {/* 📦 تحويل عنصر هيكلي إلى مكان تخزين — يحتفظ بالشكل المرسوم */}
+        {convertingZone && viewMode === 'map' && (
           <FormModal
-            title="ما الذي رسمته؟"
-            subtitle="اختر نوع الشكل ليُضاف إلى المخطّط"
-            onClose={() => setDrawnRect(null)}
-            maxWidth="max-w-sm"
+            title={`📦 تحويل «${convertingZone.name}» إلى مكان تخزين`}
+            subtitle="سيحتفظ بشكله وموقعه المرسوم تماماً — حدّد الحرف والاسم وعدد الأرفف"
+            onClose={() => setConvertingZone(null)}
+            maxWidth="max-w-lg"
           >
-            <div className="grid gap-2">
-              <button
-                onClick={() => { const r = drawnRect; setDrawnRect(null); createStructure(r, 'جدار'); }}
-                disabled={busy}
-                className="flex items-center gap-3 p-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-right disabled:opacity-50">
-                <span className="text-xl">🧱</span>
-                <span className="flex-1">
-                  <span className="block text-sm font-bold dark:text-stone-200">جدار</span>
-                  <span className="block text-[11px] text-stone-500 dark:text-stone-400">عنصر هيكلي ثابت رصاصي — بلا أرفف</span>
-                </span>
-              </button>
-              <button
-                onClick={() => { const r = drawnRect; setDrawnRect(null); createStructure(r, 'مكتب'); }}
-                disabled={busy}
-                className="flex items-center gap-3 p-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-right disabled:opacity-50">
-                <span className="text-xl">🪑</span>
-                <span className="flex-1">
-                  <span className="block text-sm font-bold dark:text-stone-200">مكتب / طاولة</span>
-                  <span className="block text-[11px] text-stone-500 dark:text-stone-400">عنصر هيكلي ثابت رصاصي — بلا أرفف</span>
-                </span>
-              </button>
-              <button
-                onClick={() => { setPendingDrawRect(drawnRect); setDrawnRect(null); setShowAddZone(true); }}
-                disabled={busy}
-                className="flex items-center gap-3 p-3 rounded-lg border-2 border-brand-blue/60 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-right disabled:opacity-50">
-                <span className="text-xl">📦</span>
-                <span className="flex-1">
-                  <span className="block text-sm font-bold text-brand-navy dark:text-blue-200">مساحة تخزين</span>
-                  <span className="block text-[11px] text-stone-500 dark:text-stone-400">مكان مُلوّن بأرفف — يُخزَّن فيه فعليّاً</span>
-                </span>
-              </button>
-            </div>
+            <AddZoneForm
+              busy={busy}
+              existingLetters={zones.map(z => z.letter)}
+              onCancel={() => setConvertingZone(null)}
+              onSave={handleConvertSave}
+            />
           </FormModal>
         )}
 
@@ -523,9 +530,9 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-3 mb-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
                   <span className="text-base">✏️</span>
                   <div className="flex-1 space-y-0.5">
-                    <p>• اختر أداة رسم: <strong>⬜ مستطيل</strong> (اسحب على الأرضيّة) · <strong>⬠ مضلّع</strong> (نقاط ثم إغلاق) · <strong>🧱 جدار</strong> (نقاط المسار — يُنشأ فور الإنهاء)</p>
-                    <p>• <strong>اسحب</strong> أيّ عنصر لتحريكه · المقبض ◢ للتحجيم · <strong>⬡</strong> لتعديل نقاط شكله بدقّة</p>
-                    <p>• اللون <strong>الرصاصي</strong> = هيكل ثابت (جدار/طاولة) · أيّ لون آخر = مكان تخزين · <strong>↶</strong> يتراجع عن آخر تغيير</p>
+                    <p>• اختر أداة رسم: <strong>⬜ مستطيل</strong> (اسحب) · <strong>⬠ مضلّع</strong> (نقاط) · <strong>🧱 جدار</strong> (مسار) — كل شكل <strong>يُنشأ فوراً</strong> كعنصر هيكلي رصاصي</p>
+                    <p>• أزرار العنصر: <strong>📦</strong> يحوّله لمكان تخزين (بنفس شكله) · <strong>👁</strong> يُظهر/يخفي اسمه · <strong>⬡</strong> يعدّل نقاطه · ✏️ يسمّيه · 🗑 يحذفه</p>
+                    <p>• <strong>اسحب</strong> أيّ عنصر لتحريكه · المقبض ◢ للتحجيم · <strong>↶</strong> يتراجع عن آخر تغيير</p>
                     <p>• عند الانتهاء اضغط <strong>«✅ اعتماد المخطّط»</strong> ليُقفل ويصبح ثابتاً</p>
                   </div>
                 </div>
@@ -584,6 +591,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onZoneClick={onZoneClick}
                   onZoneEdit={(z) => setEditingZoneId(editingZoneId === z.id ? null : z.id)}
                   onZoneDelete={(z) => setConfirming({ zone: z })}
+                  onZoneConvert={(z) => setConvertingZone(z)}
                   onItemEdit={(it) => setEditingOutsideItem(it)}
                   onItemDelete={handleDeleteOutsideItem}
                   onItemView={(it) => setViewingOutsideItem(it)}
@@ -876,7 +884,7 @@ function EditorToolButton({ active, onClick, title, children }) {
 // ====== لوحة خريطة المستودع: مساحات + أغراض خارج المساحات (قابلة للسحب) ======
 function WarehouseMapCanvas({
   zones, outsideItems, data, isFounder, busy, layoutEditMode,
-  boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete,
+  boxCountForZone, onZoneClick, onZoneEdit, onZoneDelete, onZoneConvert,
   onItemEdit, onItemDelete, onItemView, onRefresh, flash,
   activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements,
   activeTool, ortho, vertexSnap, onToolCancel, onShapeDrawn,
@@ -1055,6 +1063,7 @@ function WarehouseMapCanvas({
           onDelete={() => onZoneDelete(z)}
           onEditPoints={() => onVertexEdit?.(z)}
           onToggleName={() => handleToggleName(z)}
+          onConvert={() => onZoneConvert?.(z)}
         />
       ))}
 
@@ -1176,7 +1185,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1350,6 +1359,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
                 : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'}`}
               title={showName ? 'إخفاء الاسم من الخريطة' : 'إظهار الاسم على الخريطة'}
             >👁</button>
+          )}
+          {editing && isDecor && !isOpenWall && (
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onConvert?.(); }} disabled={busy}
+              className="text-[10px] bg-amber-100 dark:bg-amber-900/50 border border-amber-400 dark:border-amber-700 w-6 h-6 rounded-md shadow-md hover:bg-amber-200 dark:hover:bg-amber-900 flex items-center justify-center"
+              title="تحويله إلى مكان تخزين (بنفس شكله)"
+            >📦</button>
           )}
         </div>
       )}
