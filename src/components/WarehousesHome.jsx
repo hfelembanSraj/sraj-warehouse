@@ -381,8 +381,14 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
                         <polygon points={z.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={z.color} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                       </svg>
                     )}
-                    {!isDecor && !z.photo_url && !(z.name && z.name !== z.letter) && (
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-display font-bold pointer-events-none" style={{ color: z.color }}>{z.letter}</div>
+                    {/* الاسم بايِن من الخارج: التخزين دائماً، والشكلي إذا فُعّل اسمه (👁) */}
+                    {(!isDecor || z.points?.[0]?.label === 1) && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-0.5">
+                        <span className="text-[7px] font-bold px-1 py-px rounded-full leading-tight text-center truncate max-w-full shadow-sm"
+                          style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+                          {z.name && z.name !== z.letter ? z.name : z.letter}
+                        </span>
+                      </div>
                     )}
                   </div>
                 );

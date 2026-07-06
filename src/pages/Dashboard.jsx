@@ -46,6 +46,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const initialTab = isFounder ? 'home' : 'map';
   const [activeTab, setActiveTab] = useState(initialTab);
+  // قائمة «⋯ المزيد» — تختصر شريط التبويبات
+  const [moreOpen, setMoreOpen] = useState(false);
   const [enteredWarehouse, setEnteredWarehouse] = useState(false);
   const [currentZone, setCurrentZone] = useState(null);
   const [currentShelf, setCurrentShelf] = useState(null);
@@ -214,29 +216,33 @@ export default function Dashboard() {
   const isManager = isFounder || isSysadmin || data.users.find(u => u.user_id === user?.id)?.role === 'whmanager';
 
   // الترتيب: المستودعات (للمؤسّس) أو المستودع (لغير المؤسّس) ثم بقيّة التبويبات
+  // شريط مختصر: تبويبان أساسيّان فقط، والبقيّة داخل قائمة «⋯ المزيد»
   const tabs = [];
   if (isFounder) {
     tabs.push({ key: 'home', label: '🏢 المستودعات' });
   } else {
     tabs.push({ key: 'map', label: 'المستودع' });
   }
-  tabs.push(
-    { key: 'checkouts', label: 'الإخراج/الإرجاع', badge: overdueCount },
+  tabs.push({ key: 'checkouts', label: 'الإخراج/الإرجاع', badge: overdueCount });
+
+  const moreTabs = [
     { key: 'initiatives', label: '🎪 المبادرات' },
     { key: 'damaged', label: 'المتلفات' },
     { key: 'donated', label: 'الدعم' },
     { key: 'log', label: 'السجل' },
     { key: 'reports', label: 'التقارير' },
     { key: 'qr', label: 'رموز QR' }
-  );
+  ];
   if (isManager) {
-    tabs.push({ key: 'requests', label: 'طلبات الانضمام', badge: data.requests.length });
-    tabs.push({ key: 'users', label: 'المستخدمون' });
+    moreTabs.push({ key: 'requests', label: 'طلبات الانضمام', badge: data.requests.length });
+    moreTabs.push({ key: 'users', label: '👥 المستخدمون' });
   }
   if (isFounder) {
-    tabs.push({ key: 'recovery', label: '🗑 السلّة' });
-    tabs.push({ key: 'founder', label: '👑 إعدادات المؤسّس' });
+    moreTabs.push({ key: 'recovery', label: '🗑 السلّة' });
+    moreTabs.push({ key: 'founder', label: '👑 إعدادات المؤسّس' });
   }
+  const moreBadge = moreTabs.reduce((s, t) => s + (t.badge || 0), 0);
+  const activeMoreTab = moreTabs.find(t => t.key === activeTab);
 
   async function handleLogout() {
     await logActivity('خروج', 'تسجيل خروج', '—');
@@ -419,11 +425,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-1 mb-4 overflow-x-auto no-print shadow-sm">
-          <div className="flex gap-1 min-w-max">
+        {/* Tabs — مختصرة: أساسيّان + «⋯ المزيد» */}
+        <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 p-1 mb-4 no-print shadow-sm relative">
+          <div className="flex gap-1 flex-wrap items-center">
             {tabs.map(t => (
-              <button key={t.key} onClick={() => handleTabChange(t.key)}
+              <button key={t.key} onClick={() => { setMoreOpen(false); handleTabChange(t.key); }}
                 className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap transition flex items-center gap-1.5 ${
                   activeTab === t.key
                     ? 'bg-gradient-to-l from-brand-navy to-brand-purple text-white font-bold shadow'
@@ -437,7 +443,45 @@ export default function Dashboard() {
                 )}
               </button>
             ))}
+            {/* التبويب النشط من القائمة يظهر بجانب «المزيد» */}
+            {activeMoreTab && (
+              <button onClick={() => setMoreOpen(o => !o)}
+                className="px-3 py-2 rounded-lg text-xs whitespace-nowrap bg-gradient-to-l from-brand-navy to-brand-purple text-white font-bold shadow flex items-center gap-1.5">
+                {activeMoreTab.label}
+                {activeMoreTab.badge > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white text-brand-navy">{activeMoreTab.badge}</span>
+                )}
+              </button>
+            )}
+            <button onClick={() => setMoreOpen(o => !o)}
+              className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap transition flex items-center gap-1.5 border ${
+                moreOpen
+                  ? 'bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-600 font-bold dark:text-stone-200'
+                  : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800 border-transparent'
+              }`}>
+              ⋯ المزيد
+              {moreBadge > 0 && !activeMoreTab && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-pink text-white">{moreBadge}</span>
+              )}
+            </button>
           </div>
+          {moreOpen && (
+            <div className="absolute top-full right-2 mt-1 z-50 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl shadow-2xl p-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1 min-w-72">
+              {moreTabs.map(t => (
+                <button key={t.key} onClick={() => { setMoreOpen(false); handleTabChange(t.key); }}
+                  className={`px-3 py-2.5 rounded-lg text-xs text-right whitespace-nowrap transition flex items-center gap-1.5 ${
+                    activeTab === t.key
+                      ? 'bg-gradient-to-l from-brand-navy to-brand-purple text-white font-bold'
+                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                  }`}>
+                  {t.label}
+                  {t.badge > 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-white text-brand-navy' : 'bg-brand-pink text-white'}`}>{t.badge}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* عند الدخول لمستودع: شريط رجوع للمستودعات + اسم المستودع */}
