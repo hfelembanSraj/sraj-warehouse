@@ -176,6 +176,49 @@ export default function NestedZonesPanel({
     onRefresh?.();
   }
 
+  // 📦 مساحة شكليّة → تخزين: مساحة جديدة بنفس الشكل ثم حذف الشكليّة
+  const [convertingChild, setConvertingChild] = useState(null);
+  async function handleChildConvertSave(values) {
+    const src = convertingChild;
+    if (!src || busy) return;
+    if ((allZones || []).find(z => z.letter === values.letter.toUpperCase())) {
+      return flash?.('هذا الحرف موجود — اختر حرفاً آخر', 'error');
+    }
+    setBusy(true);
+    const { data: newId, error } = await rpcAddZone(warehouseId, { ...values, parent_id: parentZone.id });
+    if (error || !newId) { setBusy(false); return flash?.('فشل: ' + (error?.message || ''), 'error'); }
+    const r = naturalZoneRect(src);
+    const pts = Array.isArray(src.points) && src.points.length >= 2
+      ? src.points.map(({ label, ...p }) => ({ ...p })) : null;
+    const { error: posErr } = await rpcUpdateZone({ id: newId }, {
+      pos_top: r.top, pos_left: r.left, pos_right: null,
+      pos_width: r.width, pos_height: r.height,
+      ...(pts ? { points: pts } : {})
+    });
+    if (posErr) { await rpcDeleteZone(newId); setBusy(false); return flash?.('تعذّر نقل الشكل: ' + posErr.message, 'error'); }
+    const { error: delErr } = await rpcDeleteZone(src.id);
+    setBusy(false);
+    setConvertingChild(null);
+    if (delErr) flash?.('⚠️ أُنشئت لكن تعذّر حذف الشكل القديم: ' + delErr.message, 'error');
+    else flash?.(`✅ صارت تخزيناً: ${values.letter.toUpperCase()} — ${values.name}`);
+    onRefresh?.();
+  }
+
+  // 🎨 مساحة تخزين → شكليّة (يشترط أن تكون فارغة)
+  async function makeChildDecor(child) {
+    const bx = (boxes || []).filter(b => b.code.startsWith(child.letter + '-')).length;
+    if (bx > 0) return flash?.(`لا يمكن جعلها شكليّة وفيها ${bx} صندوق — أفرغها أولاً`, 'error');
+    if ((allZones || []).some(z => z.parent_zone_id === child.id)) {
+      return flash?.('فيها مساحات داخليّة — احذفها أولاً', 'error');
+    }
+    setBusy(true);
+    const { error } = await rpcUpdateZone(child, { color: STRUCTURE_COLOR });
+    setBusy(false);
+    if (error) return flash?.('فشل: ' + error.message, 'error');
+    flash?.('🎨 صارت شكليّة — زرّ 📦 يعيدها تخزيناً');
+    onRefresh?.();
+  }
+
   async function saveGeom(child, rect) {
     setUndoStack(s => [...s, { kind: 'geom', zoneId: child.id, prev: snapGeom(child) }]);
     const { error } = await rpcUpdateZone(child, {
@@ -250,6 +293,8 @@ export default function NestedZonesPanel({
               onEnter={() => onEnter?.(child)}
               onGeometry={(r) => saveGeom(child, r)}
               onDelete={() => setConfirmDel(child)}
+              onConvert={() => setConvertingChild(child)}
+              onMakeDecor={() => makeChildDecor(child)}
             />
           ))}
 
@@ -313,6 +358,23 @@ export default function NestedZonesPanel({
         </FormModal>
       )}
 
+      {/* 📦 تحويل مساحة شكليّة إلى تخزين */}
+      {convertingChild && (
+        <FormModal
+          title={`📦 تحويل الشكل إلى مساحة تخزين`}
+          subtitle="ستحتفظ بشكلها وموقعها — حدّد الحرف والاسم وعدد الأرفف"
+          onClose={() => setConvertingChild(null)}
+          maxWidth="max-w-lg"
+        >
+          <AddZoneForm
+            busy={busy}
+            existingLetters={(allZones || []).map(z => z.letter)}
+            onCancel={() => setConvertingChild(null)}
+            onSave={handleChildConvertSave}
+          />
+        </FormModal>
+      )}
+
       {confirmDel && (
         <ConfirmDelete
           message={(() => {
@@ -330,7 +392,7 @@ export default function NestedZonesPanel({
 }
 
 // مساحة داخليّة واحدة: دخول بالضغط · سحب/تحجيم وحذف في وضع التعديل
-function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = null, onEnter, onGeometry, onDelete }) {
+function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = null, onEnter, onGeometry, onDelete, onConvert, onMakeDecor }) {
   const rect = naturalZoneRect(zone);
   const { pos, mode, begin } = useDragResize({
     rect, containerRef, enabled: canEdit, minW: 4, minH: 4,
@@ -391,6 +453,15 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
             <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
               className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
               title="حذف المساحة الداخليّة">🗑</button>
+            {isDecor ? (
+              <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onConvert?.(); }} disabled={busy}
+                className="text-[10px] bg-amber-100 dark:bg-amber-900/50 border border-amber-400 dark:border-amber-700 w-6 h-6 rounded-md shadow-md hover:bg-amber-200 dark:hover:bg-amber-900 flex items-center justify-center"
+                title="تحويلها إلى مساحة تخزين (بنفس شكلها)">📦</button>
+            ) : (
+              <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onMakeDecor?.(); }} disabled={busy}
+                className="text-[10px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
+                title="جعلها شكليّة (بدون تخزين) — يشترط أن تكون فارغة">🎨</button>
+            )}
           </div>
           <div
             onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('resize', e.clientX, e.clientY); }}

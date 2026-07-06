@@ -1010,6 +1010,21 @@ function WarehouseMapCanvas({
     onRefresh?.();
   }
 
+  // 🎨 جعل مساحة تخزين «شكليّة» (رصاصيّة بدون تخزين) — عكس زرّ 📦
+  async function handleMakeDecor(z) {
+    if (busy) return;
+    if (boxCountForZone(z.letter) > 0) {
+      return flash?.('لا يمكن جعلها شكليّة وفيها صناديق — أفرغها أو احذفها أولاً', 'error');
+    }
+    if ((data.zones || []).some(c => c.parent_zone_id === z.id)) {
+      return flash?.('فيها مساحات داخليّة — احذفها أو انقلها أولاً', 'error');
+    }
+    const { error } = await rpcUpdateZone(z, { color: STRUCTURE_COLOR });
+    if (error) return flash?.('فشل: ' + error.message, 'error');
+    flash?.('🎨 صار العنصر شكليّاً — زرّ 📦 يعيده تخزيناً');
+    onRefresh?.();
+  }
+
   // حفظ موقع/حجم الغرفة بعد سحبها أو تكبيرها (وضع تحرير المخطّط)
   async function handleZoneGeometry(zone, rect) {
     pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
@@ -1134,6 +1149,7 @@ function WarehouseMapCanvas({
           onEditPoints={() => onVertexEdit?.(z)}
           onToggleName={() => handleToggleName(z)}
           onConvert={() => onZoneConvert?.(z)}
+          onMakeDecor={() => handleMakeDecor(z)}
           plainBg={plainBg}
           neighborEdges={neighborEdges(z.id)}
         />
@@ -1259,7 +1275,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, onMakeDecor, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1481,6 +1497,12 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
               className="text-[10px] bg-amber-100 dark:bg-amber-900/50 border border-amber-400 dark:border-amber-700 w-6 h-6 rounded-md shadow-md hover:bg-amber-200 dark:hover:bg-amber-900 flex items-center justify-center"
               title="تحويله إلى مكان تخزين (بنفس شكله)"
             >📦</button>
+          )}
+          {editing && !isDecor && (
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onMakeDecor?.(); }} disabled={busy}
+              className="text-[10px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
+              title="جعله شكليّاً (بدون تخزين) — يشترط أن يكون فارغاً"
+            >🎨</button>
           )}
         </div>
       )}
