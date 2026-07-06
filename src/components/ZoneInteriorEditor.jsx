@@ -9,6 +9,7 @@ import { FormModal } from './BuilderForms';
 import MapDrawLayer from './MapDrawLayer';
 import WallStrokeOverlay from './WallStrokeOverlay';
 import MidMarks from './MidMarks';
+import CenterGuides from './CenterGuides';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddShelf, rpcUpdateShelfPos, rpcDeleteShelf } from '../lib/warehouseOps';
 import { shelfDisplayName } from '../lib/helpers';
@@ -180,6 +181,7 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
         className="relative w-full border-4 rounded-md bg-white dark:bg-stone-900"
         style={{ aspectRatio: `${Number(zone.width_cm) || 100} / ${Number(zone.height_cm) || 100}`, borderColor: zone.color }}
       >
+        <CenterGuides />
         {shelves.map((s, i) => (
           <CompartmentTile
             key={s.id}

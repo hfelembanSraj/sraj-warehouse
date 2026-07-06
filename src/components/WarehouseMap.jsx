@@ -10,6 +10,7 @@ import ImageLightbox from './ImageLightbox';
 import MapDrawLayer from './MapDrawLayer';
 import VertexEditLayer from './VertexEditLayer';
 import MidMarks from './MidMarks';
+import CenterGuides from './CenterGuides';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
@@ -1057,6 +1058,9 @@ function WarehouseMapCanvas({
           <rect width="100" height="100" fill="url(#whGrid)" />
         </svg>
       )}
+
+      {/* خطّا التنصيف — وضع التحرير */}
+      {canDraw && <CenterGuides />}
 
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 dark:text-stone-500 tracking-widest font-medium pointer-events-none">
         الجدار الخلفي

@@ -13,6 +13,7 @@ import LocationPicker from './LocationPicker';
 import ZoneInteriorEditor, { defaultShelfRect, kindIcon } from './ZoneInteriorEditor';
 import WallStrokeOverlay from './WallStrokeOverlay';
 import NestedZonesPanel from './NestedZonesPanel';
+import CenterGuides from './CenterGuides';
 import {
   rpcAddShelf, rpcUpdateShelf, rpcDeleteShelf,
   rpcUpdateZone, rpcDeleteZone, rpcAddBox, deleteBox, moveBoxToShelf,
@@ -1006,6 +1007,7 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                 borderColor: fresh.color
               }}
             >
+              {editMode && isFounder && <CenterGuides />}
               {shelves.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center text-xs text-stone-400">
                   لا توجد أرفف في هذه المساحة

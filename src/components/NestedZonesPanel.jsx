@@ -10,6 +10,7 @@ import { AddZoneForm, ConfirmDelete, FormModal } from './BuilderForms';
 import MapDrawLayer from './MapDrawLayer';
 import useDragResize from '../lib/useDragResize';
 import MidMarks from './MidMarks';
+import CenterGuides from './CenterGuides';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone } from '../lib/warehouseOps';
 import { naturalZoneRect, absPointsOfZone } from '../lib/mapDraw';
 
@@ -161,6 +162,7 @@ export default function NestedZonesPanel({
           className="relative w-full max-w-md border-4 rounded-md bg-stone-50 dark:bg-stone-900"
           style={{ aspectRatio: `${Number(parentZone.width_cm) || 100} / ${Number(parentZone.height_cm) || 100}`, borderColor: parentZone.color }}
         >
+          {canEdit && <CenterGuides />}
           {children.length === 0 && !tool && (
             <div className="absolute inset-0 flex items-center justify-center text-[11px] text-stone-400 pointer-events-none text-center px-4">
               لا توجد مساحات داخليّة بعد — ارسم أوّل مساحة بأداة ⬜ أو ⬠
