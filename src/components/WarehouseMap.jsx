@@ -1004,7 +1004,7 @@ function WarehouseMapCanvas({
     <div
       ref={containerRef}
       style={{ aspectRatio: `${Number(activeWarehouse?.width_m) || 4} / ${Number(activeWarehouse?.depth_m) || 6}` }}
-      className="relative w-full max-w-6xl bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-4 py-8 shadow-inner"
+      className="relative w-full max-w-6xl bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 rounded-2xl border-2 border-dashed border-stone-300 dark:border-stone-700 px-2 py-6 sm:px-4 sm:py-8 shadow-inner"
     >
       {/* شبكة القياس — خلف كل شي، بلا تفاعل */}
       {gridEnabled && gridSpacingPctX > 0 && gridSpacingPctY > 0 && (

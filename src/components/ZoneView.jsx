@@ -1008,15 +1008,19 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     <div
                       key={shelf.id}
                       onClick={(e) => {
-                        if (dragModeActive) { e.stopPropagation(); handleDropOnShelf(shelf); }
-                        // لا انتقال لشاشة الرفّ — الصناديق/المواقع تعالج نقراتها بنفسها
+                        if (dragModeActive) { e.stopPropagation(); handleDropOnShelf(shelf); return; }
+                        // قسم حرّ (مرسوم بالتقسيم 🧰): الضغط عليه خارج وضع التعديل
+                        // يدخل شاشته الخاصّة — «مستودع مصغّر» داخل المكان
+                        if (!editMode && shelf.pos) onShelfClick?.(shelf);
                       }}
+                      title={!editMode && shelf.pos ? `اضغط لدخول ${shelfDisplayName(shelf, shelves)}` : undefined}
                       onDragOver={(e) => { if (hasActiveSelection) { e.preventDefault(); setDragOverShelfId(shelf.id); } }}
                       onDragLeave={() => setDragOverShelfId(null)}
                       onDrop={(e) => { if (hasActiveSelection) { e.preventDefault(); handleDropOnShelf(shelf); } }}
                       className={`${sRect ? 'absolute' : 'flex-1 relative'} border-2 rounded p-1 flex flex-col gap-1 text-right transition ${
                         fresh.color === '#8B6F3F' ? 'wood-grain-soft' : 'bg-stone-50 dark:bg-stone-800'
-                      } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                      } ${isDropTarget ? 'ring-4 ring-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''} ${
+                        !editMode && shelf.pos ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : ''}`}
                       style={{
                         borderColor: isDropTarget ? '#2563eb' : fresh.color,
                         ...(sRect ? { top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%` } : {})
