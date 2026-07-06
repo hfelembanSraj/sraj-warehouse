@@ -1025,7 +1025,8 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                     return (
                       <div key={shelf.id} className={`absolute pointer-events-none border ${dClip ? '' : 'rounded'}`}
                         style={{ top: `${sRect.top}%`, left: `${sRect.left}%`, width: `${sRect.width}%`, height: `${sRect.height}%`,
-                          borderColor: `${fresh.color}66`, backgroundColor: `${fresh.color}22`, clipPath: dClip }} />
+                          borderColor: `${fresh.color}66`, backgroundColor: `${fresh.color}22`, clipPath: dClip,
+                          ...(shelf.photo_url ? { backgroundImage: `url(${shelf.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}) }} />
                     );
                   }
                   // فاصل مرسوم (خطّ) — يُعرَض كخطّ فقط بلا خانات ولا شارة
@@ -1056,7 +1057,11 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
                         title={`اضغط لدخول ${shelfDisplayName(shelf, shelves)}`}
                       >
                         <div className={`absolute inset-0 bg-stone-50 dark:bg-stone-800 ${cClip ? '' : 'border-2 rounded-lg'}`}
-                          style={{ clipPath: cClip, ...(cClip ? {} : { borderColor: fresh.color }) }} />
+                          style={{
+                            clipPath: cClip,
+                            ...(cClip ? {} : { borderColor: fresh.color }),
+                            ...(shelf.photo_url ? { backgroundImage: `url(${shelf.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+                          }} />
                         {cClip && (
                           <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                             <polygon points={cPts.map(p => `${p.x},${p.y}`).join(' ')}

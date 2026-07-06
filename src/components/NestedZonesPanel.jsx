@@ -450,8 +450,12 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
         style={{
           clipPath: polyClip,
           borderColor: hasPoly ? 'transparent' : zone.color,
-          backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
-          backgroundColor: isDecor ? `${zone.color}55` : undefined
+          backgroundImage: zone.photo_url
+            ? `url(${zone.photo_url})`
+            : (isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`),
+          backgroundSize: zone.photo_url ? 'cover' : undefined,
+          backgroundPosition: zone.photo_url ? 'center' : undefined,
+          backgroundColor: isDecor && !zone.photo_url ? `${zone.color}55` : undefined
         }}
       >
         {!isDecor && (

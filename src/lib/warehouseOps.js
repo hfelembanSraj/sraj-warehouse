@@ -107,6 +107,14 @@ export async function rpcUpdateShelf(s_id, patch) {
   });
 }
 
+// صور الأشكال (ترقية 23) — للمساحات والأقسام
+export async function rpcSetZonePhoto(z_id, url) {
+  return supabase.rpc('set_zone_photo', { z_id, z_photo: url ?? null });
+}
+export async function rpcSetShelfPhoto(s_id, url) {
+  return supabase.rpc('set_shelf_photo', { s_id, s_photo: url ?? null });
+}
+
 // موضع/نوع قسم داخل المكان (التقسيم الحرّ) — pos JSONB: {top,left,width,height,kind}
 export async function rpcUpdateShelfPos(s_id, pos) {
   return supabase.rpc('update_shelf_pos', { s_id, s_pos: pos });

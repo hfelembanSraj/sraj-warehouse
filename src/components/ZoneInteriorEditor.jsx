@@ -11,7 +11,8 @@ import WallStrokeOverlay from './WallStrokeOverlay';
 import MidMarks from './MidMarks';
 import CenterGuides from './CenterGuides';
 import useDragResize from '../lib/useDragResize';
-import { rpcAddShelf, rpcUpdateShelfPos, rpcDeleteShelf } from '../lib/warehouseOps';
+import { rpcAddShelf, rpcUpdateShelfPos, rpcDeleteShelf, rpcSetShelfPhoto } from '../lib/warehouseOps';
+import ShapePhotoModal from './ShapePhotoModal';
 import { shelfDisplayName } from '../lib/helpers';
 
 export const SHELF_KINDS = [
@@ -47,6 +48,19 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   const [pendingRect, setPendingRect] = useState(null); // شكل مرسوم بانتظار التفاصيل
   // مكدس التراجع: تحريك/تحجيم/نوع (pos) وإنشاء (create)
   const [undoStack, setUndoStack] = useState([]);
+  // 📷 صورة قسم
+  const [photoShelf, setPhotoShelf] = useState(null);
+
+  async function handleSaveShelfPhoto(url) {
+    if (!photoShelf) return;
+    setBusy(true);
+    const { error } = await rpcSetShelfPhoto(photoShelf.id, url);
+    setBusy(false);
+    setPhotoShelf(null);
+    if (error) return flash?.('فشل حفظ الصورة: ' + error.message, 'error');
+    flash?.(url ? '📷 حُفظت صورة القسم' : '✅ أُزيلت الصورة');
+    onRefresh?.();
+  }
 
   // ↩ إلغاء كل تغييرات الجلسة (يفكّ المكدس) ثم يغلق المحرّر
   async function handleCancelAll() {
@@ -250,6 +264,7 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
             onGeometry={(r) => savePos(s, r)}
             onCycleKind={(r) => cycleKind(s, r)}
             onDelete={() => onDeleteShelf?.(s)}
+            onPhoto={() => setPhotoShelf(s)}
           />
         ))}
 
@@ -275,6 +290,16 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
         كل تغيير يُحفَظ مباشرةً · زرّ النوع على القسم يبدّله (➖/🗄/🗃) · 🗑 يحذف القسم وما فيه · أغلق النافذة للعرض الطبيعي.
       </p>
 
+      {photoShelf && (
+        <ShapePhotoModal
+          title={`📷 صورة «${shelfDisplayName(photoShelf, shelves)}»`}
+          value={photoShelf.photo_url}
+          busy={busy}
+          onSave={handleSaveShelfPhoto}
+          onClose={() => setPhotoShelf(null)}
+        />
+      )}
+
       {pendingRect && (
         <FormModal title="تفاصيل القسم الجديد" subtitle="حدّد نوعه واسمه وعدد خانات الصناديق فيه"
           onClose={() => setPendingRect(null)} maxWidth="max-w-sm">
@@ -286,7 +311,7 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
 }
 
 // قسم واحد داخل المحرّر: سحب/تحجيم + تبديل النوع + حذف + قياسات بالسنتيمتر
-function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy, boxCount, edges = null, onGeometry, onCycleKind, onDelete }) {
+function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy, boxCount, edges = null, onGeometry, onCycleKind, onDelete, onPhoto }) {
   const isDivider = shelf.pos?.kind === 'divider';
   const isDecorKind = shelf.pos?.kind === 'decor';
   const pts = shelf.pos?.points;
@@ -308,7 +333,11 @@ function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy
         zIndex: mode ? 40 : undefined,
         transition: mode ? 'none' : 'top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease',
         cursor: mode === 'move' ? 'grabbing' : 'grab', touchAction: 'none',
-        ...(strokeOnly || hasPoly ? {} : { borderColor: color, ...(isDecorKind ? { backgroundColor: `${color}30` } : {}) })
+        ...(strokeOnly || hasPoly ? {} : {
+          borderColor: color,
+          ...(isDecorKind ? { backgroundColor: `${color}30` } : {}),
+          ...(shelf.photo_url ? { backgroundImage: `url(${shelf.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+        })
       }}
       onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); }}
       onTouchStart={(e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); }}
@@ -348,6 +377,13 @@ function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy
         <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
           className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
           title={isDivider ? 'حذف الفاصل' : 'حذف القسم (وما فيه إلى سلّة المحذوفات)'}>🗑</button>
+        {!isDivider && (
+          <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onPhoto?.(); }} disabled={busy}
+            className={`text-[10px] w-6 h-6 rounded-md shadow-md flex items-center justify-center border ${shelf.photo_url
+              ? 'bg-indigo-600 border-indigo-700 text-white'
+              : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700'}`}
+            title={shelf.photo_url ? 'تغيير/إزالة صورة القسم' : 'إضافة صورة تظهر على القسم'}>📷</button>
+        )}
       </div>
       <div
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); begin('resize', e.clientX, e.clientY); }}

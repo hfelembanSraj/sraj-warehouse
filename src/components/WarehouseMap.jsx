@@ -12,7 +12,8 @@ import VertexEditLayer from './VertexEditLayer';
 import MidMarks from './MidMarks';
 import CenterGuides from './CenterGuides';
 import useDragResize from '../lib/useDragResize';
-import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, rpcSetZonePhoto, STRUCTURE_COLOR } from '../lib/warehouseOps';
+import ShapePhotoModal from './ShapePhotoModal';
 import { resolveItemLocation } from '../lib/helpers';
 import { GRID_PRESETS, metersToPercentX, metersToPercentY, formatDim } from '../lib/gridConfig';
 import { naturalZoneRect, absPointsOfZone } from '../lib/mapDraw';
@@ -85,6 +86,19 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [activeTool, setActiveTool] = useState(null);
   // تحويل عنصر هيكلي مرسوم إلى مكان تخزين (📦) — يحتفظ بشكله وموقعه
   const [convertingZone, setConvertingZone] = useState(null);
+  // 📷 صورة شكل (مساحة/عنصر)
+  const [photoZone, setPhotoZone] = useState(null);
+
+  async function handleSaveZonePhoto(url) {
+    if (!photoZone) return;
+    setBusy(true);
+    const { error } = await rpcSetZonePhoto(photoZone.id, url);
+    setBusy(false);
+    setPhotoZone(null);
+    if (error) return flash('فشل حفظ الصورة: ' + error.message, 'error');
+    flash(url ? '📷 حُفظت صورة الشكل' : '✅ أُزيلت الصورة');
+    await onRefresh();
+  }
   // محرّر الرسم: شبكة + التقاط (snap) + تعامد + إظهار القياسات
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridSpacingMeters, setGridSpacingMeters] = useState(1);
@@ -661,6 +675,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   vertexZoneId={vertexEditZoneId}
                   onVertexEdit={(z) => { setActiveTool(null); setVertexEditZoneId(z.id); }}
                   onVertexClose={() => setVertexEditZoneId(null)}
+                  onZonePhoto={(z) => setPhotoZone(z)}
                   pushUndo={(e) => setUndoStack(s => [...s, e])}
                   plainBg={plainBg}
                   onRefresh={onRefresh}
@@ -822,6 +837,17 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         </FormModal>
       )}
 
+      {/* 📷 صورة شكل */}
+      {photoZone && (
+        <ShapePhotoModal
+          title={`📷 صورة «${photoZone.name}»`}
+          value={photoZone.photo_url}
+          busy={busy}
+          onSave={handleSaveZonePhoto}
+          onClose={() => setPhotoZone(null)}
+        />
+      )}
+
       {/* تكبير الصورة */}
       <ImageLightbox url={zoom?.url} caption={zoom?.caption} onClose={() => setZoom(null)} />
 
@@ -947,7 +973,7 @@ function WarehouseMapCanvas({
   onItemEdit, onItemDelete, onItemView, onRefresh, flash,
   activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements,
   activeTool, ortho, vertexSnap, onToolCancel, onShapeDrawn,
-  vertexZoneId, onVertexEdit, onVertexClose, pushUndo, plainBg
+  vertexZoneId, onVertexEdit, onVertexClose, onZonePhoto, pushUndo, plainBg
 }) {
   const containerRef = useRef(null);
   const canDraw = layoutEditMode && isFounder;
@@ -1185,6 +1211,7 @@ function WarehouseMapCanvas({
           onToggleName={() => handleToggleName(z)}
           onConvert={() => onZoneConvert?.(z)}
           onMakeDecor={() => handleMakeDecor(z)}
+          onPhoto={() => onZonePhoto?.(z)}
           plainBg={plainBg}
           neighborEdges={neighborEdges(z.id)}
         />
@@ -1310,7 +1337,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, onMakeDecor, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, onMakeDecor, onPhoto, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1350,11 +1377,16 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     cursor: editing ? (mode === 'move' ? 'grabbing' : 'grab') : undefined,
     touchAction: editing ? 'none' : undefined
   };
-  // مظهر الجسم الداخلي (المقصوص للمضلّعات) — «سادة»: خلفيّة محايدة والحدود ملوّنة
+  // مظهر الجسم الداخلي (المقصوص للمضلّعات) — «سادة»: خلفيّة محايدة والحدود ملوّنة.
+  // 📷 الصورة (إن وُجدت) تصير خلفيّة الشكل مقصوصةً بحدوده.
   const bodyStyle = {
     clipPath: polyClip,
     borderColor: hasPoly ? 'transparent' : zone.color,
-    backgroundImage: (isDecor || plainBg) ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+    backgroundImage: zone.photo_url
+      ? `url(${zone.photo_url})`
+      : ((isDecor || plainBg) ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`),
+    backgroundSize: zone.photo_url ? 'cover' : undefined,
+    backgroundPosition: zone.photo_url ? 'center' : undefined,
     backgroundColor: plainBg ? 'var(--tile-bg)' : (isDecor ? `${zone.color}66` : undefined),
     boxShadow: hasPoly ? undefined : `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
   };
@@ -1538,6 +1570,14 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
               className="text-[10px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
               title="جعله شكليّاً (بدون تخزين) — يشترط أن يكون فارغاً"
             >🎨</button>
+          )}
+          {editing && !isOpenWall && (
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onPhoto?.(); }} disabled={busy}
+              className={`text-[10px] w-6 h-6 rounded-md shadow-md flex items-center justify-center border ${zone.photo_url
+                ? 'bg-indigo-600 border-indigo-700 text-white'
+                : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700'}`}
+              title={zone.photo_url ? 'تغيير/إزالة صورة الشكل' : 'إضافة صورة تظهر على الشكل'}
+            >📷</button>
           )}
         </div>
       )}
