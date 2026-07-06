@@ -37,14 +37,19 @@ export function stickEdge(v, edges, tol = 1.0) {
   return best;
 }
 
-// لصق مستطيل متحرّك على محور واحد: تُفحص حافّتاه (بداية/نهاية) معاً
-// ويفوز الأقرب. يعيد الموضع الجديد للبداية (أو الموضع الأصلي بلا تغيير).
+// لصق مستطيل متحرّك على محور واحد: تُفحص حافّتاه (بداية/نهاية) ومنتصفه
+// معاً ويفوز الأقرب. يعيد الموضع الجديد للبداية (أو الأصلي بلا تغيير).
 export function stickAxis(start, size, edges, tol = 1.0) {
+  const cands = [];
   const a = stickEdge(start, edges, tol);
+  if (a != null) cands.push({ d: Math.abs(a - start), v: a });
   const b = stickEdge(start + size, edges, tol);
-  if (a != null && (b == null || Math.abs(a - start) <= Math.abs(b - (start + size)))) return a;
-  if (b != null) return b - size;
-  return start;
+  if (b != null) cands.push({ d: Math.abs(b - (start + size)), v: b - size });
+  const c = stickEdge(start + size / 2, edges, tol);
+  if (c != null) cands.push({ d: Math.abs(c - (start + size / 2)), v: c - size / 2 });
+  if (cands.length === 0) return start;
+  cands.sort((p, q) => p.d - q.d);
+  return cands[0].v;
 }
 
 // تنسيق بُعد بالأمتار: ≥1م بالمتر، أقل بالسنتيمتر

@@ -9,6 +9,7 @@ import { useState, useRef, useMemo } from 'react';
 import { AddZoneForm, ConfirmDelete, FormModal } from './BuilderForms';
 import MapDrawLayer from './MapDrawLayer';
 import useDragResize from '../lib/useDragResize';
+import MidMarks from './MidMarks';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone } from '../lib/warehouseOps';
 import { naturalZoneRect, absPointsOfZone } from '../lib/mapDraw';
 
@@ -56,12 +57,12 @@ export default function NestedZonesPanel({
 
   // حواف المساحات الشقيقة — لصق المساحة بجارتها أثناء السحب/التحجيم
   function edgesExcluding(id) {
-    const x = [0, 100], y = [0, 100];
+    const x = [0, 100, 50], y = [0, 100, 50];
     children.forEach(z => {
       if (z.id === id) return;
       const r = naturalZoneRect(z);
-      x.push(r.left, r.left + r.width);
-      y.push(r.top, r.top + r.height);
+      x.push(r.left, r.left + r.width, r.left + r.width / 2);
+      y.push(r.top, r.top + r.height, r.top + r.height / 2);
     });
     return { x, y };
   }
@@ -255,6 +256,7 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
             fill="none" stroke={zone.color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         </svg>
       )}
+      {canEdit && <MidMarks />}
       {canEdit && (
         <>
           <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition z-20">

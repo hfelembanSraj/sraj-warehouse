@@ -9,6 +9,7 @@ import WallStrokeOverlay from './WallStrokeOverlay';
 import ImageLightbox from './ImageLightbox';
 import MapDrawLayer from './MapDrawLayer';
 import VertexEditLayer from './VertexEditLayer';
+import MidMarks from './MidMarks';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, rpcAddBox, softDeleteItem, updateOutsideItemPosition, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { resolveItemLocation } from '../lib/helpers';
@@ -913,20 +914,41 @@ function WarehouseMapCanvas({
   const containerRef = useRef(null);
   const canDraw = layoutEditMode && isFounder;
 
-  // رؤوس الالتقاط: زوايا الأرضيّة + رؤوس كل الأشكال القائمة
+  // منتصفات حوافّ ومركز مستطيل — تُضاف كأهداف التقاط ولصق
+  function pushMidTargets(t, r) {
+    t.push(
+      { x: r.left + r.width / 2, y: r.top },
+      { x: r.left + r.width / 2, y: r.top + r.height },
+      { x: r.left, y: r.top + r.height / 2 },
+      { x: r.left + r.width, y: r.top + r.height / 2 },
+      { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    );
+  }
+
+  // رؤوس الالتقاط: زوايا الأرضيّة + رؤوس كل الأشكال + منتصفاتها
   const snapTargets = useMemo(() => {
-    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
-    zones.forEach(z => absPointsOfZone(naturalZoneRect(z), z.points).forEach(p => t.push(p)));
+    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }, { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 0, y: 50 }, { x: 100, y: 50 }];
+    zones.forEach(z => {
+      const r = naturalZoneRect(z);
+      absPointsOfZone(r, z.points).forEach(p => t.push(p));
+      pushMidTargets(t, r);
+    });
     return t;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zones]);
 
   const vertexZone = vertexZoneId ? zones.find(z => z.id === vertexZoneId) : null;
-  // أثناء تحرير نقاط شكل: التقط لرؤوس بقيّة الأشكال (لا لرؤوس الشكل نفسه)
+  // أثناء تحرير نقاط شكل: التقط لرؤوس ومنتصفات بقيّة الأشكال (لا الشكل نفسه)
   const vertexTargets = useMemo(() => {
-    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }, { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 0, y: 50 }, { x: 100, y: 50 }];
     zones.filter(z => z.id !== vertexZoneId)
-      .forEach(z => absPointsOfZone(naturalZoneRect(z), z.points).forEach(p => t.push(p)));
+      .forEach(z => {
+        const r = naturalZoneRect(z);
+        absPointsOfZone(r, z.points).forEach(p => t.push(p));
+        pushMidTargets(t, r);
+      });
     return t;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zones, vertexZoneId]);
 
   // أضلاع الأشكال القائمة — «لصق جدار بجدار»: التقاط لأي موضع على طولها
@@ -943,14 +965,14 @@ function WarehouseMapCanvas({
   const snapSegments = useMemo(() => zoneSegments(null), [zones]);           // للرسم الجديد
   const vertexSegments = useMemo(() => zoneSegments(vertexZoneId), [zones, vertexZoneId]); // لتحرير النقاط
 
-  // حواف الجيران — للصق العناصر ببعضها أثناء السحب/التحجيم (دائماً مفعّل)
+  // حواف الجيران ومنتصفاتها — للصق العناصر ببعضها أثناء السحب/التحجيم
   function neighborEdges(excludeId) {
-    const x = [0, 100], y = [0, 100];
+    const x = [0, 100, 50], y = [0, 100, 50];
     zones.forEach(z => {
       if (z.id === excludeId) return;
       const r = naturalZoneRect(z);
-      x.push(r.left, r.left + r.width);
-      y.push(r.top, r.top + r.height);
+      x.push(r.left, r.left + r.width, r.left + r.width / 2);
+      y.push(r.top, r.top + r.height, r.top + r.height / 2);
     });
     return { x, y };
   }
@@ -1375,6 +1397,9 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
             fill="none" stroke={zone.color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         </svg>
       )}
+
+      {/* علامات المنتصف (طول/عرض/مركز) — وضع التحرير */}
+      {editing && !isOpenWall && <MidMarks />}
 
       {isFounder && (
         <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">

@@ -8,6 +8,7 @@ import { useState, useRef, useMemo } from 'react';
 import { FormModal } from './BuilderForms';
 import MapDrawLayer from './MapDrawLayer';
 import WallStrokeOverlay from './WallStrokeOverlay';
+import MidMarks from './MidMarks';
 import useDragResize from '../lib/useDragResize';
 import { rpcAddShelf, rpcUpdateShelfPos, rpcDeleteShelf } from '../lib/warehouseOps';
 import { shelfDisplayName } from '../lib/helpers';
@@ -56,10 +57,13 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   );
   // رؤوس/أضلاع الالتقاط: زوايا المكان + زوايا الأقسام (مع 🧲)
   const targets = useMemo(() => {
-    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+    const t = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }, { x: 50, y: 0 }, { x: 50, y: 100 }, { x: 0, y: 50 }, { x: 100, y: 50 }];
     rects.forEach(r => {
       t.push({ x: r.left, y: r.top }, { x: r.left + r.width, y: r.top },
-        { x: r.left + r.width, y: r.top + r.height }, { x: r.left, y: r.top + r.height });
+        { x: r.left + r.width, y: r.top + r.height }, { x: r.left, y: r.top + r.height },
+        { x: r.left + r.width / 2, y: r.top }, { x: r.left + r.width / 2, y: r.top + r.height },
+        { x: r.left, y: r.top + r.height / 2 }, { x: r.left + r.width, y: r.top + r.height / 2 },
+        { x: r.left + r.width / 2, y: r.top + r.height / 2 });
     });
     return t;
   }, [rects]);
@@ -77,11 +81,11 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
 
   // حواف الأقسام المجاورة — لصق القسم بجاره أثناء السحب/التحجيم
   function edgesExcluding(idx) {
-    const x = [0, 100], y = [0, 100];
+    const x = [0, 100, 50], y = [0, 100, 50];
     rects.forEach((r, i) => {
       if (i === idx) return;
-      x.push(r.left, r.left + r.width);
-      y.push(r.top, r.top + r.height);
+      x.push(r.left, r.left + r.width, r.left + r.width / 2);
+      y.push(r.top, r.top + r.height, r.top + r.height / 2);
     });
     return { x, y };
   }
@@ -278,6 +282,7 @@ function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy
       <span className="absolute bottom-1 right-1.5 text-[9px] font-bold text-stone-500 dark:text-stone-400 pointer-events-none">
         {wCm}×{hCm}سم
       </span>
+      {!isDivider && <MidMarks />}
       <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition z-20">
         {!isDivider && (
           <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onCycleKind(pos); }} disabled={busy}
