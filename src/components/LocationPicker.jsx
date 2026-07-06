@@ -236,12 +236,16 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
                 onClick={() => onPick(z)}
                 className="absolute border-2 rounded-xl flex flex-col items-center justify-center transition hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:hover:shadow-none"
               >
-                <div className="text-2xl font-display font-bold leading-none" style={{ color: z.color }}>
-                  {z.letter}
-                </div>
-                <div className="text-[10px] text-stone-700 mt-1 font-semibold text-center leading-tight px-1">
-                  {z.name}
-                </div>
+                {!(z.name && z.name !== z.letter) && (
+                  <div className="text-2xl font-display font-bold leading-none" style={{ color: z.color }}>
+                    {z.letter}
+                  </div>
+                )}
+                {z.name !== z.letter && (
+                  <div className="text-[10px] text-stone-700 mt-1 font-semibold text-center leading-tight px-1">
+                    {z.name}
+                  </div>
+                )}
                 <span className={`mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${
                   status.color === 'red'   ? 'bg-red-100 text-red-700' :
                   status.color === 'amber' ? 'bg-amber-100 text-amber-800' :
@@ -269,7 +273,7 @@ function ZonePickerStep({ zones, activeWarehouse, getZoneStatus, onPick }) {
                 <button key={z.id} disabled={status.full} onClick={() => onPick(z)}
                   className="text-[11px] px-3 py-1.5 rounded-lg border-2 font-medium transition hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ borderColor: z.color, color: z.color, backgroundColor: z.color + '12' }}>
-                  <b>{z.letter}</b> — {z.name}{parent ? ` (داخل ${parent.letter})` : ''} · {status.label}
+                  <b>{z.name && z.name !== z.letter ? z.name : z.letter}</b>{parent ? ` (داخل ${parent.name && parent.name !== parent.letter ? parent.name : parent.letter})` : ''} · {status.label}
                 </button>
               );
             })}

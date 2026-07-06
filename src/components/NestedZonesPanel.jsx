@@ -460,11 +460,15 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
       >
         {!isDecor && (
           <>
-            <div className="text-xl font-display font-bold leading-none drop-shadow-sm" style={{ color: zone.color }}>{zone.letter}</div>
-            <div className="mt-0.5 text-[9px] font-semibold rounded-full px-1.5 py-0.5 shadow-sm leading-tight text-center"
-              style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
-              {zone.name}
-            </div>
+            {!(zone.name && zone.name !== zone.letter) && (
+              <div className="text-xl font-display font-bold leading-none drop-shadow-sm" style={{ color: zone.color }}>{zone.letter}</div>
+            )}
+            {zone.name !== zone.letter && (
+              <div className="mt-0.5 text-[9px] font-semibold rounded-full px-1.5 py-0.5 shadow-sm leading-tight text-center"
+                style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+                {zone.name}
+              </div>
+            )}
             <div className="text-[8px] text-stone-500 dark:text-stone-400 mt-0.5">{boxCount} 📦</div>
           </>
         )}

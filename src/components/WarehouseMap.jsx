@@ -1418,8 +1418,9 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
 
         <div className="relative flex-1 flex flex-col px-1.5 py-2 gap-1">
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none z-10">
-            {!isDecor && <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>}
-            {showName && (
+            {/* اسم توضيحي حقيقي → يكفي وحده؛ وإلا يظهر الحرف */}
+            {!isDecor && !(zone.name && zone.name !== zone.letter) && <div className="text-3xl font-display font-bold leading-none drop-shadow-md" style={{ color: zone.color }}>{zone.letter}</div>}
+            {showName && zone.name !== zone.letter && (
               <div className="mt-1 leading-tight text-center font-semibold backdrop-blur rounded-full px-2 py-0.5 shadow-sm text-[10px]"
                 style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
                 {zone.name}

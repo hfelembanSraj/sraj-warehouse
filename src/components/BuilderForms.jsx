@@ -152,19 +152,32 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
   const [depth_cm, setDepth] = useState(65);
   // المساحة تُنشأ فارغة تماماً افتراضيّاً — المؤسّس يرسم أرففها وأقسامها بنفسه (🧰)
   const [shelves_count, setShelvesCount] = useState(0);
-  const isValid = letter.trim().length === 1 && name.trim().length > 0;
+  // حرف أو اسم — أحدهما يكفي (الحرف يُولَّد تلقائيّاً لرموز الصناديق إن تُرك فارغاً)
+  const isValid = letter.trim().length > 0 || name.trim().length > 0;
+
+  function buildValues() {
+    let l = letter.trim().toUpperCase();
+    if (!l) {
+      const used = new Set((existingLetters || []).map(x => String(x).toUpperCase()));
+      for (let i = 65; i <= 90 && !l; i++) { const c = String.fromCharCode(i); if (!used.has(c)) l = c; }
+      for (let n = 2; n <= 99 && !l; n++) { const c = `Z${n}`; if (!used.has(c)) l = c; }
+    }
+    return { letter: l, name: name.trim() || l, color, width_cm, height_cm, depth_cm, shelves_count };
+  }
 
   return (
     <div className="bg-white border-2 border-blue-400 rounded-xl p-4 animate-fade-in">
       <h4 className="text-xs font-display font-bold text-blue-900 mb-3">+ مساحة تخزين جديدة</h4>
+      <p className="text-[10px] text-stone-500 mb-2">حرف أو اسم — أحدهما يكفي، ولا إلزام بالاثنين. ما تكتبه هو ما يظهر على الخريطة.</p>
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الحرف *</label>
-          <input value={letter} onChange={e => setLetter(e.target.value.slice(0, 1).toUpperCase())} maxLength={1}
+          <label className="block text-[10px] text-stone-600 mb-1">الحرف (اختياري)</label>
+          <input value={letter} onChange={e => setLetter(e.target.value.slice(0, 3).toUpperCase())} maxLength={3}
+            placeholder="تلقائي"
             className="w-full px-2 py-1.5 border border-stone-300 rounded font-bold text-center" />
         </div>
         <div>
-          <label className="block text-[10px] text-stone-600 mb-1">الاسم *</label>
+          <label className="block text-[10px] text-stone-600 mb-1">الاسم التوضيحي (اختياري)</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="مثال: عُدّة الفعاليات"
             className="w-full px-2 py-1.5 border border-stone-300 rounded" />
         </div>
@@ -201,7 +214,7 @@ export function AddZoneForm({ busy, existingLetters, onCancel, onSave }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => onSave({ letter, name, color, width_cm, height_cm, depth_cm, shelves_count })}
+        <button onClick={() => onSave(buildValues())}
           disabled={busy || !isValid}
           className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
           💾 حفظ وإنشاء
