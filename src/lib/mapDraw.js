@@ -106,6 +106,26 @@ export function snapToTargets(p, targets, tolX = 1.6, tolY = 1.6) {
   return best;
 }
 
+// أقرب نقطة على أضلاع الأشكال القائمة (إسقاط عمودي محسوب بالأمتار) —
+// «لصق جدار بجدار»: يلتقط لأي موضع على طول الجدار لا لرؤوسه فقط
+export function snapToSegments(p, segments, warehouse, tolM = 0.18) {
+  const wm = whWidthM(warehouse), dm = whDepthM(warehouse);
+  const px = (p.x / 100) * wm, py = (p.y / 100) * dm;
+  let best = null, bestD = tolM;
+  for (const s of segments || []) {
+    const ax = (s.a.x / 100) * wm, ay = (s.a.y / 100) * dm;
+    const bx = (s.b.x / 100) * wm, by = (s.b.y / 100) * dm;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1e-9) continue;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+    const qx = ax + t * dx, qy = ay + t * dy;
+    const d = Math.hypot(px - qx, py - qy);
+    if (d < bestD) { bestD = d; best = { x: (qx / wm) * 100, y: (qy / dm) * 100 }; }
+  }
+  return best;
+}
+
 // قرب نقطتين (سماحية موحّدة بالنسب)
 export function nearPoint(a, b, tol = 1.2) {
   return Math.abs(a.x - b.x) < tol && Math.abs(a.y - b.y) < tol;

@@ -8,11 +8,11 @@ import { useState, useEffect, useRef } from 'react';
 import { snapValue, formatDim } from '../lib/gridConfig';
 import {
   pctFromClient, geometryFromAbsPoints, absPointsOfZone, polygonArea,
-  segmentMeters, snapToTargets, midPoint, naturalZoneRect
+  segmentMeters, snapToTargets, snapToSegments, midPoint, naturalZoneRect
 } from '../lib/mapDraw';
 
 export default function VertexEditLayer({
-  containerRef, warehouse, zone, snapX, snapY, targets = [],
+  containerRef, warehouse, zone, snapX, snapY, targets = [], segments = [],
   onSave, onClose, flash, busy
 }) {
   const isOpen = Array.isArray(zone.points) && zone.points[0]?.open;
@@ -39,7 +39,7 @@ export default function VertexEditLayer({
       if (!c) return;
       if (e.cancelable) e.preventDefault();
       let p = pctFromClient(containerRef.current, c.clientX, c.clientY);
-      const hit = snapToTargets(p, targets);
+      const hit = snapToTargets(p, targets) || snapToSegments(p, segments, warehouse);
       p = hit ? { x: hit.x, y: hit.y } : { x: snapValue(p.x, snapX), y: snapValue(p.y, snapY) };
       setPts(a => a.map((q, i) => (i === dragIdx ? p : q)));
     }
@@ -55,7 +55,7 @@ export default function VertexEditLayer({
       window.removeEventListener('touchend', up);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragIdx, snapX, snapY, targets]);
+  }, [dragIdx, snapX, snapY, targets, segments]);
 
   function insertAt(i, p) {
     pushHistory();

@@ -9,12 +9,12 @@ import { useState, useEffect, useRef } from 'react';
 import { snapValue, formatDim } from '../lib/gridConfig';
 import {
   pctFromClient, geometryFromAbsPoints, polygonArea,
-  segmentMeters, orthoSnap, snapToTargets, nearPoint, midPoint
+  segmentMeters, orthoSnap, snapToTargets, snapToSegments, nearPoint, midPoint
 } from '../lib/mapDraw';
 
 export default function MapDrawLayer({
   containerRef, warehouse, tool, snapX, snapY, ortho,
-  targets = [], onFinish, onCancel, flash
+  targets = [], segments = [], onFinish, onCancel, flash
 }) {
   const [pts, setPts] = useState([]);          // نقاط مثبّتة (مطلقة ٪)
   const [cursor, setCursor] = useState(null);  // معاينة حيّة {x,y,hit}
@@ -24,10 +24,12 @@ export default function MapDrawLayer({
   const isWall = tool === 'wall';
   const lastPt = pts[pts.length - 1] || null;
 
-  // معالجة نقطة خام: التقاط رأس ← تعامد ← شبكة (الأولويّة للرأس)
+  // معالجة نقطة خام: التقاط رأس ← حافّة جدار (لصق) ← تعامد ← شبكة
   function processPoint(raw, anchor) {
     const hit = snapToTargets(raw, targets);
     if (hit) return { x: hit.x, y: hit.y, hit: true };
+    const edge = snapToSegments(raw, segments, warehouse);
+    if (edge) return { x: edge.x, y: edge.y, hit: true };
     let p = { x: raw.x, y: raw.y };
     let axis = null;
     if (ortho && anchor && !isRect) {
@@ -69,6 +71,10 @@ export default function MapDrawLayer({
       return;
     }
     if (!isWall && pts.length >= 3 && nearPoint(p, pts[0], 2.2)) return finishShape();
+    // جدار: الضغط على النقطة الأولى (مع ≥3 نقاط) يُغلق المسار على نفسه تماماً
+    if (isWall && pts.length >= 3 && nearPoint(p, pts[0], 2.2)) {
+      return finishShape([...pts, { x: pts[0].x, y: pts[0].y }]);
+    }
     lastClickRef.current = now;
     setPts(a => [...a, p]);
   }
@@ -107,7 +113,8 @@ export default function MapDrawLayer({
   for (let i = 0; i < pts.length - 1; i++) segs.push({ a: pts[i], b: pts[i + 1], live: false });
   if (!isRect && lastPt && cursor) segs.push({ a: lastPt, b: cursor, live: true });
   const totalM = segs.reduce((s, g) => s + segmentMeters(g.a, g.b, warehouse), 0);
-  const nearFirst = !isRect && !isWall && cursor && pts.length >= 3 && nearPoint(cursor, pts[0], 2.2);
+  // النقطة الأولى مغناطيسيّة للإغلاق (مضلّع ومسار جدار على السواء)
+  const nearFirst = !isRect && cursor && pts.length >= 3 && nearPoint(cursor, pts[0], 2.2);
 
   // معاينة المستطيل
   const rectPrev = isRect && dragStart && cursor ? {
@@ -118,7 +125,7 @@ export default function MapDrawLayer({
   const hints = {
     rect: 'اسحب على الأرضيّة لرسم مستطيل — تظهر أبعاده مباشرةً',
     poly: `اضغط لإضافة نقطة · نقرة مزدوجة أو النقطة الأولى للإغلاق (${pts.length})`,
-    wall: `اضغط نقاط مسار الجدار · نقرة مزدوجة أو Enter للإنهاء (${pts.length})${totalM > 0 ? ' · الطول: ' + formatDim(totalM) : ''}`
+    wall: `اضغط نقاط المسار · النقطة الأولى تُغلقه · نقرة مزدوجة أو Enter تنهيه مفتوحاً (${pts.length})${totalM > 0 ? ' · الطول: ' + formatDim(totalM) : ''}`
   };
 
   return (

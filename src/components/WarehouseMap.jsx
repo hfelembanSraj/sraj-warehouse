@@ -882,6 +882,20 @@ function WarehouseMapCanvas({
     return t;
   }, [zones, vertexZoneId]);
 
+  // أضلاع الأشكال القائمة — «لصق جدار بجدار»: التقاط لأي موضع على طولها
+  function zoneSegments(excludeId) {
+    const segs = [];
+    zones.filter(z => z.id !== excludeId).forEach(z => {
+      const pts = absPointsOfZone(naturalZoneRect(z), z.points);
+      const open = Array.isArray(z.points) && z.points[0]?.open;
+      for (let i = 0; i < pts.length - 1; i++) segs.push({ a: pts[i], b: pts[i + 1] });
+      if (!open && pts.length >= 3) segs.push({ a: pts[pts.length - 1], b: pts[0] });
+    });
+    return segs;
+  }
+  const snapSegments = useMemo(() => zoneSegments(null), [zones]);           // للرسم الجديد
+  const vertexSegments = useMemo(() => zoneSegments(vertexZoneId), [zones, vertexZoneId]); // لتحرير النقاط
+
   // حفظ نقاط شكل بعد تحريرها (⬡)
   async function handleSavePoints(zone, geom) {
     pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
@@ -966,6 +980,7 @@ function WarehouseMapCanvas({
           snapY={snapY}
           ortho={ortho}
           targets={vertexSnap ? snapTargets : []}
+          segments={vertexSnap ? snapSegments : []}
           onFinish={onShapeDrawn}
           onCancel={onToolCancel}
           flash={flash}
@@ -981,6 +996,7 @@ function WarehouseMapCanvas({
           snapX={snapX}
           snapY={snapY}
           targets={vertexSnap ? vertexTargets : []}
+          segments={vertexSnap ? vertexSegments : []}
           busy={busy}
           onSave={(geom) => handleSavePoints(vertexZone, geom)}
           onClose={onVertexClose}
