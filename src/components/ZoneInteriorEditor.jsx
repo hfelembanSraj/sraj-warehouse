@@ -75,6 +75,17 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
     return segs;
   }, [rects]);
 
+  // حواف الأقسام المجاورة — لصق القسم بجاره أثناء السحب/التحجيم
+  function edgesExcluding(idx) {
+    const x = [0, 100], y = [0, 100];
+    rects.forEach((r, i) => {
+      if (i === idx) return;
+      x.push(r.left, r.left + r.width);
+      y.push(r.top, r.top + r.height);
+    });
+    return { x, y };
+  }
+
   async function savePos(shelf, rect, kind) {
     setBusy(true);
     const { error } = await rpcUpdateShelfPos(shelf.id, {
@@ -176,6 +187,7 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
             containerRef={containerRef}
             busy={busy}
             boxCount={boxCountForShelf?.(s) ?? 0}
+            edges={edgesExcluding(i)}
             onGeometry={(r) => savePos(s, r)}
             onCycleKind={(r) => cycleKind(s, r)}
             onDelete={() => onDeleteShelf?.(s)}
@@ -215,13 +227,14 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
 }
 
 // قسم واحد داخل المحرّر: سحب/تحجيم + تبديل النوع + حذف + قياسات بالسنتيمتر
-function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy, boxCount, onGeometry, onCycleKind, onDelete }) {
+function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy, boxCount, edges = null, onGeometry, onCycleKind, onDelete }) {
   const isDivider = shelf.pos?.kind === 'divider';
   const pts = shelf.pos?.points;
   const isOpen = Array.isArray(pts) && pts[0]?.open;
   const hasPoly = !isOpen && Array.isArray(pts) && pts.length >= 3;
   const { pos, mode, begin } = useDragResize({
     rect, containerRef, enabled: true, minW: isDivider ? 1 : 4, minH: isDivider ? 1 : 4,
+    edgesX: edges?.x, edgesY: edges?.y,
     onChange: (r) => onGeometry(r)
   });
   const icon = kindIcon(shelf.pos?.kind) || '➖';

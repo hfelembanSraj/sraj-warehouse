@@ -943,6 +943,20 @@ function WarehouseMapCanvas({
   const snapSegments = useMemo(() => zoneSegments(null), [zones]);           // للرسم الجديد
   const vertexSegments = useMemo(() => zoneSegments(vertexZoneId), [zones, vertexZoneId]); // لتحرير النقاط
 
+  // حواف الجيران — للصق العناصر ببعضها أثناء السحب/التحجيم (دائماً مفعّل)
+  function neighborEdges(excludeId) {
+    const x = [0, 100], y = [0, 100];
+    zones.forEach(z => {
+      if (z.id === excludeId) return;
+      const r = naturalZoneRect(z);
+      x.push(r.left, r.left + r.width);
+      y.push(r.top, r.top + r.height);
+    });
+    return { x, y };
+  }
+  const allZoneEdges = useMemo(() => neighborEdges(null), [zones]); // للأغراض الحرّة
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   // حفظ نقاط شكل بعد تحريرها (⬡)
   async function handleSavePoints(zone, geom) {
     pushUndo?.({ kind: 'geom', prev: geomSnapshot(zone) });
@@ -1085,6 +1099,7 @@ function WarehouseMapCanvas({
           onToggleName={() => handleToggleName(z)}
           onConvert={() => onZoneConvert?.(z)}
           plainBg={plainBg}
+          neighborEdges={neighborEdges(z.id)}
         />
       ))}
 
@@ -1099,6 +1114,8 @@ function WarehouseMapCanvas({
           editMode={layoutEditMode}
           snapX={snapX}
           snapY={snapY}
+          edgesX={allZoneEdges.x}
+          edgesY={allZoneEdges.y}
           obstacles={zoneObstacles}
           onView={() => onItemView?.(it)}
           onEdit={() => onItemEdit(it)}
@@ -1206,7 +1223,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, plainBg = false, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, plainBg = false, neighborEdges = null, zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1228,6 +1245,8 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
     minH: minDim,
     snapX: editing ? snapX : null,
     snapY: editing ? snapY : null,
+    edgesX: editing ? neighborEdges?.x : null,
+    edgesY: editing ? neighborEdges?.y : null,
     onChange: (r) => onGeometry?.(zone, r)
   });
   const rect = editing ? pos : (displayRect || fallbackRect);

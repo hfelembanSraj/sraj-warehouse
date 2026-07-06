@@ -27,6 +27,26 @@ export function snapValue(pct, spacingPct) {
   return (spacingPct && spacingPct > 0) ? Math.round(pct / spacingPct) * spacingPct : pct;
 }
 
+// لصق قيمة بأقرب حافّة من قائمة حواف (جيران) ضمن سماحية — null = لا لصق
+export function stickEdge(v, edges, tol = 1.0) {
+  let best = null, bd = tol;
+  for (const e of edges || []) {
+    const d = Math.abs(e - v);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+
+// لصق مستطيل متحرّك على محور واحد: تُفحص حافّتاه (بداية/نهاية) معاً
+// ويفوز الأقرب. يعيد الموضع الجديد للبداية (أو الموضع الأصلي بلا تغيير).
+export function stickAxis(start, size, edges, tol = 1.0) {
+  const a = stickEdge(start, edges, tol);
+  const b = stickEdge(start + size, edges, tol);
+  if (a != null && (b == null || Math.abs(a - start) <= Math.abs(b - (start + size)))) return a;
+  if (b != null) return b - size;
+  return start;
+}
+
 // تنسيق بُعد بالأمتار: ≥1م بالمتر، أقل بالسنتيمتر
 export function formatDim(meters) {
   const m = Number(meters) || 0;

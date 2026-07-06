@@ -54,6 +54,18 @@ export default function NestedZonesPanel({
     return segs;
   }, [children]);
 
+  // حواف المساحات الشقيقة — لصق المساحة بجارتها أثناء السحب/التحجيم
+  function edgesExcluding(id) {
+    const x = [0, 100], y = [0, 100];
+    children.forEach(z => {
+      if (z.id === id) return;
+      const r = naturalZoneRect(z);
+      x.push(r.left, r.left + r.width);
+      y.push(r.top, r.top + r.height);
+    });
+    return { x, y };
+  }
+
   if (children.length === 0 && !canEdit) return null;
 
   async function handleCreate(values) {
@@ -141,6 +153,7 @@ export default function NestedZonesPanel({
               containerRef={containerRef}
               canEdit={canEdit}
               busy={busy}
+              edges={edgesExcluding(child.id)}
               onEnter={() => onEnter?.(child)}
               onGeometry={(r) => saveGeom(child, r)}
               onDelete={() => setConfirmDel(child)}
@@ -195,10 +208,11 @@ export default function NestedZonesPanel({
 }
 
 // مساحة داخليّة واحدة: دخول بالضغط · سحب/تحجيم وحذف في وضع التعديل
-function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, onEnter, onGeometry, onDelete }) {
+function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = null, onEnter, onGeometry, onDelete }) {
   const rect = naturalZoneRect(zone);
   const { pos, mode, begin } = useDragResize({
     rect, containerRef, enabled: canEdit, minW: 4, minH: 4,
+    edgesX: edges?.x, edgesY: edges?.y,
     onChange: (r) => onGeometry(r)
   });
   const r = canEdit ? pos : rect;

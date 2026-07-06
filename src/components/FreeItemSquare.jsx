@@ -3,7 +3,7 @@
 // minTopPct: أصغر قيمة top مسموحة (لتقييد الغرض في منطقة معيّنة) — افتراضي 0 (حرّ كامل)
 // obstacles: مستطيلات ممنوع التداخل معها (مساحات التخزين) — [{left,top,width,height} %]
 import { useState, useEffect, useRef } from 'react';
-import { snapValue } from '../lib/gridConfig';
+import { snapValue, stickAxis } from '../lib/gridConfig';
 
 function rectsOverlap(a, b) {
   return a.left < b.left + b.width &&
@@ -31,7 +31,7 @@ function resolveBelow(rect, obstacles) {
 export default function FreeItemSquare({
   item, containerRef, isFounder,
   onEdit, onDelete, onDropped, onResized, onView,
-  editMode = false, minTopPct = 0, obstacles = [], snapX = null, snapY = null
+  editMode = false, minTopPct = 0, obstacles = [], snapX = null, snapY = null, edgesX = null, edgesY = null
 }) {
   // التحريك والتكبير والتعديل/الحذف: في وضع التعديل فقط (للمؤسّس). خارج وضع
   // التعديل: ضغطة تفتح بطاقة عرض الغرض (لكل المستخدمين).
@@ -91,9 +91,12 @@ export default function FreeItemSquare({
       const dxPct = ((cx - s.startX) / s.rect.width)  * 100;
       const dyPct = ((cy - s.startY) / s.rect.height) * 100;
       if (mode === 'move') {
-        const newLeft = Math.max(0, Math.min(100 - s.startW, snapValue(s.startLeft + dxPct, snapX)));
+        // شبكة ← لصق بحواف الجيران (جدران/دواليب/مساحات) ← حصر بالحدود
+        let newLeft = stickAxis(snapValue(s.startLeft + dxPct, snapX), s.startW, edgesX);
+        newLeft = Math.max(0, Math.min(100 - s.startW, newLeft));
         const maxTop = Math.max(minTopPct, 100 - s.startH);
-        const newTop = Math.max(minTopPct, Math.min(maxTop, snapValue(s.startTop + dyPct, snapY)));
+        let newTop = stickAxis(snapValue(s.startTop + dyPct, snapY), s.startH, edgesY);
+        newTop = Math.max(minTopPct, Math.min(maxTop, newTop));
         setPos(p => {
           const desired = { left: newLeft, top: newTop, width: s.startW, height: s.startH };
           if (!hits(desired, obstacles)) return { ...p, left: newLeft, top: newTop };
