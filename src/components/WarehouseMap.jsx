@@ -170,7 +170,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   // تحويل عنصر هيكلي إلى مكان تخزين: مساحة جديدة بنفس الشكل ثم حذف العنصر
   async function handleConvertSave(values) {
     const src = convertingZone;
-    if (!src) return;
+    if (!src || busy) return;
     if (allZones.find(z => z.letter === values.letter.toUpperCase())) {
       return flash('هذا الحرف موجود — اختر حرفاً آخر', 'error');
     }
@@ -195,10 +195,12 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       setBusy(false);
       return flash('تعذّر نقل الشكل: ' + posErr.message, 'error');
     }
-    await rpcDeleteZone(src.id);
+    // حذف العنصر الأصلي — مع فحص صريح كي لا يبقى الاثنان فوق بعض
+    const { error: delErr } = await rpcDeleteZone(src.id);
     setBusy(false);
     setConvertingZone(null);
-    flash(`✅ صار المكان تخزيناً: ${values.letter.toUpperCase()} — ${values.name}`);
+    if (delErr) flash(`⚠️ أُنشئت المساحة لكن تعذّر حذف العنصر الأصلي (${delErr.message}) — احذفه بـ🗑 من الخريطة`, 'error');
+    else flash(`✅ صار المكان تخزيناً: ${values.letter.toUpperCase()} — ${values.name}`);
     await onRefresh();
   }
 

@@ -30,6 +30,9 @@ export default function NestedZonesPanel({
   const [pendingGeom, setPendingGeom] = useState(null); // شكل مرسوم بانتظار نموذج المساحة
   const [confirmDel, setConfirmDel] = useState(null);
   const [busy, setBusy] = useState(false);
+  // اللوحة مطويّة افتراضيّاً حين لا توجد مساحات داخليّة — كي لا تُلتبس
+  // بواجهة الأرفف وتبدو «مساحة ثانية». تُفتح بزرّ صريح فقط.
+  const [expanded, setExpanded] = useState(false);
 
   const children = (allZones || []).filter(z => z.parent_zone_id === parentZone.id);
   const canEdit = editMode && isFounder;
@@ -68,6 +71,18 @@ export default function NestedZonesPanel({
   }
 
   if (children.length === 0 && !canEdit) return null;
+
+  // لا مساحات داخليّة بعد: زرّ صغير صريح فقط — لا لوحة رسم ظاهرة
+  if (children.length === 0 && !expanded) {
+    return (
+      <div className="flex justify-center mb-3">
+        <button onClick={() => setExpanded(true)}
+          className="text-[11px] px-4 py-2 rounded-lg border border-dashed border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-800/60 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700">
+          + 🚪 مساحات داخل هذا المكان (اختياري — مثل دولاب فيه عدّة مستودعات)
+        </button>
+      </div>
+    );
+  }
 
   async function handleCreate(values) {
     const geom = pendingGeom;
@@ -130,6 +145,12 @@ export default function NestedZonesPanel({
             <button onClick={() => setTool(t => t === 'poly' ? null : 'poly')} className={toolBtnCls(tool === 'poly')} title="اضغط نقاطاً وأغلق — مساحة بشكل حرّ">⬠ مضلّع</button>
             <button onClick={() => setSnapOn(s => !s)} className={toolBtnCls(snapOn)} title="التقاط لزوايا وحوافّ المساحات">🧲</button>
             <button onClick={() => setOrtho(o => !o)} className={toolBtnCls(ortho)} title="تعامد 45°">∟</button>
+            {children.length === 0 && (
+              <button onClick={() => { setExpanded(false); setTool(null); }}
+                className="text-[11px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700">
+                ✕ إخفاء
+              </button>
+            )}
           </div>
         )}
       </div>
