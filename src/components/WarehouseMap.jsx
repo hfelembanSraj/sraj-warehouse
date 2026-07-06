@@ -968,14 +968,21 @@ function WarehouseMapCanvas({
   const snapSegments = useMemo(() => zoneSegments(null), [zones]);           // للرسم الجديد
   const vertexSegments = useMemo(() => zoneSegments(vertexZoneId), [zones, vertexZoneId]); // لتحرير النقاط
 
-  // حواف الجيران ومنتصفاتها — للصق العناصر ببعضها أثناء السحب/التحجيم
+  // حواف الجيران ومنتصفاتها — للصق العناصر ببعضها أثناء السحب/التحجيم.
+  // الجدار المفتوح: نلصق على «خطّه الحقيقي» (نقاطه) لا على صندوق إحاطته —
+  // وإلا التصق الجار بحافّة وهميّة تاركاً فجوة صغيرة قبيحة.
   function neighborEdges(excludeId) {
     const x = [0, 100, 50], y = [0, 100, 50];
     zones.forEach(z => {
       if (z.id === excludeId) return;
       const r = naturalZoneRect(z);
-      x.push(r.left, r.left + r.width, r.left + r.width / 2);
-      y.push(r.top, r.top + r.height, r.top + r.height / 2);
+      const openWall = Array.isArray(z.points) && z.points[0]?.open;
+      if (openWall) {
+        absPointsOfZone(r, z.points).forEach(p => { x.push(p.x); y.push(p.y); });
+      } else {
+        x.push(r.left, r.left + r.width, r.left + r.width / 2);
+        y.push(r.top, r.top + r.height, r.top + r.height / 2);
+      }
     });
     return { x, y };
   }

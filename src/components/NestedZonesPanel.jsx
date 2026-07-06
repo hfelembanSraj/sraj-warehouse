@@ -11,7 +11,7 @@ import MapDrawLayer from './MapDrawLayer';
 import useDragResize from '../lib/useDragResize';
 import MidMarks from './MidMarks';
 import CenterGuides from './CenterGuides';
-import { rpcAddZone, rpcUpdateZone, rpcDeleteZone } from '../lib/warehouseOps';
+import { rpcAddZone, rpcUpdateZone, rpcDeleteZone, STRUCTURE_COLOR } from '../lib/warehouseOps';
 import { naturalZoneRect, absPointsOfZone } from '../lib/mapDraw';
 
 function toolBtnCls(active) {
@@ -29,6 +29,7 @@ export default function NestedZonesPanel({
   const [ortho, setOrtho] = useState(false);
   const [snapOn, setSnapOn] = useState(false);
   const [pendingGeom, setPendingGeom] = useState(null); // شكل مرسوم بانتظار نموذج المساحة
+  const [askType, setAskType] = useState(false);        // اختيار: تخزين 📦 أم شكلية 🎨
   const [confirmDel, setConfirmDel] = useState(null);
   const [busy, setBusy] = useState(false);
   // اللوحة مطويّة افتراضيّاً حين لا توجد مساحات داخليّة — كي لا تُلتبس
@@ -109,6 +110,40 @@ export default function NestedZonesPanel({
     }
     setPendingGeom(null);
     flash?.(`✅ أُنشئت مساحة داخليّة: ${values.letter.toUpperCase()} — ${values.name}`);
+    onRefresh?.();
+  }
+
+  // مساحة شكليّة/جماليّة (بدون تخزين) — عنصر رصاصي بالشكل المرسوم
+  async function createDecor(geom) {
+    if (!geom) return;
+    const used = new Set((allZones || []).map(z => z.letter));
+    let letter = null;
+    for (let i = 65; i <= 90 && !letter; i++) {
+      const c = String.fromCharCode(i);
+      if (!used.has(c)) letter = c;
+    }
+    for (let n = 2; n <= 99 && !letter; n++) {
+      const c = `W${n}`;
+      if (!used.has(c)) letter = c;
+    }
+    if (!letter) return flash?.('نفدت الحروف المتاحة', 'error');
+    setBusy(true);
+    const { data: newId, error } = await rpcAddZone(warehouseId, {
+      letter, name: 'عنصر', color: STRUCTURE_COLOR,
+      width_cm: 100, height_cm: 100, depth_cm: 30, shelves_count: 0,
+      parent_id: parentZone.id
+    });
+    if (error || !newId) { setBusy(false); return flash?.('فشل: ' + (error?.message || ''), 'error'); }
+    const { error: posErr } = await rpcUpdateZone({ id: newId }, {
+      pos_top: geom.top, pos_left: geom.left, pos_right: null,
+      pos_width: geom.width, pos_height: geom.height,
+      ...(Array.isArray(geom.points) ? { points: geom.points } : {})
+    });
+    setBusy(false);
+    if (posErr) { await rpcDeleteZone(newId); return flash?.('تعذّر حفظ الشكل: ' + posErr.message, 'error'); }
+    setPendingGeom(null);
+    setAskType(false);
+    flash?.('✅ أُضيفت مساحة شكليّة');
     onRefresh?.();
   }
 
@@ -195,7 +230,7 @@ export default function NestedZonesPanel({
               ortho={ortho}
               targets={snapOn ? targets : []}
               segments={snapOn ? segments : []}
-              onFinish={(geom) => { setTool(null); setPendingGeom(geom); }}
+              onFinish={(geom) => { setTool(null); setPendingGeom(geom); setAskType(true); }}
               onCancel={() => setTool(null)}
               flash={flash}
             />
@@ -203,7 +238,32 @@ export default function NestedZonesPanel({
         </div>
       </div>
 
-      {pendingGeom && (
+      {/* اختيار نوع الشكل المرسوم: تخزين 📦 أم شكلية 🎨 */}
+      {pendingGeom && askType && (
+        <FormModal title="ما نوع هذا المكان؟" subtitle="اختر ليُضاف بالشكل الذي رسمته"
+          onClose={() => { setPendingGeom(null); setAskType(false); }} maxWidth="max-w-sm">
+          <div className="grid gap-2">
+            <button onClick={() => setAskType(false)} disabled={busy}
+              className="flex items-center gap-3 p-3 rounded-lg border-2 border-brand-blue/60 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-right disabled:opacity-50">
+              <span className="text-xl">📦</span>
+              <span className="flex-1">
+                <span className="block text-sm font-bold text-brand-navy dark:text-blue-200">مساحة تخزين</span>
+                <span className="block text-[11px] text-stone-500 dark:text-stone-400">تدخلها وتخزّن فيها — لها حرف واسم وأقسام</span>
+              </span>
+            </button>
+            <button onClick={() => createDecor(pendingGeom)} disabled={busy}
+              className="flex items-center gap-3 p-3 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-right disabled:opacity-50">
+              <span className="text-xl">🎨</span>
+              <span className="flex-1">
+                <span className="block text-sm font-bold dark:text-stone-200">مساحة شكليّة (بدون تخزين)</span>
+                <span className="block text-[11px] text-stone-500 dark:text-stone-400">جزء جمالي/زينة من الدولاب — رصاصي وغير قابل للضغط</span>
+              </span>
+            </button>
+          </div>
+        </FormModal>
+      )}
+
+      {pendingGeom && !askType && (
         <FormModal
           title="🚪 مساحة داخليّة جديدة"
           subtitle="ستُنشأ داخل هذا المكان بالشكل الذي رسمته — مساحة مستقلّة كاملة"
@@ -243,35 +303,42 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
   const isOpenWall = Array.isArray(zone.points) && zone.points[0]?.open;
   const hasPoly = !isOpenWall && Array.isArray(zone.points) && zone.points.length >= 3;
   const polyClip = hasPoly ? `polygon(${zone.points.map(p => `${p.x}% ${p.y}%`).join(', ')})` : undefined;
+  // مساحة شكليّة/جماليّة (رصاصيّة): تُعرض بلا حرف ولا عدّاد وغير قابلة للضغط
+  const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
   return (
     <div
       style={{
         top: `${r.top}%`, left: `${r.left}%`, width: `${r.width}%`, height: `${r.height}%`,
         zIndex: mode ? 40 : undefined,
         transition: mode ? 'none' : 'top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease',
-        cursor: canEdit ? (mode === 'move' ? 'grabbing' : 'grab') : 'pointer',
+        cursor: canEdit ? (mode === 'move' ? 'grabbing' : 'grab') : (isDecor ? 'default' : 'pointer'),
         touchAction: canEdit ? 'none' : undefined
       }}
       onMouseDown={canEdit ? (e) => { e.preventDefault(); e.stopPropagation(); begin('move', e.clientX, e.clientY); } : undefined}
       onTouchStart={canEdit ? (e) => { const t = e.touches[0]; if (t) begin('move', t.clientX, t.clientY); } : undefined}
-      onClick={!canEdit ? onEnter : undefined}
-      title={!canEdit ? `اضغط لدخول ${zone.letter} — ${zone.name}` : undefined}
-      className={`absolute group select-none ${canEdit ? 'ring-1 ring-blue-400/70' : 'hover:scale-[1.02] transition-transform'}`}
+      onClick={(!canEdit && !isDecor) ? onEnter : undefined}
+      title={(!canEdit && !isDecor) ? `اضغط لدخول ${zone.letter} — ${zone.name}` : undefined}
+      className={`absolute group select-none ${canEdit ? 'ring-1 ring-blue-400/70' : (isDecor ? '' : 'hover:scale-[1.02] transition-transform')}`}
     >
       <div
         className={`absolute inset-0 flex flex-col items-center justify-center overflow-hidden ${hasPoly ? '' : 'border-2 rounded-lg'}`}
         style={{
           clipPath: polyClip,
           borderColor: hasPoly ? 'transparent' : zone.color,
-          backgroundImage: `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`
+          backgroundImage: isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`,
+          backgroundColor: isDecor ? `${zone.color}55` : undefined
         }}
       >
-        <div className="text-xl font-display font-bold leading-none drop-shadow-sm" style={{ color: zone.color }}>{zone.letter}</div>
-        <div className="mt-0.5 text-[9px] font-semibold rounded-full px-1.5 py-0.5 shadow-sm leading-tight text-center"
-          style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
-          {zone.name}
-        </div>
-        <div className="text-[8px] text-stone-500 dark:text-stone-400 mt-0.5">{boxCount} 📦</div>
+        {!isDecor && (
+          <>
+            <div className="text-xl font-display font-bold leading-none drop-shadow-sm" style={{ color: zone.color }}>{zone.letter}</div>
+            <div className="mt-0.5 text-[9px] font-semibold rounded-full px-1.5 py-0.5 shadow-sm leading-tight text-center"
+              style={{ backgroundColor: 'var(--tile-pill-bg)', color: 'var(--tile-pill-text)' }}>
+              {zone.name}
+            </div>
+            <div className="text-[8px] text-stone-500 dark:text-stone-400 mt-0.5">{boxCount} 📦</div>
+          </>
+        )}
       </div>
       {hasPoly && (
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
