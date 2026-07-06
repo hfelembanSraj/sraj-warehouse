@@ -31,6 +31,33 @@ export default function NestedZonesPanel({
   const [pendingGeom, setPendingGeom] = useState(null); // شكل مرسوم بانتظار نموذج المساحة
   const [askType, setAskType] = useState(false);        // اختيار: تخزين 📦 أم شكلية 🎨
   const [confirmDel, setConfirmDel] = useState(null);
+  // مكدس التراجع: تحريك/تحجيم (geom) وإنشاء (create)
+  const [undoStack, setUndoStack] = useState([]);
+
+  function snapGeom(z) {
+    return {
+      pos_top: z.pos_top ?? null, pos_left: z.pos_left ?? null, pos_right: z.pos_right ?? null,
+      pos_width: z.pos_width ?? null, pos_height: z.pos_height ?? null, points: z.points ?? null
+    };
+  }
+
+  async function handleUndo() {
+    if (busy || undoStack.length === 0) return;
+    const e = undoStack[undoStack.length - 1];
+    setBusy(true);
+    let error = null;
+    if (e.kind === 'geom') {
+      const g = e.prev;
+      ({ error } = await rpcUpdateZone({ id: e.zoneId, pos_left: g.pos_left, pos_right: g.pos_right }, { ...g, points: g.points }));
+    } else if (e.kind === 'create') {
+      ({ error } = await rpcDeleteZone(e.zoneId));
+    }
+    setBusy(false);
+    if (error) return flash?.('فشل التراجع: ' + error.message, 'error');
+    setUndoStack(s => s.slice(0, -1));
+    flash?.('↶ تمّ التراجع');
+    onRefresh?.();
+  }
   const [busy, setBusy] = useState(false);
   // اللوحة مطويّة افتراضيّاً حين لا توجد مساحات داخليّة — كي لا تُلتبس
   // بواجهة الأرفف وتبدو «مساحة ثانية». تُفتح بزرّ صريح فقط.
@@ -109,7 +136,8 @@ export default function NestedZonesPanel({
       return flash?.('تعذّر حفظ الشكل: ' + posErr.message, 'error');
     }
     setPendingGeom(null);
-    flash?.(`✅ أُنشئت مساحة داخليّة: ${values.letter.toUpperCase()} — ${values.name}`);
+    setUndoStack(s => [...s, { kind: 'create', zoneId: newId }]);
+    flash?.(`✅ أُنشئت مساحة داخليّة: ${values.letter.toUpperCase()} — ${values.name} — ↶ للتراجع`);
     onRefresh?.();
   }
 
@@ -143,11 +171,13 @@ export default function NestedZonesPanel({
     if (posErr) { await rpcDeleteZone(newId); return flash?.('تعذّر حفظ الشكل: ' + posErr.message, 'error'); }
     setPendingGeom(null);
     setAskType(false);
-    flash?.('✅ أُضيفت مساحة شكليّة');
+    setUndoStack(s => [...s, { kind: 'create', zoneId: newId }]);
+    flash?.('✅ أُضيفت مساحة شكليّة — ↶ للتراجع');
     onRefresh?.();
   }
 
   async function saveGeom(child, rect) {
+    setUndoStack(s => [...s, { kind: 'geom', zoneId: child.id, prev: snapGeom(child) }]);
     const { error } = await rpcUpdateZone(child, {
       pos_top: rect.top, pos_left: rect.left, pos_right: null,
       pos_width: rect.width, pos_height: rect.height
@@ -181,6 +211,10 @@ export default function NestedZonesPanel({
             <button onClick={() => setTool(t => t === 'poly' ? null : 'poly')} className={toolBtnCls(tool === 'poly')} title="اضغط نقاطاً وأغلق — مساحة بشكل حرّ">⬠ مضلّع</button>
             <button onClick={() => setSnapOn(s => !s)} className={toolBtnCls(snapOn)} title="التقاط لزوايا وحوافّ المساحات">🧲</button>
             <button onClick={() => setOrtho(o => !o)} className={toolBtnCls(ortho)} title="تعامد 45°">∟</button>
+            <button onClick={handleUndo} disabled={busy || undoStack.length === 0}
+              className={`${toolBtnCls(false)} disabled:opacity-40`} title="تراجع عن آخر تغيير">
+              ↶{undoStack.length > 0 ? ` (${undoStack.length})` : ''}
+            </button>
             {children.length === 0 && (
               <button onClick={() => { setExpanded(false); setTool(null); }}
                 className="text-[11px] px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700">
@@ -281,7 +315,11 @@ export default function NestedZonesPanel({
 
       {confirmDel && (
         <ConfirmDelete
-          message={`ستُحذف المساحة الداخليّة ${confirmDel.letter} — ${confirmDel.name} مع كل أرففها وصناديقها. هل أنت متأكّد؟`}
+          message={(() => {
+            const bx = (boxes || []).filter(b => b.code.startsWith(confirmDel.letter + '-')).length;
+            const kids = (allZones || []).filter(z => z.parent_zone_id === confirmDel.id).length;
+            return `ستُحذف المساحة الداخليّة «${confirmDel.letter} — ${confirmDel.name}» وبداخلها: ${bx} صندوق (بكل أغراضها)${kids > 0 ? ` و${kids} مساحة داخليّة` : ''} وكل أقسامها. الصناديق والأغراض تذهب لسلّة المحذوفات ويمكن استرجاعها. هل أنت متأكّد؟`;
+          })()}
           busy={busy}
           onConfirm={handleDelete}
           onCancel={() => setConfirmDel(null)}

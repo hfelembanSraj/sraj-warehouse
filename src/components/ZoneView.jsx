@@ -1418,7 +1418,13 @@ export default function ZoneView({ zone, data, onBack, onShelfClick, onItemClick
 
       {confirming?.type === 'shelf' && (
         <ConfirmDelete
-          message={`سيُحذف الرف ${confirming.shelf.shelf_index} مع صناديقه. هل أنت متأكّد؟`}
+          message={(() => {
+            const s = confirming.shelf;
+            const bx = getShelfBoxes(s.shelf_index).length;
+            const its = shelfItems.filter(it => it.shelf_id === s.id).length;
+            const kindName = s.pos?.kind === 'divider' ? 'الفاصل' : s.pos?.kind === 'decor' ? 'الشكل' : `«${shelfDisplayName(s, shelves)}»`;
+            return `سيُحذف ${kindName} وبداخله: ${bx} صندوق (بكل أغراضها)${its > 0 ? ` و${its} غرض كبير` : ''}. كلّها تذهب لسلّة المحذوفات ويمكن استرجاعها. هل أنت متأكّد؟`;
+          })()}
           busy={busy}
           onConfirm={handleDeleteShelf}
           onCancel={() => setConfirming(null)}

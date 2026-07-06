@@ -45,6 +45,22 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   const [ortho, setOrtho] = useState(false);
   const [snapOn, setSnapOn] = useState(false);
   const [pendingRect, setPendingRect] = useState(null); // شكل مرسوم بانتظار التفاصيل
+  // مكدس التراجع: تحريك/تحجيم/نوع (pos) وإنشاء (create)
+  const [undoStack, setUndoStack] = useState([]);
+
+  async function handleUndo() {
+    if (busy || undoStack.length === 0) return;
+    const e = undoStack[undoStack.length - 1];
+    setBusy(true);
+    let error = null;
+    if (e.kind === 'pos') ({ error } = await rpcUpdateShelfPos(e.shelfId, e.prev));
+    else if (e.kind === 'create') ({ error } = await rpcDeleteShelf(e.shelfId));
+    setBusy(false);
+    if (error) return flash?.('فشل التراجع: ' + error.message, 'error');
+    setUndoStack(s => s.slice(0, -1));
+    flash?.('↶ تمّ التراجع');
+    onRefresh?.();
+  }
 
   // «مستودع زائف» بأبعاد المكان بالمتر — فتظهر قياسات الرسم صحيحة (سم/م)
   const pseudoWh = {
@@ -93,6 +109,7 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
   }
 
   async function savePos(shelf, rect, kind) {
+    setUndoStack(s => [...s, { kind: 'pos', shelfId: shelf.id, prev: shelf.pos ?? null }]);
     setBusy(true);
     const { error } = await rpcUpdateShelfPos(shelf.id, {
       top: rect.top, left: rect.left, width: rect.width, height: rect.height,
@@ -127,7 +144,8 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
       });
       setBusy(false);
       if (posErr) { await rpcDeleteShelf(newId); return flash?.('تعذّر حفظ الفاصل: ' + posErr.message, 'error'); }
-      flash?.('✅ أُضيف فاصل');
+      setUndoStack(s => [...s, { kind: 'create', shelfId: newId }]);
+      flash?.('✅ أُضيف فاصل — ↶ للتراجع');
       onRefresh?.();
       return; // تبقى الأداة نشطة لرسم فواصل متتالية
     }
@@ -157,7 +175,8 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
       return flash?.('تعذّر حفظ القسم: ' + posErr.message + ' — هل طُبِّقت ترقية 21؟', 'error');
     }
     setPendingRect(null);
-    flash?.(`✅ أُضيف ${SHELF_KINDS.find(k => k.key === values.kind)?.label || 'قسم'} جديد`);
+    setUndoStack(s => [...s, { kind: 'create', shelfId: newId }]);
+    flash?.(`✅ أُضيف ${SHELF_KINDS.find(k => k.key === values.kind)?.label || 'قسم'} — ↶ للتراجع`);
     onRefresh?.();
   }
 
@@ -175,6 +194,10 @@ export default function ZoneInteriorEditor({ zone, shelves, boxCountForShelf, on
         <span className="w-px h-5 bg-stone-300 dark:bg-stone-600 mx-1" />
         <button onClick={() => setSnapOn(s => !s)} className={toolBtnCls(snapOn)} title="التقاط مغناطيسي لزوايا وحوافّ الأقسام">🧲 التقاط</button>
         <button onClick={() => setOrtho(o => !o)} className={toolBtnCls(ortho)} title="تقييد الخطوط أفقيّاً/رأسيّاً/45°">∟ تعامد</button>
+        <button onClick={handleUndo} disabled={busy || undoStack.length === 0}
+          className={`${toolBtnCls(false)} disabled:opacity-40`} title="تراجع عن آخر تغيير (تحريك/تحجيم/نوع/إنشاء)">
+          ↶ تراجع{undoStack.length > 0 ? ` (${undoStack.length})` : ''}
+        </button>
       </div>
 
       <div
