@@ -161,6 +161,15 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
           ...(Array.isArray(rect.points) ? { points: rect.points } : {})
         }
       );
+      // فشل حفظ «الشكل» المضلّع: ألغِ الإنشاء بدل ترك مربّع افتراضي خاطئ
+      if (posErr && Array.isArray(rect.points)) {
+        await rpcDeleteZone(newZoneId);
+        setBusy(false);
+        setShowAddZone(false);
+        setPendingDrawRect(null);
+        await onRefresh();
+        return flash('لم يُحفَظ شكل المساحة — يلزم تطبيق ترقية 20 (migration_20) على قاعدة البيانات أولاً. أُلغي الإنشاء.', 'error');
+      }
       if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط موضعه: ' + posErr.message, 'error');
     }
     setBusy(false);
@@ -207,6 +216,13 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
       pos_width: rect.width, pos_height: rect.height,
       ...(Array.isArray(rect.points) ? { points: rect.points } : {})
     });
+    // فشل حفظ «الشكل» (غالباً ترقية 20 غير مُطبَّقة): ألغِ الإنشاء كلّه —
+    // لا نترك مربّعاً افتراضيّاً مكان الشكل الذي رسمه المؤسّس
+    if (posErr && Array.isArray(rect.points)) {
+      await rpcDeleteZone(zoneId);
+      setBusy(false);
+      return flash('لم يُحفَظ الشكل المرسوم — يلزم تطبيق ترقية 20 (migration_20) على قاعدة البيانات أولاً. أُلغي الإنشاء.', 'error');
+    }
     setBusy(false);
     setUndoStack(s => [...s, { kind: 'create', zoneId }]);
     if (posErr) flash('أُنشئ العنصر لكن تعذّر ضبط شكله: ' + posErr.message, 'error');
