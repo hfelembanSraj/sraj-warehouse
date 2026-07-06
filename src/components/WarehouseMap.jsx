@@ -71,7 +71,8 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridSpacingMeters, setGridSpacingMeters] = useState(1);
   const [snapEnabled, setSnapEnabled] = useState(false);
-  const [ortho, setOrtho] = useState(true);
+  // ∟ التعامد مطفأ افتراضيّاً — الرسم الحرّ هو الأصل (يفعَّل عند الحاجة فقط)
+  const [ortho, setOrtho] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
   // تحرير نقاط شكل قائم (⬡)
   const [vertexEditZoneId, setVertexEditZoneId] = useState(null);
