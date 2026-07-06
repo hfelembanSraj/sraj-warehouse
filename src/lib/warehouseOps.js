@@ -25,12 +25,12 @@ export async function rpcDeleteWarehouse(wh_id) {
 }
 
 export async function rpcAddZone(wh_id, values) {
-  // عدد الأرفف: نحترم القيمة 0 صراحةً (للعناصر الهيكليّة: جدار/مكتب بلا أرفف)؛
-  // ونرجع للافتراضي 3 فقط عند الفراغ/القيمة غير الصالحة.
+  // عدد الأرفف: لا يُنشأ أيّ رفّ إلا بطلب صريح — الفراغ/القيمة غير الصالحة = 0
+  // («خلّها في يدي»: المؤسّس يرسم الأرفف والأقسام بنفسه)
   const rawShelves = values.shelves_count;
   const shelves_count =
     rawShelves === '' || rawShelves == null || Number.isNaN(Number(rawShelves))
-      ? 3
+      ? 0
       : Math.max(0, Number(rawShelves));
   return supabase.rpc('add_zone', {
     wh_id,
