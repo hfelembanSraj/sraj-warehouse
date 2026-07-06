@@ -44,8 +44,22 @@ function zoneShowsName(z) {
 function labelFlagPoints(z, show) {
   const pts = Array.isArray(z.points) && z.points.length >= 2
     ? z.points.map(p => ({ ...p }))
-    : [{ x: 0, y: 0 }];
+    : [{ ...(z.points?.[0] || { x: 0, y: 0 }) }];
   pts[0] = { ...pts[0], label: show ? 1 : 0 };
+  return pts;
+}
+
+// نقاط الشكل مع ضبط/إزالة لون التعبئة (fill على أوّل نقطة — بلا ترقية)
+function fillFlagPoints(z, fill) {
+  const pts = Array.isArray(z.points) && z.points.length >= 2
+    ? z.points.map(p => ({ ...p }))
+    : [{ ...(z.points?.[0] || { x: 0, y: 0 }) }];
+  if (fill) {
+    pts[0] = { ...pts[0], fill };
+  } else {
+    const { fill: _omit, ...rest } = pts[0];
+    pts[0] = rest;
+  }
   return pts;
 }
 
@@ -88,6 +102,19 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
   const [convertingZone, setConvertingZone] = useState(null);
   // 📷 صورة شكل (مساحة/عنصر)
   const [photoZone, setPhotoZone] = useState(null);
+  // 🖌 لون تعبئة شكل
+  const [fillZone, setFillZone] = useState(null);
+  const [customFill, setCustomFill] = useState('#D85A30');
+
+  async function handleSetFill(zone, fill) {
+    setBusy(true);
+    const { error } = await rpcUpdateZone(zone, { points: fillFlagPoints(zone, fill) });
+    setBusy(false);
+    setFillZone(null);
+    if (error) return flash('فشل: ' + error.message, 'error');
+    flash(fill ? '🖌 حُفظ لون التعبئة' : '✅ رجع اللون الافتراضي');
+    await onRefresh();
+  }
 
   async function handleSaveZonePhoto(url) {
     if (!photoZone) return;
@@ -676,6 +703,7 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
                   onVertexEdit={(z) => { setActiveTool(null); setVertexEditZoneId(z.id); }}
                   onVertexClose={() => setVertexEditZoneId(null)}
                   onZonePhoto={(z) => setPhotoZone(z)}
+                  onZoneFill={(z) => setFillZone(z)}
                   pushUndo={(e) => setUndoStack(s => [...s, e])}
                   plainBg={plainBg}
                   onRefresh={onRefresh}
@@ -837,6 +865,33 @@ export default function WarehouseMap({ data, onZoneClick, onItemClick, onRefresh
         </FormModal>
       )}
 
+      {/* 🖌 لون تعبئة شكل */}
+      {fillZone && (
+        <FormModal title={`🖌 لون تعبئة «${fillZone.name}»`}
+          subtitle="لون التعبئة مستقل — لا يغيّر نوع الشكل (تخزين/شكلي)"
+          onClose={() => setFillZone(null)} maxWidth="max-w-sm">
+          <div className="flex flex-wrap gap-2 mb-3">
+            {['#D85A30', '#185FA5', '#27500A', '#633806', '#7C3AED', '#0891B2', '#BE185D', '#65A30D', '#8B6F3F', '#9CA3AF', '#e7e5e4', '#292524'].map(c => (
+              <button key={c} onClick={() => handleSetFill(fillZone, c)} disabled={busy}
+                className="w-9 h-9 rounded-lg border-2 border-stone-300 dark:border-stone-600 hover:scale-110 transition shadow-sm"
+                style={{ backgroundColor: c }} title={c} />
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <input type="color" value={customFill} onChange={e => setCustomFill(e.target.value)}
+              className="w-10 h-9 rounded cursor-pointer border border-stone-300 dark:border-stone-600" />
+            <button onClick={() => handleSetFill(fillZone, customFill)} disabled={busy}
+              className="flex-1 text-xs bg-brand-blue text-white py-2 rounded-lg hover:bg-blue-800 disabled:opacity-50">
+              تطبيق اللون المخصّص
+            </button>
+          </div>
+          <button onClick={() => handleSetFill(fillZone, null)} disabled={busy}
+            className="w-full text-xs border border-stone-300 dark:border-stone-700 dark:text-stone-300 py-2 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800">
+            ✕ إزالة لون التعبئة (الافتراضي)
+          </button>
+        </FormModal>
+      )}
+
       {/* 📷 صورة شكل */}
       {photoZone && (
         <ShapePhotoModal
@@ -973,7 +1028,7 @@ function WarehouseMapCanvas({
   onItemEdit, onItemDelete, onItemView, onRefresh, flash,
   activeWarehouse, gridEnabled, gridSpacingPctX, gridSpacingPctY, snapX, snapY, showMeasurements,
   activeTool, ortho, vertexSnap, onToolCancel, onShapeDrawn,
-  vertexZoneId, onVertexEdit, onVertexClose, onZonePhoto, pushUndo, plainBg
+  vertexZoneId, onVertexEdit, onVertexClose, onZonePhoto, onZoneFill, pushUndo, plainBg
 }) {
   const containerRef = useRef(null);
   const canDraw = layoutEditMode && isFounder;
@@ -1216,6 +1271,7 @@ function WarehouseMapCanvas({
           onConvert={() => onZoneConvert?.(z)}
           onMakeDecor={() => handleMakeDecor(z)}
           onPhoto={() => onZonePhoto?.(z)}
+          onFill={() => onZoneFill?.(z)}
           plainBg={plainBg}
           neighborEdges={neighborEdges(z.id)}
         />
@@ -1341,7 +1397,7 @@ function CheckoutsListView({ checkouts, onJump, onClose }) {
   );
 }
 
-function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, onMakeDecor, onPhoto, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
+function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdit, onDelete, onEditPoints, onToggleName, onConvert, onMakeDecor, onPhoto, onFill, plainBg = false, neighborEdges = null, childZones = [], zoneShelves = [], zoneBoxes = [], zoneItems = [], editMode = false, containerRef, onGeometry, warehouse, showMeasurements = false, snapX = null, snapY = null }) {
   const editing = editMode && isFounder;
   // العنصر الهيكلي (رصاصي): ثابت وغير قابل للضغط — جدار/طاولة/خشب
   const isDecor = (zone.color || '').toUpperCase() === STRUCTURE_COLOR.toUpperCase();
@@ -1383,15 +1439,17 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
   };
   // مظهر الجسم الداخلي (المقصوص للمضلّعات) — «سادة»: خلفيّة محايدة والحدود ملوّنة.
   // 📷 الصورة (إن وُجدت) تصير خلفيّة الشكل مقصوصةً بحدوده.
+  // 🖌 لون تعبئة مخصّص (يفوز على كل شيء عدا الصورة)
+  const fillColor = zone.points?.[0]?.fill || null;
   const bodyStyle = {
     clipPath: polyClip,
     borderColor: hasPoly ? 'transparent' : zone.color,
     backgroundImage: zone.photo_url
       ? `url(${zone.photo_url})`
-      : ((isDecor || plainBg) ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`),
+      : ((isDecor || plainBg || fillColor) ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`),
     backgroundSize: zone.photo_url ? 'cover' : undefined,
     backgroundPosition: zone.photo_url ? 'center' : undefined,
-    backgroundColor: plainBg ? 'var(--tile-bg)' : (isDecor ? `${zone.color}66` : undefined),
+    backgroundColor: fillColor || (plainBg ? 'var(--tile-bg)' : (isDecor ? `${zone.color}66` : undefined)),
     boxShadow: hasPoly ? undefined : `0 8px 20px -10px ${zone.color}55, 0 2px 6px -2px ${zone.color}30`
   };
   const shelvesToShow = (zoneShelves || []).slice().sort((a, b) => a.shelf_index - b.shelf_index).slice(0, 6);
@@ -1583,6 +1641,13 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
                 : 'bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-700'}`}
               title={zone.photo_url ? 'تغيير/إزالة صورة الشكل' : 'إضافة صورة تظهر على الشكل'}
             >📷</button>
+          )}
+          {editing && !isOpenWall && (
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onFill?.(); }} disabled={busy}
+              className="text-[10px] w-6 h-6 rounded-md shadow-md flex items-center justify-center border border-stone-300 dark:border-stone-600 hover:scale-110 transition"
+              style={{ backgroundColor: fillColor || 'var(--tile-bg)' }}
+              title="تغيير لون تعبئة الشكل"
+            >🖌</button>
           )}
         </div>
       )}

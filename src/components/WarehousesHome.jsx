@@ -373,7 +373,7 @@ function PageCard({ wh, stats, layout, busy, editingId, totalCount, onEnter, onT
                       style={{
                         clipPath: clip,
                         borderColor: z.color,
-                        backgroundColor: isDecor ? `${z.color}55` : `${z.color}15`,
+                        backgroundColor: z.points?.[0]?.fill || (isDecor ? `${z.color}55` : `${z.color}15`),
                         ...(z.photo_url ? { backgroundImage: `url(${z.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
                       }} />
                     {hasPoly && (

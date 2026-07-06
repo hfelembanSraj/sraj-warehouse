@@ -456,10 +456,10 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
           borderColor: hasPoly ? 'transparent' : zone.color,
           backgroundImage: zone.photo_url
             ? `url(${zone.photo_url})`
-            : (isDecor ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`),
+            : ((isDecor || zone.points?.[0]?.fill) ? 'none' : `linear-gradient(135deg, ${zone.color}26 0%, var(--tile-bg) 60%)`),
           backgroundSize: zone.photo_url ? 'cover' : undefined,
           backgroundPosition: zone.photo_url ? 'center' : undefined,
-          backgroundColor: isDecor && !zone.photo_url ? `${zone.color}55` : undefined
+          backgroundColor: zone.points?.[0]?.fill || (isDecor && !zone.photo_url ? `${zone.color}55` : undefined)
         }}
       >
         {!isDecor && (
