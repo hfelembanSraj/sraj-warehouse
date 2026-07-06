@@ -259,7 +259,7 @@ function ChildZoneTile({ zone, boxCount, containerRef, canEdit, busy, edges = nu
       {canEdit && <MidMarks />}
       {canEdit && (
         <>
-          <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition z-20">
+          <div className="absolute top-1 left-1 flex gap-1 z-20">
             <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={busy}
               className="text-[10px] bg-white dark:bg-stone-800 border border-red-300 dark:border-red-800 w-6 h-6 rounded-md shadow-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center justify-center"
               title="حذف المساحة الداخليّة">🗑</button>

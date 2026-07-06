@@ -283,7 +283,7 @@ function CompartmentTile({ shelf, shelves, rect, color, zone, containerRef, busy
         {wCm}×{hCm}سم
       </span>
       {!isDivider && <MidMarks />}
-      <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition z-20">
+      <div className="absolute top-1 left-1 flex gap-1 z-20">
         {!isDivider && (
           <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onCycleKind(pos); }} disabled={busy}
             className="text-[11px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"

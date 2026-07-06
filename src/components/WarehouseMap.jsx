@@ -1402,7 +1402,7 @@ function ZoneTile({ zone, displayRect, boxCount, onClick, isFounder, busy, onEdi
       {editing && !isOpenWall && <MidMarks />}
 
       {isFounder && (
-        <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20">
+        <div className={`absolute top-1 left-1 flex gap-1 transition z-20 ${editing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`}>
           <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onEdit(); }} disabled={busy}
             className="text-[10px] bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 w-6 h-6 rounded-md shadow-md hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center justify-center"
             title="تعديل"
