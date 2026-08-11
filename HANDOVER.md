@@ -184,7 +184,7 @@ These are saved in `~/.claude/projects/D--/memory/` for cross-session persistenc
 - `@supabase/supabase-js` v2.45
 - `qrcode` + `qr-scanner` for QR
 - `browser-image-compression` for photos
-- `xlsx` for Excel I/O
+- `exceljs` for Excel export with embedded item photos (replaced `xlsx` — 2026-08-11; loaded on demand)
 - **Code-splitting**: heavy tabs lazy-loaded via `React.lazy` (initial bundle ~650 kB, was 1180 kB)
 
 ### Backend

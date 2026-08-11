@@ -48,7 +48,7 @@
 | الواجهة | React 18 + Vite 5 + Tailwind 3 (RTL) · React Router 6 |
 | الخلفية | Supabase (Postgres + Auth + Storage) |
 | الاستضافة | Vercel (نشر تلقائي من فرع `main`) |
-| مكتبات | `@supabase/supabase-js`, `qrcode`, `qr-scanner`, `browser-image-compression`, `xlsx` |
+| مكتبات | `@supabase/supabase-js`, `qrcode`, `qr-scanner`, `browser-image-compression`, `exceljs` |
 
 - **لا تقترح أي خدمة مدفوعة** دون سؤاله صراحةً. PWA مُؤجَّل؛ Capacitor/متاجر التطبيقات مؤجَّلة.
 
@@ -85,7 +85,7 @@
 - **`ZoneView`:** تحديد موحّد للصناديق + الأغراض الكبيرة معاً، وحذف جماعي للاثنين،
   وتكديس صندوق فوق غرض.
 - **التقارير:** الأغراض الكبيرة/غير المحدّدة تظهر بموقعها (`resolveItemLocation`)؛
-  مكتبة xlsx تُحمَّل عند الطلب فقط.
+  مكتبة التصدير تُحمَّل عند الطلب فقط (اليوم `exceljs` بدل `xlsx` — تصدير Excel يضمّن صور الأصناف).
 
 نقاط مؤجَّلة معروفة: راجع قسم "Outstanding" في `HANDOVER.md`.
 

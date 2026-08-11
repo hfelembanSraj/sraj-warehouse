@@ -3,11 +3,45 @@ import { useAuth } from '../context/AuthContext';
 import { isOverdue, resolveItemLocation } from '../lib/helpers';
 import { FormModal } from './BuilderForms';
 
-// مكتبة xlsx ثقيلة (~440 ك.ب) — تُحمَّل عند أوّل تصدير/استيراد فقط، لا مع التبويب
-let _xlsxPromise;
-function loadXLSX() {
-  if (!_xlsxPromise) _xlsxPromise = import('xlsx').then(m => m.default ?? m);
-  return _xlsxPromise;
+// مكتبة ExcelJS ثقيلة — تُحمَّل عند أوّل تصدير فقط، لا مع التبويب.
+// (حلّت محلّ xlsx لأنّها تدعم تضمين الصور داخل الملف)
+let _excelPromise;
+function loadExcelJS() {
+  if (!_excelPromise) _excelPromise = import('exceljs').then(m => m.default ?? m);
+  return _excelPromise;
+}
+
+// جلب صورة وتحويلها لمصغّرة JPEG قابلة للتضمين في Excel — ترجع null عند أيّ فشل
+async function fetchThumbnail(url, maxPx = 160) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout?.(12000) });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    try {
+      const img = new Image();
+      img.src = objUrl;
+      await img.decode();
+      const scale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight, 1));
+      const w = Math.max(1, Math.round(img.naturalWidth * scale));
+      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';               // JPEG بلا شفافيّة — خلفيّة بيضاء
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      return { base64: canvas.toDataURL('image/jpeg', 0.82), width: w, height: h };
+    } finally {
+      URL.revokeObjectURL(objUrl);
+    }
+  } catch {
+    return null;
+  }
+}
+
+function hexToARGB(hex) {
+  return /^#[0-9a-fA-F]{6}$/.test(hex || '') ? 'FF' + hex.slice(1).toUpperCase() : undefined;
 }
 
 export default function ReportsTab({ data }) {
@@ -18,6 +52,8 @@ export default function ReportsTab({ data }) {
   // الجرد المقارن: المستخدم يُدخِل العدد الفعلي → يُحسَب الفرق مع النظام
   const [showAudit, setShowAudit] = useState(false);
   const [auditCounts, setAuditCounts] = useState({});  // {itemKey: actualCount}
+  // التصدير يجلب الصور من التخزين — قد يستغرق ثوانيَ، فنعطّل الزرّ أثناءه
+  const [exporting, setExporting] = useState(false);
 
   // ====== الإحصائيّات الكليّة ======
   const stats = useMemo(() => {
@@ -108,28 +144,113 @@ export default function ReportsTab({ data }) {
     });
   }, [aggregatedItems, filterText, filterZone, filterStatus]);
 
-  // ====== تصدير Excel ======
+  // ====== تصدير Excel (مع الصور المضمّنة) ======
   async function exportToExcel() {
-    const XLSX = await loadXLSX();
-    const rows = filteredItems.map(it => ({
-      'الأداة': it.name,
-      'المساحة': it.zoneLetter,
-      'فئة المساحة': it.zoneName,
-      'رمز الصندوق': it.boxCode,
-      'الكميّة الإجماليّة': it.quantity,
-      'المتوفّر': it.available,
-      'المُخرَج': it.checkedOut,
-      'التالف': it.damaged,
-      'المدعوم': it.donated
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    // اتجاه RTL
-    if (!ws['!cols']) ws['!cols'] = [];
-    ws['!props'] = { rtl: true };
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'التقرير');
-    const filename = `Sraj-Report-${activeWarehouse?.name || 'warehouse'}-${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, filename);
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const ExcelJS = await loadExcelJS();
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('التقرير', {
+        views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }]
+      });
+      ws.columns = [
+        { header: 'الصورة', key: 'photo', width: 13 },
+        { header: 'الأداة', key: 'name', width: 30 },
+        { header: 'المساحة', key: 'zone', width: 10 },
+        { header: 'فئة المساحة', key: 'zoneName', width: 18 },
+        { header: 'رمز الصندوق', key: 'box', width: 16 },
+        { header: 'الكميّة الإجماليّة', key: 'qty', width: 15 },
+        { header: 'المتوفّر', key: 'avail', width: 10 },
+        { header: 'المُخرَج', key: 'out', width: 10 },
+        { header: 'التالف', key: 'damaged', width: 10 },
+        { header: 'المدعوم', key: 'donated', width: 10 }
+      ];
+      // ترويسة ملوّنة بهويّة الجمعيّة
+      const head = ws.getRow(1);
+      head.height = 24;
+      head.eachCell(c => {
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A2B5F' } };
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      const thin = { style: 'thin', color: { argb: 'FFE5E7EB' } };
+      filteredItems.forEach(it => {
+        const row = ws.addRow({
+          photo: it.photo ? '' : '—',
+          name: it.name,
+          zone: it.zoneLetter,
+          zoneName: it.zoneName,
+          box: it.boxCode,
+          qty: it.quantity,
+          avail: it.available,
+          out: it.checkedOut,
+          damaged: it.damaged,
+          donated: it.donated
+        });
+        row.alignment = { horizontal: 'center', vertical: 'middle' };
+        row.eachCell({ includeEmpty: true }, c => {
+          c.border = { top: thin, bottom: thin, left: thin, right: thin };
+        });
+        const zoneArgb = hexToARGB(it.zoneColor);
+        if (zoneArgb) row.getCell(3).font = { bold: true, color: { argb: zoneArgb } };
+        row.getCell(7).font = { bold: true, color: { argb: 'FF15803D' } };
+        row.getCell(8).font = { color: { argb: 'FFEA580C' } };
+        row.getCell(9).font = { color: { argb: 'FFDC2626' } };
+        row.getCell(10).font = { color: { argb: 'FFA16207' } };
+      });
+
+      // جلب الصور على دفعات (الرابط المكرّر يُجلَب مرّة واحدة)، وأيّ صورة تفشل تُتجاهَل
+      const targets = filteredItems
+        .map((it, i) => ({ url: it.photo, rowIdx: i + 2 }))
+        .filter(t => t.url);
+      const uniqueUrls = [...new Set(targets.map(t => t.url))];
+      const thumbs = new Map();   // url ← المصغّرة أو null
+      const BATCH = 8;
+      for (let i = 0; i < uniqueUrls.length; i += BATCH) {
+        await Promise.all(uniqueUrls.slice(i, i + BATCH).map(async url => {
+          thumbs.set(url, await fetchThumbnail(url));
+        }));
+      }
+
+      // تضمين المصغّرات داخل خلايا عمود «الصورة» مع توسيط تقريبي
+      const BOX = 72;                      // أقصى ضلع للصورة داخل الخليّة (بكسل)
+      const COL_PX = 13 * 7 + 5;           // عرض عمود الصورة تقريباً بالبكسل
+      const ROW_PT = 58, ROW_PX = ROW_PT / 0.75;
+      const imgIds = new Map();            // url ← معرّف الصورة داخل الملف
+      let failed = 0;
+      for (const t of targets) {
+        const thumb = thumbs.get(t.url);
+        if (!thumb) { failed++; continue; }
+        if (!imgIds.has(t.url)) imgIds.set(t.url, wb.addImage({ base64: thumb.base64, extension: 'jpeg' }));
+        const s = Math.min(BOX / thumb.width, BOX / thumb.height, 1);
+        const w = Math.round(thumb.width * s), h = Math.round(thumb.height * s);
+        ws.getRow(t.rowIdx).height = ROW_PT;
+        ws.addImage(imgIds.get(t.url), {
+          tl: {
+            col: Math.max(0, (COL_PX - w) / 2) / COL_PX,
+            row: t.rowIdx - 1 + Math.max(0, (ROW_PX - h) / 2) / ROW_PX
+          },
+          ext: { width: w, height: h },
+          editAs: 'oneCell'
+        });
+      }
+
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Sraj-Report-${activeWarehouse?.name || 'warehouse'}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      if (failed > 0) alert(`صُدِّر الملف، لكن تعذّر جلب ${failed} من الصور — تحقّق من اتّصال الشبكة بالتخزين.`);
+    } catch (e) {
+      console.error('Excel export failed:', e);
+      alert('تعذّر التصدير إلى Excel — أعد المحاولة.');
+    } finally {
+      setExporting(false);
+    }
   }
 
   // ====== طباعة تقرير PDF ======
@@ -259,9 +380,9 @@ export default function ReportsTab({ data }) {
               className="text-[11px] bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200 font-medium">
               🔍 جرد مقارن
             </button>
-            <button onClick={exportToExcel}
-              className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">
-              📥 Excel
+            <button onClick={exportToExcel} disabled={exporting}
+              className="text-[11px] bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium disabled:opacity-60 disabled:cursor-wait">
+              {exporting ? '⏳ جارٍ تجهيز الملف…' : '📥 Excel'}
             </button>
           </div>
         </div>
