@@ -1,6 +1,6 @@
 {
   "project": "sraj-warehouse",
-  "timestamp": "2026-06-26T06:44:14.737Z",
+  "timestamp": "2026-09-24T07:57:44.095Z",
   "schema_version": 2,
   "tables": {
     "profiles": [
@@ -37,15 +37,6 @@
     ],
     "warehouses": [
       {
-        "id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "name": "مستودع المدرّج",
-        "description": "مستودع بمدرج تخزين على الجدار الأيسر — درجان × مساحتان = 4 مساحات",
-        "width_m": 4,
-        "depth_m": 4,
-        "height_m": 2.3,
-        "created_at": "2026-05-02T10:57:33.892859+00:00"
-      },
-      {
         "id": "11111111-1111-1111-1111-111111111111",
         "name": "المستودع الرئيسي",
         "description": "المستودع الرئيسي لجمعية المسؤولية الاجتماعية",
@@ -53,6 +44,15 @@
         "depth_m": 6,
         "height_m": 2.3,
         "created_at": "2026-04-30T18:30:38.21625+00:00"
+      },
+      {
+        "id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "name": "مستودع الجمعية",
+        "description": "مستودع الجمعية لكل الخزائن",
+        "width_m": 6,
+        "depth_m": 4,
+        "height_m": 2.3,
+        "created_at": "2026-06-29T14:35:07.588399+00:00"
       }
     ],
     "user_warehouses": [
@@ -105,36 +105,42 @@
         "created_at": "2026-06-23T11:14:47.648634+00:00"
       },
       {
-        "id": "1d3d2b33-111f-4975-8c9e-050bd23decf9",
-        "user_id": "3807eba5-de01-4bcb-b333-230ea04e710b",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "role": "user",
+        "id": "984295e4-f145-4075-8de6-68f1fd0d758e",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "role": "whmanager",
         "permissions": {
-          "add": false,
-          "edit": false,
+          "add": true,
+          "edit": true,
           "view": true,
-          "delete": false,
-          "return": false,
-          "checkout": false
+          "delete": true,
+          "return": true,
+          "checkout": true
         },
         "approved": true,
-        "created_at": "2026-06-23T13:28:32.837648+00:00"
+        "created_at": "2026-06-29T14:35:07.588399+00:00"
       },
       {
-        "id": "e9adcbcf-96c7-47dd-8536-88964bd9f08d",
+        "id": "7789d7cc-52a8-4fd3-af24-15a61fe3e73e",
         "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
         "role": "user",
         "permissions": {
-          "add": false,
-          "edit": false,
-          "view": true,
-          "delete": false,
-          "return": false,
-          "checkout": false
+          "view": true
         },
         "approved": true,
-        "created_at": "2026-06-23T13:28:45.240915+00:00"
+        "created_at": "2026-07-06T14:58:26.203654+00:00"
+      },
+      {
+        "id": "f2073384-6036-4699-bb0f-c0e1415aa0b4",
+        "user_id": "3807eba5-de01-4bcb-b333-230ea04e710b",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "role": "user",
+        "permissions": {
+          "view": true
+        },
+        "approved": true,
+        "created_at": "2026-07-06T14:58:31.818439+00:00"
       }
     ],
     "join_requests": [
@@ -155,81 +161,9 @@
         "email": "m.mustafa@sraj.org.sa",
         "status": "approved",
         "created_at": "2026-06-23T11:14:32.511845+00:00"
-      },
-      {
-        "id": "1826a57b-08e7-436a-a90b-6108652bae52",
-        "user_id": "3807eba5-de01-4bcb-b333-230ea04e710b",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "full_name": "محمد",
-        "email": "m.mustafa@sraj.org.sa",
-        "status": "approved",
-        "created_at": "2026-06-23T11:14:32.511845+00:00"
-      },
-      {
-        "id": "49350ffc-0657-44af-acdb-c020e94a76ad",
-        "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "full_name": "هبه محمد بخاري",
-        "email": "h.bukhari@sraj.org.sa",
-        "status": "approved",
-        "created_at": "2026-06-17T12:55:41.323256+00:00"
       }
     ],
     "zones": [
-      {
-        "id": "b4f1680a-ef44-4328-97e1-04fd58f1349f",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "letter": "A",
-        "name": "علوي · أمامي",
-        "color": "#8B6F3F",
-        "width_cm": 230,
-        "height_cm": 100,
-        "depth_cm": 65,
-        "pos_top": 52,
-        "pos_left": 2,
-        "pos_right": null,
-        "pos_width": 18,
-        "pos_height": 43,
-        "display_order": 1,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:37.122242+00:00"
-      },
-      {
-        "id": "af195fef-01e2-4f55-bbc5-966bcfc7acb7",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "letter": "C",
-        "name": "علوي · خلفي",
-        "color": "#8B6F3F",
-        "width_cm": 230,
-        "height_cm": 100,
-        "depth_cm": 65,
-        "pos_top": 5,
-        "pos_left": 2,
-        "pos_right": null,
-        "pos_width": 18,
-        "pos_height": 43,
-        "display_order": 3,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:37.819685+00:00"
-      },
-      {
-        "id": "33dc7eee-7bd2-4b3f-ae88-ea085618d8ad",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "letter": "D",
-        "name": "سفلي · خلفي",
-        "color": "#8B6F3F",
-        "width_cm": 230,
-        "height_cm": 100,
-        "depth_cm": 65,
-        "pos_top": 5,
-        "pos_left": 22,
-        "pos_right": null,
-        "pos_width": 18,
-        "pos_height": 43,
-        "display_order": 4,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:38.525305+00:00"
-      },
       {
         "id": "2f737a30-570d-48ad-b023-9182050ee3a0",
         "warehouse_id": "11111111-1111-1111-1111-111111111111",
@@ -246,7 +180,10 @@
         "pos_height": 30,
         "display_order": 3,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "points": null,
+        "parent_zone_id": null,
+        "photo_url": null
       },
       {
         "id": "35d4dbd4-3398-4b17-896d-82a98fe3beb2",
@@ -264,7 +201,10 @@
         "pos_height": 30,
         "display_order": 1,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "points": null,
+        "parent_zone_id": null,
+        "photo_url": null
       },
       {
         "id": "29219ffb-19ba-4688-9fe5-3defc88c4971",
@@ -282,7 +222,10 @@
         "pos_height": 32,
         "display_order": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "points": null,
+        "parent_zone_id": null,
+        "photo_url": null
       },
       {
         "id": "22e4cdbb-7822-4f8b-94c0-3dc955c32853",
@@ -300,46 +243,733 @@
         "pos_height": 32,
         "display_order": 2,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "points": null,
+        "parent_zone_id": null,
+        "photo_url": null
       },
       {
-        "id": "441ff144-5dc5-4da6-a29e-957fb4ea7ea3",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
-        "letter": "B",
-        "name": "سفلي · أمامي",
-        "color": "#8B6F3F",
-        "width_cm": 230,
+        "id": "682a0ac9-d384-4c00-8d91-820539f83ad0",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "D",
+        "name": "مكتب المحاسبة",
+        "color": "#9CA3AF",
+        "width_cm": 100,
         "height_cm": 100,
-        "depth_cm": 65,
-        "pos_top": 52,
-        "pos_left": 30.203125,
+        "depth_cm": 30,
+        "pos_top": 46.85345962488992,
+        "pos_left": 31.22454668669739,
         "pos_right": null,
-        "pos_width": 9.796875,
-        "pos_height": 7.236111111111107,
+        "pos_width": 33.82546329137208,
+        "pos_height": 39.13931014138711,
+        "display_order": 5,
+        "deleted_at": null,
+        "created_at": "2026-07-06T08:50:47.128474+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0,
+            "open": true
+          },
+          {
+            "x": 100,
+            "y": 0.5
+          },
+          {
+            "x": 63.9,
+            "y": 100
+          },
+          {
+            "x": 0.5,
+            "y": 100
+          },
+          {
+            "x": 0.5,
+            "y": 0
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "796862cb-230f-4496-be90-77c375a81bb7",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "B",
+        "name": "الاستقبال",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 46.85345962488992,
+        "pos_left": 0,
+        "pos_right": null,
+        "pos_width": 25.772464550248785,
+        "pos_height": 38.41097401620735,
         "display_order": 2,
         "deleted_at": null,
-        "created_at": "2026-05-02T11:21:37.396126+00:00"
+        "created_at": "2026-07-06T08:08:58.038536+00:00",
+        "points": [
+          {
+            "x": 100,
+            "y": 99.5,
+            "open": true
+          },
+          {
+            "x": 38.6,
+            "y": 99.5
+          },
+          {
+            "x": 0,
+            "y": 57.6
+          },
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 65.6,
+            "y": 0
+          },
+          {
+            "x": 65.6,
+            "y": 20.5
+          },
+          {
+            "x": 17.7,
+            "y": 20.5
+          },
+          {
+            "x": 17.7,
+            "y": 48.6
+          },
+          {
+            "x": 46.4,
+            "y": 77.5
+          },
+          {
+            "x": 99.6,
+            "y": 77.5
+          },
+          {
+            "x": 99.6,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
       },
       {
-        "id": "52cf7d88-ac8c-45bd-aa79-085b6db3f76b",
-        "warehouse_id": "4de6ee7e-9836-4f78-9eaf-e0f445a822e6",
+        "id": "567a6588-5d9c-422b-ab05-4dd59057f7cb",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "أ",
+        "name": "خزين شون",
+        "color": "#BE185D",
+        "width_cm": 200,
+        "height_cm": 230,
+        "depth_cm": 65,
+        "pos_top": 77.29202422092565,
+        "pos_left": 15.413704009499824,
+        "pos_right": null,
+        "pos_width": 3.487901058350202,
+        "pos_height": 7.972397729364374,
+        "display_order": 10,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:36:22.496269+00:00",
+        "points": [
+          {
+            "x": 2.3,
+            "y": 0
+          },
+          {
+            "x": 99.9,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "60aa77be-0242-4ff0-ad20-d9ce54f8965f",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "H",
+        "name": "ادراج تخزين",
+        "color": "#0891B2",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 33.77391007085729,
+        "pos_left": 93.89470477619165,
+        "pos_right": null,
+        "pos_width": 4.117831452798342,
+        "pos_height": 7.61542195424984,
+        "display_order": 12,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:38:39.087825+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "09e53883-fde7-4d4e-98b3-3fa683f5c828",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
         "letter": "E",
+        "name": "فاعة الاجتماعات",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 67.46374591503266,
+        "pos_left": 61.49181665927214,
+        "pos_right": null,
+        "pos_width": 38.50818334072786,
+        "pos_height": 32.53625408496733,
+        "display_order": 8,
+        "deleted_at": null,
+        "created_at": "2026-07-06T08:54:16.371332+00:00",
+        "points": [
+          {
+            "x": 100,
+            "y": 100,
+            "open": true,
+            "label": 1
+          },
+          {
+            "x": 0,
+            "y": 100
+          },
+          {
+            "x": 28.4,
+            "y": 0
+          },
+          {
+            "x": 99.4,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "0f7ace16-cbb5-4b3f-b6fe-f6f0b814e650",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "N",
+        "name": "خزين المحاسب",
+        "color": "#D85A30",
+        "width_cm": 200,
+        "height_cm": 230,
+        "depth_cm": 65,
+        "pos_top": 52.999165041670125,
+        "pos_left": 31.224541370046154,
+        "pos_right": null,
+        "pos_width": 4.197022973037349,
+        "pos_height": 7.377436772691016,
+        "display_order": 20,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:09.155991+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "b6be0ec7-075e-4979-b505-a907b1bc5f8d",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "G",
+        "name": "ادراج تخزين",
+        "color": "#0891B2",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 58.44351883334014,
+        "pos_left": 93.89470477619165,
+        "pos_right": null,
+        "pos_width": 4.117831452798342,
+        "pos_height": 7.6154219542498325,
+        "display_order": 11,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:38:06.170993+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 3.8,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "922c7f48-5686-4def-a63a-61d81a6dc104",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "L",
+        "name": "دورة مياه الرجال ",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 0,
+        "pos_left": 0,
+        "pos_right": null,
+        "pos_width": 22.837642177887492,
+        "pos_height": 46.85345962488992,
+        "display_order": 16,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:43:02.494465+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "061f72f9-f0ac-4ca0-99a7-61feeb68bf6d",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "J",
+        "name": "خزين المحاسب",
+        "color": "#D85A30",
+        "width_cm": 200,
+        "height_cm": 230,
+        "depth_cm": 65,
+        "pos_top": 69.12114890268737,
+        "pos_left": 31.224541370046154,
+        "pos_right": null,
+        "pos_width": 4.197017656386109,
+        "pos_height": 7.496427366246728,
+        "display_order": 21,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:14.007855+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "897cf49e-dfd2-4eff-a28b-3a53acec8a94",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "F",
+        "name": "مكتب المدير التنفيذي",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 0,
+        "pos_left": 37.64404224226819,
+        "pos_right": null,
+        "pos_width": 20.98707185349278,
+        "pos_height": 46.85345962488992,
+        "display_order": 7,
+        "deleted_at": null,
+        "created_at": "2026-07-06T08:53:13.7799+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "8609dabc-046b-4476-824a-f147fabffc02",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "M",
+        "name": "دورة مياه النساء",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 0,
+        "pos_left": 22.837642177887492,
+        "pos_right": null,
+        "pos_width": 14.8064000643807,
+        "pos_height": 46.85345962488992,
+        "display_order": 17,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:43:05.923274+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "2f6ae61f-3383-46bf-a9db-b0cd74c1dfff",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "I",
+        "name": "طاولة ",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 59.39545157068062,
+        "pos_left": 35.4215643430835,
+        "pos_right": null,
+        "pos_width": 18.451060650656032,
+        "pos_height": 14.040929984047779,
+        "display_order": 13,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:39:36.757384+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "ff8fb9fe-0aee-41ab-9aa5-6ac0416165f6",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "C",
+        "name": "المكتب الخارجي",
+        "color": "#9CA3AF",
+        "width_cm": 100,
+        "height_cm": 100,
+        "depth_cm": 30,
+        "pos_top": 42.53242784888025,
+        "pos_left": 78.55937749528165,
+        "pos_right": null,
+        "pos_width": 19.45315873370832,
+        "pos_height": 14.155455579135378,
+        "display_order": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T08:49:18.360817+00:00",
+        "points": [
+          {
+            "x": 0.6,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 97.5
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "9d4437cd-7218-481b-8c64-29f35814b73f",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "O",
+        "name": "خزين المدرج ",
+        "color": "#633806",
+        "width_cm": 200,
+        "height_cm": 230,
+        "depth_cm": 65,
+        "pos_top": 5.754091224710205,
+        "pos_left": 58.63111409576097,
+        "pos_right": null,
+        "pos_width": 12.432687207796839,
+        "pos_height": 28.019818846147086,
+        "display_order": 23,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:22:34.844722+00:00",
+        "points": null,
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "b1beb375-de15-477a-9cdb-9b96920fd768",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "A",
         "name": "جدار",
         "color": "#9CA3AF",
         "width_cm": 100,
         "height_cm": 100,
         "depth_cm": 30,
-        "pos_top": 63.802083333333336,
-        "pos_left": 39.44270833333333,
+        "pos_top": 46.51939916983761,
+        "pos_left": 16.9067367449632,
         "pos_right": null,
-        "pos_width": 15.505208333333332,
-        "pos_height": 9.548611111111114,
-        "display_order": 5,
+        "pos_width": 8.890019308575734,
+        "pos_height": 12.566611581806974,
+        "display_order": 25,
         "deleted_at": null,
-        "created_at": "2026-06-24T08:22:37.808386+00:00"
+        "created_at": "2026-07-06T11:16:49.718144+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 2.7,
+            "open": true
+          },
+          {
+            "x": 0,
+            "y": 65.3
+          },
+          {
+            "x": 32.7,
+            "y": 100
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 100,
+            "y": 74.3
+          },
+          {
+            "x": 38.9,
+            "y": 74.3
+          },
+          {
+            "x": 15,
+            "y": 48.9
+          },
+          {
+            "x": 15,
+            "y": 0
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
+      },
+      {
+        "id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "warehouse_id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
+        "letter": "P",
+        "name": "الخزين الجداري",
+        "color": "#633806",
+        "width_cm": 200,
+        "height_cm": 230,
+        "depth_cm": 65,
+        "pos_top": 0.1379522353566754,
+        "pos_left": 71.14299149463402,
+        "pos_right": null,
+        "pos_width": 14.016473750204156,
+        "pos_height": 6.187534831581314,
+        "display_order": 27,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:10:56.218253+00:00",
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 0
+          },
+          {
+            "x": 100,
+            "y": 100
+          },
+          {
+            "x": 0,
+            "y": 100
+          }
+        ],
+        "parent_zone_id": null,
+        "photo_url": null
       }
     ],
     "shelves": [
+      {
+        "id": "0952f7b2-07e6-472d-9fca-b37d6a86fd75",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 5,
+        "label": "شكل",
+        "height_cm": 35,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:19:04.486139+00:00",
+        "pos": {
+          "top": 84.8364602670581,
+          "kind": "decor",
+          "left": 0,
+          "width": 25.229364456376334,
+          "height": 15.1635397329419
+        },
+        "photo_url": null
+      },
+      {
+        "id": "c77cacd5-43ce-4056-ab61-95bcbbc08117",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 11,
+        "label": null,
+        "height_cm": 58,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:26:40.64267+00:00",
+        "pos": {
+          "top": 24.89455131802045,
+          "kind": "shelf",
+          "left": 24.90507980872845,
+          "width": 65.83292992676535,
+          "height": 25.135648171828944,
+          "points": [
+            {
+              "x": 0.5,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 100
+            },
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 89,
+              "y": 0
+            }
+          ]
+        },
+        "photo_url": null
+      },
+      {
+        "id": "804e3e31-7e76-4f3c-8bce-3f373de9551c",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 8,
+        "label": "شكل",
+        "height_cm": 34,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:21:09.636506+00:00",
+        "pos": {
+          "top": 11.283598940192853,
+          "kind": "decor",
+          "left": 49.65915385097726,
+          "width": 19.024970273483945,
+          "height": 13.610952377827598
+        },
+        "photo_url": null
+      },
       {
         "id": "b4e8c5ae-5a64-4d76-9a4d-962dc523cb91",
         "zone_id": "35d4dbd4-3398-4b17-896d-82a98fe3beb2",
@@ -348,7 +978,9 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "da49a80b-8ffa-49b1-b43d-06d0344b0bb2",
@@ -358,7 +990,9 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "1f99f032-6560-480b-9575-c9d14270e134",
@@ -368,7 +1002,9 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "597b04bd-5705-47d1-ba25-f1247354612d",
@@ -378,7 +1014,9 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "5babc372-5a08-4f15-b05c-ff535910966e",
@@ -388,7 +1026,9 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T22:49:02.303866+00:00"
+        "created_at": "2026-04-30T22:49:02.303866+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "6638fe6e-c19b-4b96-be08-b7e274006786",
@@ -398,67 +1038,45 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
-        "id": "6f2810a2-422c-4a7b-a3fd-4003dea4d703",
-        "zone_id": "b4f1680a-ef44-4328-97e1-04fd58f1349f",
+        "id": "60246a47-7210-4a25-b4a4-a4b6421f4826",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
         "shelf_index": 1,
-        "label": null,
-        "height_cm": 70,
-        "max_boxes": 4,
+        "label": "شكل",
+        "height_cm": 40,
+        "max_boxes": 1,
         "deleted_at": null,
-        "created_at": "2026-05-02T11:21:37.261875+00:00"
+        "created_at": "2026-07-06T12:17:52.365675+00:00",
+        "pos": {
+          "top": 0,
+          "kind": "decor",
+          "left": 0,
+          "width": 24.796980087879014,
+          "height": 17.475549404589138
+        },
+        "photo_url": null
       },
       {
-        "id": "f96fb6f3-f34d-4ee8-a242-11a278a02266",
-        "zone_id": "b4f1680a-ef44-4328-97e1-04fd58f1349f",
+        "id": "2150dc1b-bcd1-4439-af22-949415691505",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
         "shelf_index": 2,
         "label": null,
-        "height_cm": 70,
+        "height_cm": 40,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-05-02T11:21:37.261875+00:00"
-      },
-      {
-        "id": "05e2252f-5804-4c6c-8a2f-f0c79d9480f8",
-        "zone_id": "441ff144-5dc5-4da6-a29e-957fb4ea7ea3",
-        "shelf_index": 1,
-        "label": null,
-        "height_cm": 70,
-        "max_boxes": 3,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:37.709194+00:00"
-      },
-      {
-        "id": "551c78c2-ec00-4242-aa81-161922354d3b",
-        "zone_id": "af195fef-01e2-4f55-bbc5-966bcfc7acb7",
-        "shelf_index": 1,
-        "label": null,
-        "height_cm": 70,
-        "max_boxes": 4,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:38.171615+00:00"
-      },
-      {
-        "id": "bee337d2-d9f7-402e-a9cd-dbce41a6f788",
-        "zone_id": "af195fef-01e2-4f55-bbc5-966bcfc7acb7",
-        "shelf_index": 2,
-        "label": null,
-        "height_cm": 70,
-        "max_boxes": 4,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:38.171615+00:00"
-      },
-      {
-        "id": "37de08f4-384c-4d11-a220-c9c7052b8a59",
-        "zone_id": "33dc7eee-7bd2-4b3f-ae88-ea085618d8ad",
-        "shelf_index": 1,
-        "label": null,
-        "height_cm": 70,
-        "max_boxes": 3,
-        "deleted_at": null,
-        "created_at": "2026-05-02T11:21:38.654378+00:00"
+        "created_at": "2026-07-06T12:18:02.190527+00:00",
+        "pos": {
+          "top": 17.475549404589138,
+          "kind": "shelf",
+          "left": 0,
+          "width": 25.013172272127676,
+          "height": 17.450042504152158
+        },
+        "photo_url": null
       },
       {
         "id": "82600549-996b-4508-b19f-69f1f0d82c4e",
@@ -468,7 +1086,9 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "c0993f16-a1c9-49b7-94b5-b87e5fe64812",
@@ -478,7 +1098,27 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "f343a592-b49c-4df8-9c4a-2c1c91ef67dc",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 3,
+        "label": "شكل",
+        "height_cm": 80,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:18:12.628042+00:00",
+        "pos": {
+          "top": 34.925591908741296,
+          "kind": "decor",
+          "left": 0,
+          "width": 24.90507980872845,
+          "height": 34.9938990038861
+        },
+        "photo_url": null
       },
       {
         "id": "0dbb71f5-3bad-4c59-a19d-ccc332dc8116",
@@ -488,7 +1128,9 @@
         "height_cm": 70,
         "max_boxes": 5,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "fde0bb0d-ee37-43b2-9e89-7be3621393f8",
@@ -498,7 +1140,9 @@
         "height_cm": 70,
         "max_boxes": 5,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "b0794f0f-c6a7-4a40-a438-d662fea1aedc",
@@ -508,7 +1152,9 @@
         "height_cm": 70,
         "max_boxes": 5,
         "deleted_at": null,
-        "created_at": "2026-04-30T22:32:01.519803+00:00"
+        "created_at": "2026-04-30T22:32:01.519803+00:00",
+        "pos": null,
+        "photo_url": null
       },
       {
         "id": "5baf4c29-f9a4-427e-bf03-7b2bc86bf90d",
@@ -518,7 +1164,513 @@
         "height_cm": 70,
         "max_boxes": 4,
         "deleted_at": null,
-        "created_at": "2026-04-30T19:06:13.991714+00:00"
+        "created_at": "2026-04-30T19:06:13.991714+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "329af6ee-2c09-4fce-a050-545bf6451fbd",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 4,
+        "label": null,
+        "height_cm": 34,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:18:52.347629+00:00",
+        "pos": {
+          "top": 69.9194909126274,
+          "kind": "shelf",
+          "left": 0,
+          "width": 50.41583012457268,
+          "height": 14.916969354430705
+        },
+        "photo_url": null
+      },
+      {
+        "id": "0fa440cd-448e-4870-9e7d-da3722e5d684",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 10,
+        "label": "شكل",
+        "height_cm": 31,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:25:37.784002+00:00",
+        "pos": {
+          "top": 11.283598940192853,
+          "kind": "decor",
+          "left": 68.6841241244612,
+          "width": 14.809552304077357,
+          "height": 13.610952377827598,
+          "points": [
+            {
+              "x": 0,
+              "y": 100
+            },
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 76.6,
+              "y": 0.7
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        "photo_url": null
+      },
+      {
+        "id": "a3028b17-6951-420b-a742-001327b8ba12",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 9,
+        "label": null,
+        "height_cm": 26,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:24:49.502387+00:00",
+        "pos": {
+          "top": 0,
+          "kind": "shelf",
+          "left": 49.65915385097726,
+          "width": 30.37509986251486,
+          "height": 11.377416085163507,
+          "points": [
+            {
+              "x": 91.5,
+              "y": 0
+            },
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 0,
+              "y": 99.2
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        "photo_url": null
+      },
+      {
+        "id": "1153fd21-2f93-417a-9a6d-680c1fcdfc9b",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 12,
+        "label": "شكل",
+        "height_cm": 46,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:26:52.379529+00:00",
+        "pos": {
+          "top": 50.030199489849394,
+          "kind": "decor",
+          "left": 24.90507980872845,
+          "width": 25.51075031584423,
+          "height": 19.889291422778
+        },
+        "photo_url": null
+      },
+      {
+        "id": "b33d7530-a1f6-45bd-bcf8-bbda535e4540",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 6,
+        "label": "شكل",
+        "height_cm": 80,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:19:16.912206+00:00",
+        "pos": {
+          "top": 0,
+          "kind": "decor",
+          "left": 25.229364456376334,
+          "width": 24.429789394600927,
+          "height": 24.89455131802045
+        },
+        "photo_url": null
+      },
+      {
+        "id": "9064a927-d140-4626-bc2f-f1c18f8d0e08",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 13,
+        "label": "شكل",
+        "height_cm": 46,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:27:14.159955+00:00",
+        "pos": {
+          "top": 50.030199489849394,
+          "kind": "decor",
+          "left": 50.41583012457268,
+          "width": 45.62128166802846,
+          "height": 19.889291422778,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 100
+            },
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 88.4,
+              "y": 0
+            }
+          ]
+        },
+        "photo_url": null
+      },
+      {
+        "id": "030de32d-ee6b-4206-b0a3-9a21428a69f6",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 14,
+        "label": "شكل",
+        "height_cm": 35,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:28:27.527017+00:00",
+        "pos": {
+          "top": 84.8364602670581,
+          "kind": "decor",
+          "left": 25.20791506228634,
+          "width": 24.79208493771366,
+          "height": 15.1635397329419
+        },
+        "photo_url": null
+      },
+      {
+        "id": "47b42709-b3b9-4eea-9545-961c471948ae",
+        "zone_id": "567a6588-5d9c-422b-ab05-4dd59057f7cb",
+        "shelf_index": 1,
+        "label": "الدرج الاول",
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:36:22.496269+00:00",
+        "pos": {
+          "top": 0,
+          "kind": "shelf",
+          "left": 0,
+          "width": 100,
+          "height": 32.333333333333336
+        },
+        "photo_url": null
+      },
+      {
+        "id": "487e5d25-3d1a-4593-8bb5-cbd39e98a349",
+        "zone_id": "567a6588-5d9c-422b-ab05-4dd59057f7cb",
+        "shelf_index": 2,
+        "label": "الدرج الثاني",
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:36:22.496269+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "2b1b4a24-d4d4-42d6-8ef6-0c39c156c1db",
+        "zone_id": "567a6588-5d9c-422b-ab05-4dd59057f7cb",
+        "shelf_index": 3,
+        "label": "الدرج الثالث",
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:36:22.496269+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "3973ecee-21cb-4100-a5c5-58ce7240928c",
+        "zone_id": "567a6588-5d9c-422b-ab05-4dd59057f7cb",
+        "shelf_index": 4,
+        "label": "الدرج الرابع",
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T09:37:24.523802+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "d8c759f9-695e-44e3-989d-362293c2e84f",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 15,
+        "label": "شكل",
+        "height_cm": 69,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:28:37.635764+00:00",
+        "pos": {
+          "top": 69.9194909126274,
+          "kind": "decor",
+          "left": 50.41583012457268,
+          "width": 22.91644410486029,
+          "height": 30.080509087372604
+        },
+        "photo_url": null
+      },
+      {
+        "id": "69dcddac-5db1-47fb-8fa0-a50c6b9244ee",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 16,
+        "label": "شكل",
+        "height_cm": 35,
+        "max_boxes": 1,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:28:53.56316+00:00",
+        "pos": {
+          "top": 69.9194909126274,
+          "kind": "decor",
+          "left": 73.33227422943297,
+          "width": 25.310465512407788,
+          "height": 15.040254543686302,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 100
+            },
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 89.7,
+              "y": 0
+            }
+          ]
+        },
+        "photo_url": null
+      },
+      {
+        "id": "f2fe776e-e543-4db1-81b6-363438b4b8f9",
+        "zone_id": "0f7ace16-cbb5-4b3f-b6fe-f6f0b814e650",
+        "shelf_index": 1,
+        "label": null,
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:09.155991+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "9cd7b40f-715f-4d1c-9d4f-37691d31068b",
+        "zone_id": "0f7ace16-cbb5-4b3f-b6fe-f6f0b814e650",
+        "shelf_index": 2,
+        "label": null,
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:09.155991+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "9d71afb1-5041-474d-b60c-932e92a8270c",
+        "zone_id": "0f7ace16-cbb5-4b3f-b6fe-f6f0b814e650",
+        "shelf_index": 3,
+        "label": null,
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:09.155991+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "5fa0df28-ac04-4297-babd-32febe45bbc5",
+        "zone_id": "061f72f9-f0ac-4ca0-99a7-61feeb68bf6d",
+        "shelf_index": 1,
+        "label": null,
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:14.007855+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "8ec7a66d-c5f0-435f-b544-44150f6f2780",
+        "zone_id": "061f72f9-f0ac-4ca0-99a7-61feeb68bf6d",
+        "shelf_index": 2,
+        "label": null,
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:14.007855+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "31cbd391-633c-4fa7-aa2d-e13326894818",
+        "zone_id": "061f72f9-f0ac-4ca0-99a7-61feeb68bf6d",
+        "shelf_index": 3,
+        "label": null,
+        "height_cm": 70,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:02:14.007855+00:00",
+        "pos": null,
+        "photo_url": null
+      },
+      {
+        "id": "4f8e54d0-ffc6-432b-aca5-2d22e80a2b12",
+        "zone_id": "9d4437cd-7218-481b-8c64-29f35814b73f",
+        "shelf_index": 1,
+        "label": "الخزين العلوي يمين",
+        "height_cm": 116,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:55:05.859304+00:00",
+        "pos": {
+          "top": 0,
+          "kind": "drawer",
+          "left": 49.87535329267613,
+          "width": 50.12464670732387,
+          "height": 50.2178337797907
+        },
+        "photo_url": null
+      },
+      {
+        "id": "da13da59-8ea4-4296-a185-89c9c2d9f509",
+        "zone_id": "9d4437cd-7218-481b-8c64-29f35814b73f",
+        "shelf_index": 2,
+        "label": "الخزين العلوي يسار",
+        "height_cm": 116,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:55:19.195398+00:00",
+        "pos": {
+          "top": 0,
+          "kind": "shelf",
+          "left": 0,
+          "width": 49.87535329267613,
+          "height": 50.2178337797907
+        },
+        "photo_url": null
+      },
+      {
+        "id": "4d6f2da3-d82b-4fbb-ad42-934cfeccb47c",
+        "zone_id": "9d4437cd-7218-481b-8c64-29f35814b73f",
+        "shelf_index": 3,
+        "label": "الخزين السفلي يمين",
+        "height_cm": 114,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:55:34.119377+00:00",
+        "pos": {
+          "top": 50.2178337797907,
+          "kind": "shelf",
+          "left": 49.87535329267613,
+          "width": 50.12464670732387,
+          "height": 49.7821662202093
+        },
+        "photo_url": null
+      },
+      {
+        "id": "e0d6752e-9d12-4557-ad53-b1b2889f993a",
+        "zone_id": "9d4437cd-7218-481b-8c64-29f35814b73f",
+        "shelf_index": 4,
+        "label": "الخزين السفلي يسار",
+        "height_cm": 114,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T10:55:45.034125+00:00",
+        "pos": {
+          "top": 50.2178337797907,
+          "kind": "drawer",
+          "left": 0,
+          "width": 49.87535329267613,
+          "height": 49.7821662202093
+        },
+        "photo_url": null
+      },
+      {
+        "id": "46e598ab-da69-440b-9770-7366686aaa52",
+        "zone_id": "bc62db51-60a5-4d42-bcef-b9783c57ca9a",
+        "shelf_index": 17,
+        "label": null,
+        "height_cm": 35,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-06T12:29:03.818555+00:00",
+        "pos": {
+          "top": 84.9597454563137,
+          "kind": "shelf",
+          "left": 73.33227422943297,
+          "width": 26.66772577056703,
+          "height": 15.040254543686302,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 100
+            },
+            {
+              "x": 100,
+              "y": 100
+            },
+            {
+              "x": 94.9,
+              "y": 0
+            }
+          ]
+        },
+        "photo_url": null
+      },
+      {
+        "id": "d06404e3-58e6-4b7b-8e4c-a5d015c6250c",
+        "zone_id": "b6be0ec7-075e-4979-b505-a907b1bc5f8d",
+        "shelf_index": 1,
+        "label": null,
+        "height_cm": 44,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-08T14:48:16.24306+00:00",
+        "pos": {
+          "top": 0.4318794457173881,
+          "kind": "shelf",
+          "left": 0.12923062058303889,
+          "width": 99.87076937941696,
+          "height": 44.36592308736381
+        },
+        "photo_url": null
+      },
+      {
+        "id": "17305dcb-c6f0-4fc9-82dd-8d7a774c1026",
+        "zone_id": "b6be0ec7-075e-4979-b505-a907b1bc5f8d",
+        "shelf_index": 2,
+        "label": null,
+        "height_cm": 43,
+        "max_boxes": 4,
+        "deleted_at": null,
+        "created_at": "2026-07-08T14:48:20.377266+00:00",
+        "pos": {
+          "top": 44.53605588951156,
+          "kind": "shelf",
+          "left": 0.6527239077223204,
+          "width": 99.34727609227768,
+          "height": 43.31894370214958
+        },
+        "photo_url": null
       }
     ],
     "boxes": [
@@ -1257,27 +2409,6 @@
         "stack_index": 0
       },
       {
-        "id": "f25c8926-6806-4b69-b22a-4b04a4ffa21c",
-        "box_id": "08c39e8b-6d68-45fc-ba45-98ef46792a36",
-        "name": "سديري يحييك من الامام والخلف - الشكل الجديد",
-        "quantity": 34,
-        "status": "ok",
-        "created_at": "2026-06-15T07:09:07.319611+00:00",
-        "deleted_at": null,
-        "version": 1,
-        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781507332534-7zuhui.webp",
-        "zone_id": null,
-        "warehouse_id": null,
-        "tags": [],
-        "pos_top": null,
-        "pos_left": null,
-        "width_pct": 10,
-        "height_pct": 10,
-        "shelf_id": null,
-        "box_index": null,
-        "stack_index": 0
-      },
-      {
         "id": "e91f5eaa-4ecd-497b-9df5-63f59d216b66",
         "box_id": "9a4b9758-48fd-4c69-b3e5-b00554ce4d6c",
         "name": "كفرات عربية",
@@ -1539,6 +2670,27 @@
         "deleted_at": null,
         "version": 1,
         "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781616492772-tofq4u.webp",
+        "zone_id": null,
+        "warehouse_id": null,
+        "tags": [],
+        "pos_top": null,
+        "pos_left": null,
+        "width_pct": 10,
+        "height_pct": 10,
+        "shelf_id": null,
+        "box_index": null,
+        "stack_index": 0
+      },
+      {
+        "id": "f25c8926-6806-4b69-b22a-4b04a4ffa21c",
+        "box_id": "08c39e8b-6d68-45fc-ba45-98ef46792a36",
+        "name": "سديري يحييك من الامام والخلف - الشكل الجديد",
+        "quantity": 33,
+        "status": "ok",
+        "created_at": "2026-06-15T07:09:07.319611+00:00",
+        "deleted_at": null,
+        "version": 1,
+        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781507332534-7zuhui.webp",
         "zone_id": null,
         "warehouse_id": null,
         "tags": [],
@@ -2916,25 +4068,25 @@
         "stack_index": 0
       },
       {
-        "id": "3a7d7085-2487-45aa-9253-b9d65b504fab",
+        "id": "755f204a-8eca-4110-ba21-772e859ce511",
         "box_id": null,
-        "name": "ماطور ديزل",
-        "quantity": 1,
+        "name": "مكيفات صحراوية",
+        "quantity": 2,
         "status": "ok",
-        "created_at": "2026-06-17T11:13:09.675295+00:00",
+        "created_at": "2026-06-17T11:11:54.879871+00:00",
         "deleted_at": null,
         "version": 1,
-        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694785440-7e3mav.webp",
+        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694712826-fqunme.webp",
         "zone_id": null,
         "warehouse_id": "11111111-1111-1111-1111-111111111111",
         "tags": [],
-        "pos_top": 90.08333333333334,
-        "pos_left": 87.8125,
-        "width_pct": 6.965277777777778,
-        "height_pct": 7.605454340809589,
+        "pos_top": 70.41666666666667,
+        "pos_left": 89.59028717395726,
+        "width_pct": 6.618055555555555,
+        "height_pct": 9.63888888888889,
         "shelf_id": null,
         "box_index": null,
-        "stack_index": 0
+        "stack_index": 1
       },
       {
         "id": "cdb66f65-9678-4da7-a142-390873dc6b3f",
@@ -2958,6 +4110,27 @@
         "stack_index": 0
       },
       {
+        "id": "db48ea36-146b-4be0-af9a-5fee7d4cfe32",
+        "box_id": null,
+        "name": "مكيفات صحراوية",
+        "quantity": 2,
+        "status": "ok",
+        "created_at": "2026-06-17T11:11:43.061605+00:00",
+        "deleted_at": null,
+        "version": 1,
+        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694700774-10aowi.webp",
+        "zone_id": null,
+        "warehouse_id": "11111111-1111-1111-1111-111111111111",
+        "tags": [],
+        "pos_top": 80.52082707841224,
+        "pos_left": 89.96354166666666,
+        "width_pct": 6.444444444444445,
+        "height_pct": 8.666666666666668,
+        "shelf_id": null,
+        "box_index": null,
+        "stack_index": 1
+      },
+      {
         "id": "71fafe92-7759-47e8-8549-e63e87792216",
         "box_id": null,
         "name": "اقماع تنظيم",
@@ -2979,22 +4152,22 @@
         "stack_index": 0
       },
       {
-        "id": "2ee95bbb-0b77-4409-9efe-1e03ff8e40e0",
+        "id": "3a7d7085-2487-45aa-9253-b9d65b504fab",
         "box_id": null,
-        "name": "مكيفات صحراوية",
+        "name": "ماطور ديزل",
         "quantity": 1,
         "status": "ok",
-        "created_at": "2026-06-17T11:11:49.445491+00:00",
+        "created_at": "2026-06-17T11:13:09.675295+00:00",
         "deleted_at": null,
         "version": 1,
-        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694707143-hmpl18.webp",
+        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694785440-7e3mav.webp",
         "zone_id": null,
         "warehouse_id": "11111111-1111-1111-1111-111111111111",
         "tags": [],
-        "pos_top": 80.24429139270438,
-        "pos_left": 89.88553139700117,
-        "width_pct": 6.444444444444445,
-        "height_pct": 8.805555555555555,
+        "pos_top": 89.64930555555557,
+        "pos_left": 90.15625,
+        "width_pct": 6.965277777777778,
+        "height_pct": 7.605454340809589,
         "shelf_id": null,
         "box_index": null,
         "stack_index": 0
@@ -3042,27 +4215,6 @@
         "stack_index": 0
       },
       {
-        "id": "e79b68d8-8a3d-4aa6-b8c3-ea5c3a6c7773",
-        "box_id": null,
-        "name": "مكيفات صحراوية",
-        "quantity": 1,
-        "status": "ok",
-        "created_at": "2026-06-17T11:11:12.327349+00:00",
-        "deleted_at": null,
-        "version": 1,
-        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694678927-4t8mi3.webp",
-        "zone_id": null,
-        "warehouse_id": "11111111-1111-1111-1111-111111111111",
-        "tags": [],
-        "pos_top": 70.41666666666666,
-        "pos_left": 89.61805555555554,
-        "width_pct": 6.965277777777778,
-        "height_pct": 9.5,
-        "shelf_id": null,
-        "box_index": null,
-        "stack_index": 0
-      },
-      {
         "id": "bf4e298b-3d18-4d82-bf5e-bd4c2dfad46f",
         "box_id": null,
         "name": "عربية نقل",
@@ -3084,46 +4236,46 @@
         "stack_index": 0
       },
       {
-        "id": "db48ea36-146b-4be0-af9a-5fee7d4cfe32",
+        "id": "e79b68d8-8a3d-4aa6-b8c3-ea5c3a6c7773",
         "box_id": null,
         "name": "مكيفات صحراوية",
         "quantity": 1,
         "status": "ok",
-        "created_at": "2026-06-17T11:11:43.061605+00:00",
-        "deleted_at": null,
+        "created_at": "2026-06-17T11:11:12.327349+00:00",
+        "deleted_at": "2026-06-29T10:19:37.083+00:00",
         "version": 1,
-        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694700774-10aowi.webp",
+        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694678927-4t8mi3.webp",
         "zone_id": null,
         "warehouse_id": "11111111-1111-1111-1111-111111111111",
         "tags": [],
-        "pos_top": 80.34721596730112,
-        "pos_left": 82.54166666666666,
-        "width_pct": 6.444444444444445,
-        "height_pct": 8.666666666666668,
+        "pos_top": 70.41666666666666,
+        "pos_left": 89.61805555555554,
+        "width_pct": 6.965277777777778,
+        "height_pct": 9.5,
         "shelf_id": null,
         "box_index": null,
-        "stack_index": 0
+        "stack_index": 1
       },
       {
-        "id": "755f204a-8eca-4110-ba21-772e859ce511",
+        "id": "2ee95bbb-0b77-4409-9efe-1e03ff8e40e0",
         "box_id": null,
         "name": "مكيفات صحراوية",
         "quantity": 1,
         "status": "ok",
-        "created_at": "2026-06-17T11:11:54.879871+00:00",
-        "deleted_at": null,
+        "created_at": "2026-06-17T11:11:49.445491+00:00",
+        "deleted_at": "2026-06-29T10:19:39.777+00:00",
         "version": 1,
-        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694712826-fqunme.webp",
+        "photo_url": "https://grlucvdrgcdmdpevwkfm.supabase.co/storage/v1/object/public/sraj-photos/items/1781694707143-hmpl18.webp",
         "zone_id": null,
         "warehouse_id": "11111111-1111-1111-1111-111111111111",
         "tags": [],
-        "pos_top": 70.41666666666667,
-        "pos_left": 82.2986205072906,
-        "width_pct": 6.618055555555555,
-        "height_pct": 9.63888888888889,
+        "pos_top": 80.24429139270438,
+        "pos_left": 89.88553139700117,
+        "width_pct": 6.444444444444445,
+        "height_pct": 8.805555555555555,
         "shelf_id": null,
         "box_index": null,
-        "stack_index": 0
+        "stack_index": 1
       },
       {
         "id": "cb68cea2-3170-4231-8d18-c05d984f76f2",
@@ -3186,6 +4338,26 @@
         "damaged_at": "2026-06-16T13:24:14.838+00:00",
         "donated_at": null,
         "created_at": "2026-05-12T11:01:07.346641+00:00",
+        "deleted_at": null
+      },
+      {
+        "id": "2b35784d-7019-4511-bb94-c1d5e482586a",
+        "warehouse_id": "11111111-1111-1111-1111-111111111111",
+        "box_id": "08c39e8b-6d68-45fc-ba45-98ef46792a36",
+        "box_code": "C-3-4",
+        "item_id": "f25c8926-6806-4b69-b22a-4b04a4ffa21c",
+        "item_name": "سديري يحييك من الامام والخلف - الشكل الجديد",
+        "quantity": 1,
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "purpose": "personal",
+        "initiative": null,
+        "date_out": "2026-07-08",
+        "returned_at": null,
+        "returned_qty": null,
+        "damaged_at": null,
+        "donated_at": null,
+        "created_at": "2026-07-08T14:46:01.83535+00:00",
         "deleted_at": null
       }
     ],
@@ -4546,6 +5718,105 @@
         "target": "هبه محمد بخاري",
         "location": "—",
         "created_at": "2026-06-23T13:28:45.902655+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "cb4e4b30-8182-43a9-ae5e-c4ac584d3458",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-06-28T14:42:07.644679+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "ddf321a6-ab0d-4bf7-bdb7-2be0ae617383",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-06-28T15:03:54.041179+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "e5beb146-34c7-4963-a76d-4ea6d3f9c991",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-06-29T09:19:17.20413+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "a91c1676-a376-41dc-b451-a92b756d3550",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-07-06T08:45:03.926541+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "671f95eb-2b49-47e1-99ae-87a01cdbc673",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-07-06T12:03:42.529364+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "53316d9e-c85b-4b66-b0c1-41856f9dfc53",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "تعديل صلاحيات",
+        "target": "هبه محمد بخاري",
+        "location": "مستودع الجمعية",
+        "created_at": "2026-07-06T14:58:26.878897+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "81f01b0c-90cf-4113-89a2-ce1e61e471c5",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "تعديل صلاحيات",
+        "target": "محمد",
+        "location": "مستودع الجمعية",
+        "created_at": "2026-07-06T14:58:32.207441+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "b8a2a3db-0842-4ba3-8ca1-79f3f193655e",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "إخراج",
+        "target": "سديري يحييك من الامام والخلف - الشكل الجديد × 1 (شخصي)",
+        "location": "C-3-4",
+        "created_at": "2026-07-08T14:46:02.773097+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "41af5a02-a7fb-44b4-97dc-438cd012d141",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-07-12T11:05:51.032794+00:00",
         "target_type": null,
         "target_id": null
       }
