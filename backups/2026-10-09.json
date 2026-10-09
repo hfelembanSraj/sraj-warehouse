@@ -1,6 +1,6 @@
 {
   "project": "sraj-warehouse",
-  "timestamp": "2026-07-11T05:32:18.954Z",
+  "timestamp": "2026-10-09T09:48:30.573Z",
   "schema_version": 2,
   "tables": {
     "profiles": [
@@ -48,7 +48,7 @@
       {
         "id": "9e2bd1f3-dc82-437e-a47a-c28b5ff2af0e",
         "name": "مستودع الجمعية",
-        "description": "مستودع بمدرج تخزين على الجدار الأيسر — درجان × مساحتان = 4 مساحات",
+        "description": "مستودع الجمعية لكل الخزائن",
         "width_m": 6,
         "depth_m": 4,
         "height_m": 2.3,
@@ -5806,6 +5806,17 @@
         "target": "سديري يحييك من الامام والخلف - الشكل الجديد × 1 (شخصي)",
         "location": "C-3-4",
         "created_at": "2026-07-08T14:46:02.773097+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "41af5a02-a7fb-44b4-97dc-438cd012d141",
+        "user_id": "c55de58c-ff0f-41cd-9308-2d8c937f7742",
+        "user_name": "م. حسين فلمبان",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-07-12T11:05:51.032794+00:00",
         "target_type": null,
         "target_id": null
       }
