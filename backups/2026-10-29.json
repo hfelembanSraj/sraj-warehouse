@@ -1,6 +1,6 @@
 {
   "project": "sraj-warehouse",
-  "timestamp": "2026-07-31T05:56:10.057Z",
+  "timestamp": "2026-10-29T09:06:39.818Z",
   "schema_version": 2,
   "tables": {
     "profiles": [
@@ -5817,6 +5817,28 @@
         "target": "تسجيل دخول",
         "location": "—",
         "created_at": "2026-07-12T11:05:51.032794+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "845427c0-2eac-4de2-83e0-58533bb5bf9d",
+        "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
+        "user_name": "هبه محمد بخاري",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-10-26T18:41:23.495197+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "1276fa06-0e04-41c2-a0c4-3ea46b671c8f",
+        "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
+        "user_name": "هبه محمد بخاري",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-10-26T18:41:53.861546+00:00",
         "target_type": null,
         "target_id": null
       }
