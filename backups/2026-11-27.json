@@ -1,6 +1,6 @@
 {
   "project": "sraj-warehouse",
-  "timestamp": "2026-08-29T09:34:09.052Z",
+  "timestamp": "2026-11-27T11:35:24.520Z",
   "schema_version": 2,
   "tables": {
     "profiles": [
@@ -5817,6 +5817,61 @@
         "target": "تسجيل دخول",
         "location": "—",
         "created_at": "2026-07-12T11:05:51.032794+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "845427c0-2eac-4de2-83e0-58533bb5bf9d",
+        "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
+        "user_name": "هبه محمد بخاري",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-10-26T18:41:23.495197+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "1276fa06-0e04-41c2-a0c4-3ea46b671c8f",
+        "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
+        "user_name": "هبه محمد بخاري",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-10-26T18:41:53.861546+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "d44bb929-733e-4065-8764-b8f590ca0d6d",
+        "user_id": "3807eba5-de01-4bcb-b333-230ea04e710b",
+        "user_name": "محمد",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-11-15T07:31:10.138363+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "27d5c503-8f8f-47ef-9403-7c3ea8daae44",
+        "user_id": "3807eba5-de01-4bcb-b333-230ea04e710b",
+        "user_name": "محمد",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-11-15T07:33:46.017431+00:00",
+        "target_type": null,
+        "target_id": null
+      },
+      {
+        "id": "53e2501b-6ac6-4468-bba6-cfd5ddf3360f",
+        "user_id": "00af6c4a-8634-4c10-87cf-9fe3be5e5439",
+        "user_name": "هبه محمد بخاري",
+        "action": "دخول",
+        "target": "تسجيل دخول",
+        "location": "—",
+        "created_at": "2026-11-17T06:25:35.906956+00:00",
         "target_type": null,
         "target_id": null
       }
